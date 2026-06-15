@@ -4,9 +4,11 @@ Mobile-first, multi-lingual single-page app for the Camera-Avoiding Route Planne
 with **MapLibre GL JS** against **self-hosted vector tiles only** (no API keys, no third-party tiles)
 and talks to the Rails API under `/api/v1`. Localized from day one (i18next) and account-less by design.
 
-Key UI: an **avoidance-aggressiveness slider** (`best_attempt`/`completely_avoid`) that re-plans the trip
-live, the recommended route plus a dashed fastest-route comparison line, and a camera layer that snaps
-each camera to its road with a directional "vision cone" (or a 360° halo) and a localized details popup.
+Key UI: **always-maximal camera avoidance** (no slider — the planner always prefers a route past *no*
+camera, auto-falling back to the fewest-cameras route, never erroring), a prominent **`RouteNotice`**
+banner when the chosen route still passes within view of some cameras (`is_fully_clean: false`), the
+recommended route plus a dashed fastest-route comparison line, and a camera layer that snaps each camera
+to its road with a directional "vision cone" (or a 360° halo) and a localized details popup.
 
 ## Stack
 
@@ -71,10 +73,10 @@ E2E specs live under `tests/e2e/` and stub the API via `page.route` (no live geo
 
 ```
 src/
-├── components/   # MapView, RoutePanel, AddressAutocomplete, AvoidanceSlider, RouteResult,
+├── components/   # MapView, RoutePanel, AddressAutocomplete, RouteResult, RouteNotice,
 │                 # CameraLayer, CameraSummary, LanguageSwitcher, ExternalMapsHandoff
 ├── pages/        # PlanRoutePage
-├── services/     # apiClient, routeApi, geocodeApi, cameraApi (TanStack Query)
+├── services/     # apiClient, routeApi, geocodeApi, cameraApi, coverageApi (TanStack Query)
 ├── hooks/        # useGeolocation, useDebounce
 ├── i18n/         # i18next config + locales
 └── types/        # api.ts (curated) + openapi.d.ts (generated)

@@ -9,21 +9,22 @@ extract ([scripts/](scripts/)).
 > geocoding, and tiles all run locally/self-hosted, so a user's origin/destination/route is never sent
 > to a third party (FR-012a).
 
-## Deployment scope: a whole country (default US)
+## Deployment scope: start with a state, scale to a country
 
-A deployment covers an entire **country**, defaulting to the **United States** (FR-002). The configured
-country (`COUNTRY`, default `us`) drives the OSM extract, routing graph, vector tiles, geocoder index +
-whole-US TIGER house numbers, camera gathering, map framing, and coverage — all from
+**For local dev, build a single US state** — it's cheap and fast (a few hundred MB, ~25–30 min) and runs
+on a laptop. The setup wizard defaults to one (Iowa); see "Dev override" below.
+
+The full **production scope is an entire country, defaulting to the United States** (FR-002). The
+configured country (`COUNTRY`, default `us`) drives the OSM extract, routing graph, vector tiles,
+geocoder index + whole-US TIGER house numbers, camera gathering, map framing, and coverage — all from
 [`Geocoding::CountryRegistry`](../backend/app/services/geocoding/country_registry.rb) and its bash mirror
 [`scripts/country-registry.sh`](scripts/country-registry.sh). Only **US** is populated and validated at
 launch; an unknown / un-provisioned country **fails fast** with an actionable error (FR-009).
 
-> **Resource note:** a whole-US build is ~10+ GB of OSM plus the whole-US TIGER bundle (~1.8 GB) and a
-> long Nominatim import — run country builds on a larger/self-hosted machine, **not** a laptop or a
-> standard CI runner. See [docs/runbooks/geo-stack.md](../docs/runbooks/geo-stack.md).
-
-A single **US state** can still be built as an explicit **dev override** (cheaper, faster) — see
-"Dev override" below.
+> **Resource note:** a whole-US build is **far heavier** than a state — ~10+ GB of OSM plus the whole-US
+> TIGER bundle (~1.8 GB), **16 GB+ RAM**, ~25 GB disk, and a multi-hour Nominatim import. Run country
+> builds on a larger/self-hosted machine, **not** a laptop or a standard CI runner. See
+> [docs/runbooks/geo-stack.md](../docs/runbooks/geo-stack.md).
 
 ## Provision a country (one command)
 
@@ -108,9 +109,10 @@ geo data for a faster re-up), `--purge-region` (also drop `infra/.region`), and
 `infra/scripts/setup.sh`.
 
 **Nominatim first-run note:** on initial `up`, the geocoder runs a one-time OSM
-import that takes ~25–30 minutes for Iowa (persisted in the `nominatim_data` volume).
-Address search degrades gracefully during this time — routing still works. Watch
-progress with `docker compose -f infra/docker-compose.yml logs -f geocoder`.
+import (persisted in the `nominatim_data` volume) — **~25–30 minutes for a single state**
+(e.g. Iowa); a whole-US build takes **hours**. Address search degrades gracefully during
+this time — routing still works. Watch progress with
+`docker compose -f infra/docker-compose.yml logs -f geocoder`.
 
 The backend reaches each service by its compose hostname over the private network:
 `routing:8002`, `tileserver:8080`, `geocoder:8080` (env: `ROUTING_URL`, `VITE_TILES_PROXY`,
