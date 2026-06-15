@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Route } from "../types/api";
 import { decodePolyline } from "../lib/polyline";
@@ -37,9 +37,11 @@ export function RouteExport({ route }: Props) {
     wasConfirming.current = confirming;
   }, [confirming]);
 
-  // decodePolyline returns [lng, lat] pairs. A route needs at least two points to
-  // be a meaningful track; if geometry is missing, render nothing.
-  const coords = decodePolyline(route.geometry);
+  // decodePolyline returns [lng, lat] pairs. Memoized so toggling the warning
+  // open/closed doesn't re-decode the whole polyline each render. A route needs
+  // at least two points to be a meaningful track; if geometry is missing, render
+  // nothing.
+  const coords = useMemo(() => decodePolyline(route.geometry), [route.geometry]);
   if (coords.length < 2) return null;
 
   const download = () => {
@@ -48,8 +50,15 @@ export function RouteExport({ route }: Props) {
     const a = document.createElement("a");
     a.href = url;
     a.download = "flckd-route.gpx"; // neutral filename — no addresses/PII
+    // The anchor must be in the document for click() to trigger a download in
+    // some browsers (notably Firefox).
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    // Defer revocation: revoking synchronously right after click() can cancel the
+    // still-in-flight download in some browsers (Firefox/Safari) and race headless
+    // download capture. Release the URL on the next macrotask instead.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
     setConfirming(false);
   };
 

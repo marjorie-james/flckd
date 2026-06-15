@@ -8,11 +8,7 @@
 //
 // Built entirely client-side: the coordinates never leave the device except as
 // the file the user explicitly saves (see RouteExport's warning).
-
-const xmlEscape = (s: string): string =>
-  s.replace(/[<>&'"]/g, (c) =>
-    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c]!
-  );
+import { escapeHtml } from "./escapeHtml";
 
 // coords are [lng, lat] pairs (GeoJSON axis order, as decodePolyline returns).
 // name is a static label — no user input — but escaped defensively anyway.
@@ -24,7 +20,7 @@ export function buildGpx(coords: [number, number][], name = "flckd route"): stri
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="flckd" xmlns="http://www.topografix.com/GPX/1/1">
   <trk>
-    <name>${xmlEscape(name)}</name>
+    <name>${escapeHtml(name)}</name>
     <trkseg>
 ${pts}
     </trkseg>

@@ -85,11 +85,14 @@ describe("RouteExport", () => {
       expect(text).toContain("<gpx");
       expect(text).toContain("<trkpt ");
 
-      // The download anchor fired, the object URL was released, and crucially:
-      // nothing was sent anywhere.
+      // The download anchor fired and, crucially, nothing was sent anywhere.
       expect(clickSpy).toHaveBeenCalled();
-      expect(revokeSpy).toHaveBeenCalled();
       expect(fetchSpy).not.toHaveBeenCalled();
+
+      // The object URL is released on the next macrotask (deferred so the revoke
+      // can't cancel the in-flight download); flush it before asserting cleanup.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(revokeSpy).toHaveBeenCalled();
     });
   });
 });
