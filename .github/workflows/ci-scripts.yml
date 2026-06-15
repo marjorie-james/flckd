@@ -67,7 +67,11 @@ jobs:
             -v "${{ github.workspace }}:/code" \
             -w /code \
             bats/bats:1.11.0 \
-            test/infra/build-geocoder.bats
+            test/infra/build-geocoder.bats \
+            test/infra/fetch-extract.bats \
+            test/infra/setup.bats \
+            test/infra/country-registry.bats \
+            test/infra/build-geo.bats
 
   # Required branch-protection context. Always runs; passes unless the real
   # shellcheck job failed.

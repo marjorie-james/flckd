@@ -62,13 +62,16 @@ services:
       # Self-hosted geo services (private network names).
       ROUTING_URL: http://routing:8002
       GEOCODER_URL: http://geocoder:8080
-      # Restrict geocoder results to the loaded region.
-      # Format: min_lng,max_lat,max_lng,min_lat (Nominatim viewbox, left,top,right,bottom).
-      GEOCODER_VIEWBOX: "-96.7,43.6,-90.0,40.3"
-      # Single-state OSM extract has no state (admin_level 4) boundary, so a
-      # typed "..., Iowa" filters out house-number matches. The backend strips
-      # this state name (and any USPS abbreviation) from queries. Match .region.
-      GEOCODER_REGION_STATE: "Iowa"
+      # Geocoder scope — written by infra/scripts/setup.sh into infra/.env, which
+      # Compose interpolates here (absent .env → whole-country US, the FR-002
+      # default). GEOCODER_COUNTRY drives the country viewbox + map framing (entire
+      # country) and disambiguates by state. For a single-state dev build, setup.sh
+      # writes GEOCODER_REGION_STATE (legacy strip-and-fallback geocoding) and
+      # GEOCODER_VIEWBOX (the state's bbox, Nominatim min_lng,max_lat,max_lng,
+      # min_lat — also frames the map on that state).
+      GEOCODER_COUNTRY: "${GEOCODER_COUNTRY-us}"
+      GEOCODER_REGION_STATE: "${GEOCODER_REGION_STATE-}"
+      GEOCODER_VIEWBOX: "${GEOCODER_VIEWBOX-}"
     volumes:
       - ../backend:/app
       - bundle_cache:/usr/local/bundle
@@ -149,13 +152,20 @@ services:
       PBF_PATH: /nominatim/import/extract.osm.pbf
       NOMINATIM_PASSWORD: nominatim
       IMPORT_STYLE: address # addresses/places only — faster import for autocomplete
+      # osm2pgsql/Nominatim import threads. The import is the long pole of a
+      # whole-US build; set NOMINATIM_THREADS≈#cores on a big provisioning box.
+      # Defaults to 4 (modest dev). Pair with NOMINATIM_SHM below + fast NVMe —
+      # the Postgres import saturates disk IOPS before CPU.
+      THREADS: "${NOMINATIM_THREADS:-4}"
       # Import Wikipedia/Wikimedia importance so place ranking reflects real-world
       # prominence. Without it, importance falls back to admin rank, which ranks a
       # county above the city inside it (e.g. "Des Moines" the county outranks the
       # capital), pulling the wrong address to the top of autocomplete. The image
       # fetches the dump and applies it during the OSM import.
       IMPORT_WIKIPEDIA: "true"
-    shm_size: "1gb"         # Postgres needs shared memory for the import
+    # Postgres shared memory for the import. 1gb suits a single state; raise it
+    # (e.g. NOMINATIM_SHM=4gb) for a whole-US import.
+    shm_size: "${NOMINATIM_SHM:-1gb}"
     volumes:
       # Not :ro — the image's entrypoint chowns /nominatim and aborts on a
       # read-only mount. It only reads the pbf.

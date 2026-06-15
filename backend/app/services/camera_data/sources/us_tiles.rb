@@ -5,7 +5,13 @@ module CameraData
     # exceeds public Overpass server limits. Cell size is
     # configurable; smaller cells = more, lighter requests (research R2).
     module UsTiles
-      # Approximate continental-US (CONUS) bounds in WGS84 degrees.
+      # Approximate continental-US (CONUS) bounds in WGS84 degrees. This is the
+      # camera-ingestion grid for the configured country (FR-006) and matches the
+      # US entry in Geocoding::CountryRegistry's bbox.
+      #
+      # US-ONLY ASSUMPTION: CONUS is hardcoded to the United States. When a second
+      # country is provisioned, derive these bounds from the configured country's
+      # registry bbox (CountryRegistry.resolve.bbox) instead of this constant.
       CONUS = { south: 24.5, west: -125.0, north: 49.5, east: -66.9 }.freeze
       DEFAULT_CELL_DEG = 2.0
 

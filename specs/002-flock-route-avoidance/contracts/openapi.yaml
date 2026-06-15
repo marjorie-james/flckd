@@ -131,7 +131,12 @@ paths:
     get:
       tags: [meta]
       summary: Check camera-data coverage for a point
-      description: Tells the client whether avoidance is available and how fresh the data is (FR-018).
+      description: >
+        Whether the point falls in an ingested camera-data region and how fresh
+        that region's data is (FR-008). `covered` reflects camera-data PRESENCE
+        at the point (a data-region containing it), not merely being inside the
+        country; `data_freshness_at` is the containing region's own last-refresh
+        time, or null when absent.
       parameters:
         - name: lat
           in: query
@@ -148,10 +153,35 @@ paths:
             application/json:
               schema:
                 type: object
+                required: [covered, data_freshness_at]
                 properties:
                   covered: { type: boolean }
-                  area_name: { type: string, nullable: true }
                   data_freshness_at: { type: string, format: date-time, nullable: true }
+
+  /coverage/bounds:
+    get:
+      tags: [meta]
+      summary: Map-framing extent for the configured country
+      description: >
+        The configured country's extent (FR-007), sourced from the country
+        registry bbox — NOT the union of camera-data footprints — so the client
+        frames the whole country however sparse the data. `[[west, south],
+        [east, north]]` (lng/lat corners).
+      responses:
+        '200':
+          description: Country framing bounds
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [bounds]
+                properties:
+                  bounds:
+                    type: array
+                    nullable: true
+                    items:
+                      type: array
+                      items: { type: number }
 
   /meta/locales:
     get:

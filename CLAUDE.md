@@ -1,8 +1,17 @@
 <!-- SPECKIT START -->
-**Active feature**: [`010-responsive-layout`](specs/010-responsive-layout/plan.md)
-([spec](specs/010-responsive-layout/spec.md)) — replace the fixed 520px centered column with a
-full-width responsive layout (map-dominant two-pane on desktop, full-width stack on mobile);
-presentation-only, verified with Playwright across viewports + axe.
+**Active feature**: [`011-country-camera-mapping`](specs/011-country-camera-mapping/plan.md)
+([spec](specs/011-country-camera-mapping/spec.md)) — lift a deployment's scope from a single US
+state to an entire **country, defaulting to the US**: one operator-chosen country drives the OSM
+extract, routing graph, tiles, geocoder + whole-US TIGER, camera gathering, map framing, and
+per-data-region coverage. Country-generic config; US is the sole validated/supported target at
+launch (un-provisioned country fails fast). Provisioning is in scope via a one-command path.
+Key changes: remove the single-state geocoder workarounds, add `Geocoding::CountryRegistry`,
+reinterpret `CoverageArea` as per-data-region (freshness set per region), generalize the infra
+scripts. Anonymity + segment-exclusion unchanged.
+
+Prior feature: [`010-responsive-layout`](specs/010-responsive-layout/plan.md)
+([spec](specs/010-responsive-layout/spec.md)) — full-width responsive layout (map-dominant
+two-pane on desktop, full-width stack on mobile); presentation-only.
 
 ## Recent work (post-009, no separate spec dir)
 

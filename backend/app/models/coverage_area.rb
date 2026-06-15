@@ -1,6 +1,12 @@
-# A region where camera data exists and avoidance is meaningful (US launch: US).
-# Used to decide whether to advertise avoidance for a point and to surface
-# freshness/coverage warnings (FR-018).
+# An INGESTED camera-data region within the configured country: where camera
+# data is actually present, carrying its own freshness. Drives honest present /
+# absent / not-yet-gathered signalling (FR-008) — `covers?`/`containing` answer
+# "is there camera data here?", not "is this inside our country".
+#
+# Map framing is NOT derived from these rows; the whole-country extent comes from
+# Geocoding::CountryRegistry (see CoverageController#bounds), so a sparse data
+# footprint never shrinks the map (FR-007). Freshness is set per region as each
+# is refreshed (DataRefreshJob), never globally.
 class CoverageArea < ApplicationRecord
   include SpatialCoercion
 
@@ -9,7 +15,8 @@ class CoverageArea < ApplicationRecord
   validates :name, presence: true
   validates :region, presence: true
 
-  # Coverage areas that spatially contain the given lon/lat point.
+  # Data-regions that spatially contain the given lon/lat point (camera-data
+  # presence at the point).
   scope :containing, ->(lon, lat) {
     point = "SRID=4326;POINT(#{lon.to_f} #{lat.to_f})"
     where("ST_Contains(region, ST_GeomFromEWKT(?))", point)
@@ -17,19 +24,5 @@ class CoverageArea < ApplicationRecord
 
   def self.covers?(lon, lat)
     containing(lon, lat).exists?
-  end
-
-  # Bounding box enclosing every coverage region, as [[west, south], [east, north]]
-  # (lng/lat corners). Returns nil when no coverage exists. Lets the client frame
-  # the map on whatever region this deployment covers, with no hardcoded state —
-  # ST_Extent aggregates all rows into one box, NULL (→ nil) for an empty table.
-  def self.bounds
-    west, south, east, north = pick(Arel.sql(
-      "ST_XMin(ST_Extent(region)), ST_YMin(ST_Extent(region)), " \
-      "ST_XMax(ST_Extent(region)), ST_YMax(ST_Extent(region))"
-    ))
-    return nil if west.nil?
-
-    [ [ west, south ], [ east, north ] ]
   end
 end

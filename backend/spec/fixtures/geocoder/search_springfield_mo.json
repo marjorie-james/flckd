@@ -1,0 +1,18 @@
+[
+  {
+    "place_id": 222,
+    "name": "Springfield",
+    "display_name": "Springfield, Greene County, Missouri, United States",
+    "lat": "37.2089572",
+    "lon": "-93.2922989",
+    "type": "city",
+    "place_rank": 16,
+    "address": {
+      "city": "Springfield",
+      "county": "Greene County",
+      "state": "Missouri",
+      "country": "United States",
+      "country_code": "us"
+    }
+  }
+]

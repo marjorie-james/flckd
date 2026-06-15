@@ -107,4 +107,20 @@ RSpec.describe "POST /api/v1/routes", type: :request do
     expect(response).to have_http_status(:unprocessable_entity)
     expect(response.parsed_body["code"]).to eq("no_route")
   end
+
+  # At country scale a trip may cross state lines (FR-005). The planner just sees
+  # two in-country coordinates; this guards that a cross-state origin/destination
+  # is honored and routed (planner stubbed — no live routing engine).
+  it "honors a cross-state origin/destination (FR-005)" do
+    stub_planner_with(result_struct)
+
+    post "/api/v1/routes",
+         params: { route: { origin: { lat: 41.5868, lng: -93.6250 },       # Des Moines, IA
+                            destination: { lat: 39.0997, lng: -94.5786 },   # Kansas City, MO
+                            locale: "en" } },
+         as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body["geometry"]).to be_present
+  end
 end

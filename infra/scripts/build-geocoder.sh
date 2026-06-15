@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Download the US Census TIGER/Line address data — preprocessed for Nominatim —
-# and import the configured state's counties into the running geocoder for
+# and import the configured country's counties into the running geocoder for
 # house-number-level geocoding.
 #
 # Why the preprocessed bundle (not raw Census ADDR files)?
@@ -10,15 +10,19 @@
 #   ADDR product is address-range tables only (no geometry, no street names), so
 #   Nominatim publishes a preprocessed bundle that joins ADDR + EDGES +
 #   FEATNAMES. The bundle is split one CSV per county, named by 5-digit FIPS
-#   (SSCCC.csv) and sorted, so we extract only this state's counties to keep the
-#   geocoder database small.
+#   (SSCCC.csv) and sorted. For a whole-country build we keep ALL counties (the
+#   bundle is already whole-US) instead of filtering to a single state.
+#
+# TIGER is US-only (a US Census product). For a country whose registry marks
+# tiger:false, this script skips the import entirely and the geocoder relies on
+# OSM house numbers (FR-002, country registry).
 #
 # Anonymity note: downloads only public US Census / Nominatim data. All geocoding
 # continues to run on our own infrastructure — no user query is ever sent to a
 # third party (FR-012a).
 #
 # Prerequisites:
-#   1. Run infra/scripts/setup.sh to configure a state (writes infra/.region).
+#   1. Run infra/scripts/setup.sh to configure a country (writes infra/.region).
 #   2. The geocoder container must be running and its initial OSM import
 #      complete (first-run import takes ~20 min). Check health:
 #        docker compose -f infra/docker-compose.yml ps geocoder
@@ -26,21 +30,52 @@
 #
 # Usage: infra/scripts/build-geocoder.sh
 #
-# Output: infra/data/tiger/<state_fips>/<fips>.csv  (cached; re-running is fast)
+# Output: infra/data/tiger/<country>/<fips>.csv  (cached; re-running is fast)
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="${DIR}/../docker-compose.yml"
 
 # Load per-developer region config (written by infra/scripts/setup.sh).
-# Provides: REGION, REGION_LABEL, REGION_URL, STATE_FIPS.
-REGION_CONFIG="${DIR}/../.region"
-STATE_FIPS="19"     # default: Iowa
-REGION_LABEL="Iowa" # default label for messages
+# Provides: COUNTRY (country mode) and/or legacy REGION/REGION_LABEL/STATE_FIPS.
+# REGION_CONFIG is overridable so tests can isolate it from the repo's .region.
+REGION_CONFIG="${REGION_CONFIG:-${DIR}/../.region}"
 # shellcheck source=/dev/null
 [ -f "${REGION_CONFIG}" ] && source "${REGION_CONFIG}"
 
+# Resolve the configured country (default us) → COUNTRY_CODE / COUNTRY_NAME /
+# COUNTRY_TIGER. An unknown country fails fast (FR-009).
+# shellcheck source=/dev/null
+. "${DIR}/country-registry.sh"
+country_resolve "${COUNTRY:-us}" || exit 1
+
+# Whether the US Census TIGER import applies to this country. TIGER_APPLICABLE is
+# a test-only override (defaults to the registry's tiger flag).
+TIGER_APPLICABLE="${TIGER_APPLICABLE:-${COUNTRY_TIGER}}"
+if [ "${TIGER_APPLICABLE}" != "true" ]; then
+  echo "TIGER house-number import does not apply to ${COUNTRY_NAME} — skipping."
+  echo "  (Geocoding relies on OSM house numbers for this country.)"
+  exit 0
+fi
+
 YEAR="${YEAR:-2024}"
+
+# Scope of the TIGER import:
+#   * Whole-country build (default) → ALL counties (every SSCCC.csv).
+#   * Single-state DEV build → just that state's counties. Detected when .region
+#     carries STATE_FIPS but no COUNTRY (setup.sh's state-override path), so a
+#     dev state build doesn't import the whole ~1.8 GB / ~3,200-county bundle.
+if [ -n "${STATE_FIPS:-}" ] && [ -z "${COUNTRY:-}" ]; then
+  SCOPE_LABEL="${REGION_LABEL:-state ${STATE_FIPS}}"
+  SCOPE_DIR="${STATE_FIPS}"
+  MEMBER_REGEX="^${STATE_FIPS}[0-9]{3}\\.csv$"
+  SCOPE_DESC="state ${STATE_FIPS} counties"
+else
+  SCOPE_LABEL="${COUNTRY_NAME}"
+  SCOPE_DIR="${COUNTRY_CODE}"
+  MEMBER_REGEX='^[0-9]{5}\.csv$'
+  SCOPE_DESC="ALL counties"
+fi
 
 # Preprocessed-for-Nominatim TIGER bundle (one CSV per county, FIPS-named).
 # Override TIGER_BUNDLE_URL in tests to point at a local fixture.
@@ -54,44 +89,44 @@ TIGER_USER_AGENT="${TIGER_USER_AGENT:-flckd-setup (+https://github.com/marjorie-
 
 # TIGER_HOST_DIR can be pre-exported to override the default (used in tests).
 if [ -z "${TIGER_HOST_DIR:-}" ]; then
-  TIGER_HOST_DIR="${DIR}/../data/tiger/${STATE_FIPS}"
+  TIGER_HOST_DIR="${DIR}/../data/tiger/${SCOPE_DIR}"
 fi
 # infra/data/ is mounted at /nominatim/import/ inside the geocoder container
-# (per docker-compose.yml). State-scoped subdirectory avoids cross-state collisions.
-TIGER_CONTAINER_DIR="/nominatim/import/tiger/${STATE_FIPS}"
+# (per docker-compose.yml). Scope-scoped subdirectory avoids collisions.
+TIGER_CONTAINER_DIR="/nominatim/import/tiger/${SCOPE_DIR}"
 
 mkdir -p "${TIGER_HOST_DIR}"
 
-echo "Building TIGER/Line address data for: ${REGION_LABEL} (FIPS ${STATE_FIPS})"
+echo "Building TIGER/Line address data for: ${SCOPE_LABEL} (${SCOPE_DESC})"
 
 # ------------------------------------------------------------------
-# Step 1: Fetch this state's county CSVs (cached — fast on re-run)
+# Step 1: Fetch the in-scope county CSVs (cached — fast on re-run)
 # ------------------------------------------------------------------
-_count_state_csvs() {
-  find "${TIGER_HOST_DIR}" -maxdepth 1 -name "${STATE_FIPS}*.csv" 2>/dev/null | wc -l | tr -d ' '
+# A county CSV is FIPS-named (SSCCC.csv) — five digits. Count every one present.
+_count_county_csvs() {
+  find "${TIGER_HOST_DIR}" -maxdepth 1 -name '[0-9][0-9][0-9][0-9][0-9].csv' 2>/dev/null | wc -l | tr -d ' '
 }
 
-if [ "$(_count_state_csvs)" -gt 0 ]; then
-  echo "==> [1/2] Using $(_count_state_csvs) cached county CSV(s) in ${TIGER_HOST_DIR}"
+if [ "$(_count_county_csvs)" -gt 0 ]; then
+  echo "==> [1/2] Using $(_count_county_csvs) cached county CSV(s) in ${TIGER_HOST_DIR}"
 else
-  echo "==> [1/2] Downloading preprocessed TIGER ${YEAR} bundle and extracting ${REGION_LABEL} counties…"
-  echo "    The bundle is whole-US (~1.8 GB); only ${STATE_FIPS}*.csv is kept."
+  echo "==> [1/2] Downloading preprocessed TIGER ${YEAR} bundle and extracting ${SCOPE_DESC}…"
+  echo "    The bundle is whole-US (~1.8 GB); ${SCOPE_DESC} are kept."
   echo "    Re-runs use the cached CSVs and skip this step."
 
-  # Download to a temp file, then list-and-extract only this state's members by
-  # their exact names. The bundle members are flat, FIPS-named (SSCCC.csv). We
-  # avoid tar glob member-matching on purpose: GNU needs --wildcards, BSD globs
-  # by default, and busybox (the CI bats image) does not glob members at all —
-  # but all three extract a member given its exact name.
+  # Download to a temp file, then list-and-extract the in-scope members by exact
+  # name. The bundle members are flat, FIPS-named (SSCCC.csv). We avoid tar glob
+  # member-matching on purpose: GNU needs --wildcards, BSD globs by default, and
+  # busybox (the CI bats image) does not glob members at all — but all three
+  # extract a member given its exact name.
   BUNDLE_TMP="${TIGER_HOST_DIR}/.tiger-bundle.tar.gz"
   trap 'rm -f "${BUNDLE_TMP}"' EXIT
   curl -fsSL -A "${TIGER_USER_AGENT}" -o "${BUNDLE_TMP}" "${TIGER_BUNDLE_URL}"
 
-  members="$(tar tzf "${BUNDLE_TMP}" | grep -E "^${STATE_FIPS}[0-9]{3}\.csv$" || true)"
+  members="$(tar tzf "${BUNDLE_TMP}" | grep -E "${MEMBER_REGEX}" || true)"
   if [ -z "${members}" ]; then
-    echo "error: bundle contains no county CSVs for state FIPS ${STATE_FIPS} (${REGION_LABEL})." >&2
-    echo "  Check that infra/.region is configured correctly (infra/scripts/setup.sh)" >&2
-    echo "  and retry: infra/scripts/build-geocoder.sh" >&2
+    echo "error: bundle contains no county CSVs for ${SCOPE_LABEL} (${SCOPE_DESC})." >&2
+    echo "  Check TIGER_BUNDLE_URL / infra/.region and retry: infra/scripts/build-geocoder.sh" >&2
     exit 1
   fi
   # Word-split the newline-separated member list into exact-name extract args.
@@ -100,7 +135,17 @@ else
 
   rm -f "${BUNDLE_TMP}"
   trap - EXIT
-  echo "    Extracted $(_count_state_csvs) county CSV(s)."
+  echo "    Extracted $(_count_county_csvs) county CSV(s)."
+fi
+
+# DOWNLOAD_ONLY: stop after fetching/extracting the county CSVs (no geocoder, no
+# import). build-geo.sh runs this in the background, CONCURRENT with the long
+# Nominatim OSM import, so the ~1.8 GB TIGER download is off the critical path
+# (rate-safe: one sequential GET to nominatim.org, not parallel chunks). A later
+# full build-geocoder.sh run finds the CSVs cached and skips straight to import.
+if [ "${DOWNLOAD_ONLY:-0}" = "1" ]; then
+  echo "DOWNLOAD_ONLY: $(_count_county_csvs) county CSV(s) cached in ${TIGER_HOST_DIR} — skipping import."
+  exit 0
 fi
 
 # ------------------------------------------------------------------
@@ -142,8 +187,8 @@ docker compose -f "${COMPOSE_FILE}" exec -u nominatim -w /nominatim geocoder \
 #
 # The mediagis image sets the flag at container init only when
 # IMPORT_TIGER_ADDRESSES=true — which we deliberately do NOT use, because it
-# would download the whole-US bundle at first boot instead of our state-scoped
-# CSVs. So we set the flag ourselves, then regenerate both. All steps are
+# would download the whole-US bundle at first boot, racing our own controlled
+# import. So we set the flag ourselves, then regenerate both. All steps are
 # idempotent, so re-running the script (or running it against an
 # already-imported geocoder) safely repairs a database imported before they
 # existed.
@@ -205,5 +250,5 @@ else
 fi
 
 echo ""
-echo "House-number geocoding is now active for ${REGION_LABEL}."
+echo "House-number geocoding is now active for ${SCOPE_LABEL}."
 echo "County CSVs are cached in ${TIGER_HOST_DIR} — re-running this script is fast."
