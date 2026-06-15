@@ -129,18 +129,24 @@ class DataRefreshJob < ApplicationJob
 
   # Set data_freshness_at ONLY on the data-regions that overlap a tile that
   # actually refreshed (FR-008) — replacing the old global update_all, which
-  # would falsely freshen regions whose tiles never ran (or failed). The
-  # refreshed tiles are ST_Collect'd into one geometry and intersected against
-  # each region. `refreshed_bboxes` is the cursor's JSON-safe [s,w,n,e] arrays;
-  # values are our own numeric UsTiles cells (to_f makes the interpolation safe).
+  # would falsely freshen regions whose tiles never ran (or failed). The refreshed
+  # tiles are unioned into one MULTIPOLYGON and intersected against each region.
+  # `refreshed_bboxes` is the cursor's JSON-safe [s,w,n,e] arrays. The geometry is
+  # built in Ruby (numeric `to_f`) and passed as a single bound parameter, so the
+  # SQL string itself stays a static literal (no interpolation into SQL).
   def touch_data_region_freshness(refreshed_bboxes, at)
     return if refreshed_bboxes.blank?
 
-    envelopes = refreshed_bboxes.map do |south, west, north, east|
-      "ST_MakeEnvelope(#{west.to_f}, #{south.to_f}, #{east.to_f}, #{north.to_f}, 4326)"
+    rings = refreshed_bboxes.map do |south, west, north, east|
+      w = west.to_f
+      s = south.to_f
+      e = east.to_f
+      n = north.to_f
+      "((#{w} #{s}, #{e} #{s}, #{e} #{n}, #{w} #{n}, #{w} #{s}))"
     end
+    refreshed = "SRID=4326;MULTIPOLYGON(#{rings.join(', ')})"
     CoverageArea
-      .where("ST_Intersects(region, ST_Collect(ARRAY[#{envelopes.join(', ')}]))")
+      .where("ST_Intersects(region, ST_GeomFromEWKT(?))", refreshed)
       .update_all(data_freshness_at: at)
   end
 
