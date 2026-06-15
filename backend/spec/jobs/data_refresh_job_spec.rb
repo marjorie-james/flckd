@@ -70,6 +70,20 @@ RSpec.describe DataRefreshJob, type: :job do
     file&.unlink
   end
 
+  it "tiles camera ingestion across the configured country grid (US CONUS at launch) — FR-006" do
+    # The camera grid spans the whole country: CONUS matches the US registry bbox
+    # ([west, south, east, north]) and the live path fans out over many cells.
+    us = Geocoding::CountryRegistry.resolve("us").bbox
+    conus = CameraData::Sources::UsTiles::CONUS
+    expect([ conus[:west], conus[:south], conus[:east], conus[:north] ]).to eq(us)
+
+    cells = CameraData::Sources::UsTiles.cells
+    expect(cells.size).to be > 1 # not a single state — the whole country
+    expect(cells.map { |c| c[:west] }.min).to eq(conus[:west])
+    expect(cells.map { |c| c[:east] }.max).to eq(conus[:east])
+    expect(cells.map { |c| c[:north] }.max).to eq(conus[:north])
+  end
+
   it "honors CAMERA_OSM_SOURCE=overpass — tiles over UsTiles via the Overpass factory" do
     allow(CameraData).to receive(:osm_source).and_return("overpass")
     job = described_class.new
@@ -92,10 +106,39 @@ RSpec.describe DataRefreshJob, type: :job do
     expect(run.duration_ms).to be >= 0
   end
 
-  it "refreshes coverage freshness (no 002 regression)" do
-    area = create(:coverage_area, data_freshness_at: 2.days.ago)
+  it "refreshes the freshness of a data-region overlapping a refreshed tile (no 002 regression)" do
+    area = create(:coverage_area, data_freshness_at: 2.days.ago) # covers CONUS, overlaps the iowa tile
     run!
     expect(area.reload.data_freshness_at).to be_within(1.minute).of(Time.current)
+  end
+
+  it "sets data_freshness_at per data-region — not a global update_all (FR-008)" do
+    # Only the iowa tile is refreshed; the Iowa region's freshness updates while
+    # a non-overlapping Florida region stays stale (a global update_all would
+    # falsely freshen it).
+    iowa_region = create(:coverage_area,
+                         region: "SRID=4326;MULTIPOLYGON(((-96 40, -90 40, -90 43, -96 43, -96 40)))",
+                         data_freshness_at: 5.days.ago)
+    florida_region = create(:coverage_area,
+                            region: "SRID=4326;MULTIPOLYGON(((-83 25, -80 25, -80 31, -83 31, -83 25)))",
+                            data_freshness_at: 5.days.ago)
+
+    run! # tiles: [iowa]
+
+    expect(iowa_region.reload.data_freshness_at).to be_within(1.minute).of(Time.current)
+    expect(florida_region.reload.data_freshness_at).to be_within(1.second).of(5.days.ago)
+  end
+
+  it "leaves data-region freshness untouched when no tile succeeds (honest staleness)" do
+    iowa_region = create(:coverage_area,
+                         region: "SRID=4326;MULTIPOLYGON(((-96 40, -90 40, -90 43, -96 43, -96 40)))",
+                         data_freshness_at: 5.days.ago)
+    failing = ->(_bbox) { fake_source([]).tap { |s| allow(s).to receive(:fetch).and_raise(StandardError, "boom") } }
+    allow(Telemetry).to receive(:alert)
+
+    described_class.new.perform("aggregate", tiles: [ iowa ], source_factory: failing, road_lookup: nil)
+
+    expect(iowa_region.reload.data_freshness_at).to be_within(1.second).of(5.days.ago)
   end
 
   it "does not start while another run is in progress (FR-014)" do

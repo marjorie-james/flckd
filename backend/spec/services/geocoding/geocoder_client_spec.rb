@@ -181,6 +181,99 @@ RSpec.describe Geocoding::GeocoderClient do
     end
   end
 
+  # With a whole-country OSM index, Nominatim HAS state-level (admin_level 4)
+  # boundaries — so the single-state workarounds are not just unnecessary but
+  # harmful: stripping the state token would nullify the very thing that
+  # disambiguates same-named cities across states (FR-003/FR-004). A
+  # country-spanning client therefore keeps the state token AND uses the result's
+  # real addr["state"].
+  describe "#search country-spanning (whole-country index)" do
+    subject(:client) { described_class.new(base_url: base_url, country_spanning: true) }
+
+    def fixture(name) = Rails.root.join("spec/fixtures/geocoder/#{name}").read
+
+    it "does NOT strip a state token — the state disambiguates the query (FR-004)" do
+      stub = stub_request(:get, "#{base_url}/search")
+        .with(query: hash_including("q" => "Springfield, IL"))
+        .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+
+      client.search("Springfield, IL")
+      expect(stub).to have_been_requested
+    end
+
+    it "resolves same-named cities in different states to the correct state (FR-003)" do
+      stub_request(:get, "#{base_url}/search")
+        .with(query: hash_including("q" => "Springfield, IL"))
+        .to_return(status: 200, body: fixture("search_springfield_il.json"),
+                   headers: { "Content-Type" => "application/json" })
+      stub_request(:get, "#{base_url}/search")
+        .with(query: hash_including("q" => "Springfield, MO"))
+        .to_return(status: 200, body: fixture("search_springfield_mo.json"),
+                   headers: { "Content-Type" => "application/json" })
+
+      il = client.search("Springfield, IL").first
+      mo = client.search("Springfield, MO").first
+
+      expect(il[:label]).to eq("Springfield, IL")
+      expect(mo[:label]).to eq("Springfield, MO")
+      expect(il[:lat]).to be_within(0.01).of(39.799)
+      expect(mo[:lat]).to be_within(0.01).of(37.209)
+    end
+
+    it "labels with the result's real addr[\"state\"], not a configured fallback (FR-004)" do
+      house = {
+        "lat" => "39.78", "lon" => "-89.65", "type" => "house",
+        "address" => { "house_number" => "100", "road" => "Main St", "city" => "Springfield",
+                       "state" => "Illinois", "postcode" => "62701" }
+      }
+      stub_request(:get, "#{base_url}/search").with(query: hash_including("q" => "x"))
+        .to_return(status: 200, body: [ house ].to_json, headers: { "Content-Type" => "application/json" })
+
+      expect(client.search("x").first[:label]).to eq("100 Main St, Springfield, IL 62701")
+    end
+
+    it "applies the registry-derived viewbox as a bounded search (perf R7)" do
+      bounded = described_class.new(base_url: base_url, viewbox: "-125.0,49.5,-66.9,24.5", country_spanning: true)
+      stub = stub_request(:get, "#{base_url}/search")
+        .with(query: hash_including("viewbox" => "-125.0,49.5,-66.9,24.5", "bounded" => "1"))
+        .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+
+      bounded.search("Springfield, IL")
+      expect(stub).to have_been_requested
+    end
+  end
+
+  describe ".build" do
+    it "configures a country-spanning client from the registry by default (no region_state)" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("GEOCODER_REGION_STATE").and_return(nil)
+      allow(ENV).to receive(:[]).with("GEOCODER_COUNTRY").and_return(nil)
+      allow(ENV).to receive(:[]).with("GEOCODER_VIEWBOX").and_return(nil)
+
+      stub = stub_request(:get, %r{/search})
+        .with(query: hash_including("q" => "Springfield, IL",
+                                    "viewbox" => "-125.0,49.5,-66.9,24.5", "bounded" => "1"))
+        .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+
+      Geocoding::GeocoderClient.build.search("Springfield, IL")
+      expect(stub).to have_been_requested
+    end
+
+    it "honours an explicit single-region dev override (GEOCODER_REGION_STATE)" do
+      allow(ENV).to receive(:[]).and_call_original
+      allow(ENV).to receive(:[]).with("GEOCODER_REGION_STATE").and_return("Iowa")
+      allow(ENV).to receive(:[]).with("GEOCODER_VIEWBOX").and_return("-96.7,43.6,-90.0,40.3")
+
+      # Legacy single-region behaviour: the state token IS stripped.
+      stub = stub_request(:get, %r{/search})
+        .with(query: hash_including("q" => "Main St, Ames"))
+        .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+
+      Geocoding::GeocoderClient.build.search("Main St, Ames, IA")
+      expect(stub).to have_been_requested
+    end
+  end
+
   describe "#reverse" do
     it "maps a single reverse result" do
       stub_request(:get, "#{base_url}/reverse")

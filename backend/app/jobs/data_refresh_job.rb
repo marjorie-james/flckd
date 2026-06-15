@@ -62,7 +62,9 @@ class DataRefreshJob < ApplicationJob
           refresh.import_next(state)
           s.set!(state)
         end
-        finalize(run, refresh.finalize(state))
+        # state["ok"] = the [south, west, north, east] of the tiles that actually
+        # refreshed, so freshness is set per data-region (not a global update).
+        finalize(run, refresh.finalize(state), state["ok"])
       end
 
       run
@@ -99,7 +101,7 @@ class DataRefreshJob < ApplicationJob
   # crash-retry re-entering this step can't double-finalize — once the status is
   # no longer "running", this is a no-op. The whole thing is one transaction so a
   # crash mid-finalize rolls back and the retry redoes it cleanly.
-  def finalize(run, result)
+  def finalize(run, result, refreshed_bboxes = [])
     finalized = false
     ActiveRecord::Base.transaction do
       next unless run.reload.status == "running"
@@ -111,7 +113,7 @@ class DataRefreshJob < ApplicationJob
         per_source: result.per_source,
         totals: result.totals
       )
-      CoverageArea.update_all(data_freshness_at: Time.current)
+      touch_data_region_freshness(refreshed_bboxes, Time.current)
       finalized = true
     end
 
@@ -123,6 +125,29 @@ class DataRefreshJob < ApplicationJob
       "camera_data refresh finished status=#{result.status}",
       run_id: run.id, status: result.status, per_source: result.per_source
     )
+  end
+
+  # Set data_freshness_at ONLY on the data-regions that overlap a tile that
+  # actually refreshed (FR-008) — replacing the old global update_all, which
+  # would falsely freshen regions whose tiles never ran (or failed). The refreshed
+  # tiles are unioned into one MULTIPOLYGON and intersected against each region.
+  # `refreshed_bboxes` is the cursor's JSON-safe [s,w,n,e] arrays. The geometry is
+  # built in Ruby (numeric `to_f`) and passed as a single bound parameter, so the
+  # SQL string itself stays a static literal (no interpolation into SQL).
+  def touch_data_region_freshness(refreshed_bboxes, at)
+    return if refreshed_bboxes.blank?
+
+    rings = refreshed_bboxes.map do |south, west, north, east|
+      w = west.to_f
+      s = south.to_f
+      e = east.to_f
+      n = north.to_f
+      "((#{w} #{s}, #{e} #{s}, #{e} #{n}, #{w} #{n}, #{w} #{s}))"
+    end
+    refreshed = "SRID=4326;MULTIPOLYGON(#{rings.join(', ')})"
+    CoverageArea
+      .where("ST_Intersects(region, ST_GeomFromEWKT(?))", refreshed)
+      .update_all(data_freshness_at: at)
   end
 
   # Default (ADR 0002): read ALPR nodes from the prebuilt GeoJSON filtered out of

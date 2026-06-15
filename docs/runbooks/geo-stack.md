@@ -6,14 +6,20 @@ The geo data is built from a **public OpenStreetMap extract** by three scripts i
 `infra/scripts/`. Everything is rebuildable from public OSM; only the PostGIS
 `cameras` table needs backing up (see [backups.md](backups.md)).
 
-Launch region is **Iowa**. See also [infra/README.md](../../infra/README.md).
+A deployment covers a whole **country**, defaulting to the **US** (`COUNTRY`, default
+`us`). The canonical one-command provisioning path is
+[`infra/scripts/build-geo.sh`](../../infra/scripts/build-geo.sh) (country-aware;
+referenced throughout). See also [infra/README.md](../../infra/README.md).
 
 ## Build the data (in order)
 
-Heavy tooling runs in containers — no host toolchain needed.
+Heavy tooling runs in containers — no host toolchain needed. The one-command path
+is `infra/scripts/build-geo.sh` (default US; `GEO_ARTIFACTS_ONLY=1` for an
+artifact-only CI build). The individual steps:
 
 ```bash
-# 1. Download the OSM extract → infra/data/extract.osm.pbf (Iowa by default)
+# 1. Download the configured country's OSM extract → infra/data/extract.osm.pbf
+#    (COUNTRY=us → the whole-US Geofabrik PBF, ~10+ GB)
 infra/scripts/fetch-extract.sh
 
 # 2. Build the Valhalla routing graph → infra/routing/data
@@ -100,27 +106,50 @@ Notes & cautions:
 `infra/docker-compose.yml` so dev/prod and reruns are reproducible. To upgrade an
 image, change the digest deliberately — do not float to `:latest`.
 
-## Expanding coverage beyond Iowa
+## Switching the configured country
 
-Override the extract with `REGION_URL` (any Geofabrik `.osm.pbf`):
+Switching country is a config change + one provisioning run (no code changes, SC-004):
+
+```bash
+COUNTRY=<iso2> infra/scripts/build-geo.sh   # full provisioning incl. cameras + seed
+```
+
+The whole-country geocoder OSM import takes **hours**; `build-geo.sh` waits up to
+`GEO_GEOCODER_TIMEOUT` minutes (default 360) before importing TIGER — raise it on
+slow hardware. `build-geo.sh` **refuses** a leftover single-state `infra/.region`
+(it would mis-scope a state extract) — use `setup.sh --region <state>` for those.
+
+Only **US** is provisioned/validated at launch; an unknown country fails fast
+(FR-009). Adding a country = a populated record in
+[`Geocoding::CountryRegistry`](../../backend/app/services/geocoding/country_registry.rb)
+**and** its bash mirror
+[`infra/scripts/country-registry.sh`](../../infra/scripts/country-registry.sh),
+plus the provisioning run above. The map frames the country from the registry bbox
+(`/coverage/bounds`); `/coverage` reports honest present/absent/freshness per
+ingested data-region.
+
+### Dev override: a single US state
+
+For a cheaper local build, pick a state at the `setup.sh` prompt (default `IA`) or
+pass it explicitly — the wizard makes a single state turnkey:
+
+```bash
+infra/scripts/setup.sh --region CA   # single state; or --region US for the country
+```
+
+`setup.sh` writes `infra/.env` with `GEOCODER_REGION_STATE` + `GEOCODER_VIEWBOX`
+(the state's bbox), which `docker-compose` interpolates into the backend: the
+single-region geocoder behavior is enabled (a single-state extract lacks state
+boundaries) **and** the initial map frames that state. The TIGER import is narrowed
+to just that state. Selecting `US` writes `GEOCODER_COUNTRY=us` (whole-country
+geocoding + CONUS framing); absent `infra/.env`, the backend defaults to US (FR-002).
+
+You can also point the extract straight at any Geofabrik `.osm.pbf`:
 
 ```bash
 REGION_URL=https://download.geofabrik.de/north-america/us/illinois-latest.osm.pbf \
   infra/scripts/fetch-extract.sh
 ```
-
-For multiple states, fetch each and merge before building, or build per region:
-
-```bash
-osmium merge a.osm.pbf b.osm.pbf -o infra/data/extract.osm.pbf
-```
-
-Then **rebuild** the routing graph and tiles (steps 2–3) and **re-import**
-Nominatim (rebuild the `geocoder` service) from the new/merged extract. Also
-import camera data for the new states (`camera_data:import`) and seed a
-`CoverageArea` per state so the app reports where avoidance is supported (FR-018).
-The default `REGION_URL` lives in
-[infra/scripts/fetch-extract.sh](../../infra/scripts/fetch-extract.sh).
 
 ## When / why to rebuild
 
@@ -129,12 +158,91 @@ The default `REGION_URL` lives in
 - **Coverage change** — adding/removing a region (above).
 - **Image upgrade** — after bumping a pinned digest, rebuild to validate.
 
-## Resources
+## Parallelism & tuning (rate-safe)
 
-The whole US is ~10+ GB of OSM and needs **substantially more RAM/disk and build
-time** than a single state. Build full-US graphs/tiles on a beefy machine or in
-CI — **not a laptop**. A single-state extract builds in minutes at a few hundred
-MB.
+Both provisioning paths — `build-geo.sh` **and** the `setup.sh` wizard — overlap the
+heavy work so the multi-hour Nominatim import hides the rest, **without** leaning on
+any rate-limited service:
+
+- The geocoder **OSM import starts right after the extract download**, concurrent
+  with the routing + tiles build (which it dwarfs) — so routing/tiles (and, in the
+  wizard, the DB + camera steps) are effectively free wall-clock. The wizard's
+  "Geocoder OSM import" step then just waits out the tail, and its ETA already
+  credits the overlap.
+- The ~1.8 GB **TIGER bundle is prefetched in the background** during that import
+  (one sequential GET to nominatim.org — *not* parallel chunks), then the import
+  step finds it cached. `build-geocoder.sh DOWNLOAD_ONLY=1` is that primitive.
+  (`build-geo.sh` does this; the wizard fetches TIGER at its dedicated step.)
+- Routing (Valhalla) and tiles (Planetiler) already run in parallel.
+
+The expensive stages (Nominatim/TIGER import, Valhalla, Planetiler) are
+**compute-bound, not rate-limited** — scale them with hardware:
+
+| Knob | Applies to | Default | Notes |
+|------|-----------|---------|-------|
+| `NOMINATIM_THREADS` | geocoder import (osm2pgsql) | **all cores** | `setup.sh`/`build-geo.sh` set it from `nproc`/`hw.ncpu`; the long pole. (Bare `docker compose up` without the scripts falls back to 4.) |
+| `NOMINATIM_SHM` | geocoder Postgres `shm_size` | `1gb` | raise (e.g. `4gb`) for a whole-US import |
+| `GEO_BUILD_JOBS` | Valhalla + Planetiler | all cores | cap when sharing a box |
+| `PLANETILER_XMX` | tiles JVM heap | JVM default | e.g. `16g` for whole-US |
+| `GEO_GEOCODER_TIMEOUT` | import wait cap (min) | 360 | raise on slow hardware |
+
+The Postgres import saturates **disk IOPS** before CPU — fast NVMe matters more
+than extra threads past a point. The `setup.sh` wizard shows live **elapsed time +
+a rough ETA** per build (state ≈ tens of minutes, whole US ≈ hours).
+
+**Do not** parallelize the rate-limited surfaces: the Geofabrik extract is one
+bandwidth-bound download (single `curl --retry`); nominatim.org wants ≤2
+sequential GETs with the descriptive UA; and the public **Overpass** camera path
+throttles hard — which is why the default camera source is the **local PBF**
+(`osmium`, no API). Preview the orchestration with `GEO_PLAN_ONLY=1
+infra/scripts/build-geo.sh`.
+
+## Resources (whole-US envelope)
+
+A whole-country (US) build is the supported default and is **far heavier** than a
+single-state dev extract. Budget for it and run it on a larger/self-hosted machine
+— **not a laptop or a standard CI runner** (`build-geo.sh` calls this out, and the
+scheduled workflow's runner-sizing note below matches).
+
+| Artifact / step                         | Approx. envelope (whole US)              |
+|-----------------------------------------|------------------------------------------|
+| OSM extract (`us-latest.osm.pbf`)       | ~10+ GB download on disk                 |
+| Valhalla routing graph                  | several GB; RAM-hungry build             |
+| Vector tiles (Planetiler, JVM)          | several GB; needs multi-GB heap          |
+| Nominatim OSM import (geocoder)         | the long pole — **hours**; large Postgres volume |
+| Whole-US TIGER bundle + import          | ~1.8 GB bundle; all ~3,200 counties; **hours** |
+| Working RAM (concurrent services)       | **16 GB+ recommended** (Nominatim/Planetiler OOM below ~6 GB) |
+
+By contrast a single-state **dev override** extract builds in minutes at a few
+hundred MB. The dominant cost is **build-time provisioning** (above), not
+request-time — routing/tiles are pre-built and geocode/coverage are indexed
+lookups (perf budgets: spec SC-008).
+
+**Run country builds on a larger/self-hosted runner**, not a hosted GitHub runner
+or a laptop. The scheduled rebuild workflow publishes artifacts only
+(`GEO_ARTIFACTS_ONLY=1`); full provisioning (TIGER + seed + cameras) is the
+operator's `build-geo.sh` run on adequately-sized hardware.
+
+### SC-008 performance verification
+
+Budgets are frozen in spec **SC-008**; this records the verification (T032). The
+heavy cost is **build-time** (above), not request-time — country scale does not
+change the request-time shape: `/coverage/bounds` is a registry constant,
+`/coverage` is an indexed PostGIS containment, and `/geocode/search` is a
+viewbox-**bounded** search (research R7), so candidate sets stay small even on a
+whole-US index. Routing/tiles are pre-built.
+
+Dev-stack sanity (request-time, 15 samples each — well inside budget; re-run
+against the provisioned country stack to capture country-scale p95):
+
+| Path                | Budget (SC-008)     | Dev p50 |
+|---------------------|---------------------|---------|
+| `/coverage/bounds`  | p95 ≤ 150 ms        | ~9 ms   |
+| `/coverage` (point) | p95 ≤ 150 ms        | ~8 ms   |
+| `/geocode/search`   | p95 ≤ 600 ms        | ~15 ms  |
+
+Capture the country-scale numbers on the provisioned runner (whole-US Nominatim
+index) and confirm against the SC-008 p95 targets before declaring a country GA.
 
 ## Verify each service
 

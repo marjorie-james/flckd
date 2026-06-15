@@ -28,7 +28,13 @@ for arg in "$@"; do
 done
 if [ -n "${dest}" ]; then
   [ "${CURL_STUB_FAIL:-0}" = "1" ] && exit 22
-  cp "${TIGER_BUNDLE_FIXTURE}" "${dest}"
+  if [ -n "${TIGER_BUNDLE_FIXTURE:-}" ]; then
+    # build-geocoder.sh: deliver the preprocessed-TIGER bundle fixture.
+    cp "${TIGER_BUNDLE_FIXTURE}" "${dest}"
+  else
+    # fetch-extract.sh (and any other -o download): write a non-empty dummy file.
+    printf 'dummy-extract\n' > "${dest}"
+  fi
   exit 0
 fi
 

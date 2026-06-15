@@ -1,0 +1,11 @@
+# Code owners for flckd.
+#
+# With "Require review from Code Owners" enabled on protected branches, a code
+# owner must approve PRs that touch files they own. `*` makes @bruschill the
+# owner of everything.
+#
+# NOTE: GitHub does not let a PR author satisfy their own code-owner review. PRs
+# authored by @bruschill therefore need either a second reviewer or an admin
+# bypass to merge (`gh pr merge <n> --admin`). CODEOWNERS is read from the base
+# branch, so this takes effect for PRs opened after it lands on `main`.
+* @bruschill

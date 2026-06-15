@@ -70,4 +70,61 @@ RSpec.describe "Anonymity guarantees", type: :request do
     # There is no RouteRequest/Route table at all — routes are ephemeral.
     expect(ActiveRecord::Base.connection.tables).not_to include("routes", "route_requests")
   end
+
+  # The same anonymity guarantees must hold at country scale across every
+  # geographic path — geocode, coverage, and route (FR-011 / SC-006). Geocoding
+  # runs entirely on our self-hosted Nominatim (no third party ever sees a typed
+  # address); these guard that no coordinates or client IPs reach the logs.
+  describe "country-scaled geographic paths" do
+    def capture_log
+      io = StringIO.new
+      logger = ActiveSupport::TaggedLogging.new(Logger.new(io))
+      allow(Rails).to receive(:logger).and_return(logger)
+      yield
+      io.string
+    end
+
+    it "leaks no client IP or coordinates when geocoding across the country" do
+      base = ENV.fetch("GEOCODER_URL", "http://geocoder:8080")
+      stub_request(:get, "#{base}/search")
+        .with(query: hash_including("format" => "jsonv2"))
+        .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+
+      log = capture_log do
+        get "/api/v1/geocode/search", params: { q: "Springfield, IL" },
+                                      headers: { "REMOTE_ADDR" => "203.0.113.7" }
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(log).not_to include("203.0.113.7")
+      expect(log).not_to match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)
+    end
+
+    it "leaks no client IP when checking coverage at a country-scale point" do
+      create(:coverage_area)
+
+      log = capture_log do
+        get "/api/v1/coverage", params: { lat: 41.59, lng: -93.62 },
+                                headers: { "REMOTE_ADDR" => "198.51.100.9" }
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(log).not_to include("198.51.100.9")
+    end
+
+    it "sends a typed address only to our self-hosted geocoder, never a third party" do
+      base = ENV.fetch("GEOCODER_URL", "http://geocoder:8080")
+      stub = stub_request(:get, "#{base}/search")
+        .with(query: hash_including("format" => "jsonv2"))
+        .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+
+      # WebMock disallows real net connections in the suite, so any third-party
+      # egress would raise; the request resolving against our own geocoder host
+      # is the positive assertion of "self-hosted only".
+      get "/api/v1/geocode/search", params: { q: "1007 East Grand Avenue, Des Moines, IA" }
+
+      expect(stub).to have_been_requested
+      expect(%w[geocoder localhost 127.0.0.1]).to include(URI(base).host)
+    end
+  end
 end

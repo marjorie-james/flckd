@@ -1,0 +1,18 @@
+[
+  {
+    "place_id": 111,
+    "name": "Springfield",
+    "display_name": "Springfield, Sangamon County, Illinois, United States",
+    "lat": "39.7990175",
+    "lon": "-89.6439575",
+    "type": "city",
+    "place_rank": 16,
+    "address": {
+      "city": "Springfield",
+      "county": "Sangamon County",
+      "state": "Illinois",
+      "country": "United States",
+      "country_code": "us"
+    }
+  }
+]

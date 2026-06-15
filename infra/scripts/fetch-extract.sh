@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Fetch a US metro OSM extract for the self-hosted geo stack.
+# Fetch the configured country's whole-country OSM extract for the self-hosted
+# geo stack (default: the United States — the whole-US Geofabrik PBF).
 #
 # Anonymity note: this downloads PUBLIC map data only (no user data leaves this
 # machine). The extract feeds the routing graph, the geocoder index, and the
@@ -8,23 +9,35 @@
 # origin/destination/route is never sent to a third party (FR-012a).
 #
 # Usage:
-#   infra/scripts/fetch-extract.sh                  # default: Iowa (launch region)
+#   infra/scripts/fetch-extract.sh                  # default: the whole US
+#   COUNTRY=us infra/scripts/fetch-extract.sh        # explicit country
 #   REGION_URL=https://download.geofabrik.de/north-america/us/california-latest.osm.pbf \
-#     infra/scripts/fetch-extract.sh
+#     infra/scripts/fetch-extract.sh                 # explicit override (dev: a sub-region)
 #
-# Iowa is the initial launch region. To expand coverage to more states, fetch
-# each state's extract and rebuild the graph/tiles/geocoder — see infra/README.md
-# ("Expanding coverage to more states").
+# The country drives the default extract URL via the country registry
+# (country-registry.sh); an unknown / un-provisioned country fails fast (FR-009).
+# REGION_URL stays as an explicit override for a cheaper dev sub-region build.
 #
 set -euo pipefail
 
 # Load per-developer region config written by infra/scripts/setup.sh (if present).
+# REGION_CONFIG is overridable (tests point it elsewhere); explicit COUNTRY /
+# REGION_URL in the environment still win because .region (country mode) carries
+# only COUNTRY, not a clobbering REGION_URL.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REGION_CONFIG="${SCRIPT_DIR}/../.region"
+REGION_CONFIG="${REGION_CONFIG:-${SCRIPT_DIR}/../.region}"
 # shellcheck source=/dev/null
 [ -f "${REGION_CONFIG}" ] && source "${REGION_CONFIG}"
 
-REGION_URL="${REGION_URL:-https://download.geofabrik.de/north-america/us/iowa-latest.osm.pbf}"
+# Resolve the configured country (default us) to its whole-country extract URL.
+# Validates the country first, so an unknown code fails even when REGION_URL is
+# set (the override only redirects WHERE we download, not WHETHER the country is
+# supported).
+# shellcheck source=/dev/null
+. "${SCRIPT_DIR}/country-registry.sh"
+country_resolve "${COUNTRY:-us}" || exit 1
+
+REGION_URL="${REGION_URL:-${COUNTRY_EXTRACT_URL}}"
 DATA_DIR="${DATA_DIR:-$(cd "$(dirname "$0")/.." && pwd)/data}"
 EXTRACT_PATH="${DATA_DIR}/extract.osm.pbf"
 

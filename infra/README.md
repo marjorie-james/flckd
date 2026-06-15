@@ -9,17 +9,46 @@ extract ([scripts/](scripts/)).
 > geocoding, and tiles all run locally/self-hosted, so a user's origin/destination/route is never sent
 > to a third party (FR-012a).
 
-## Launch region: Iowa
+## Deployment scope: a whole country (default US)
 
-The initial launch region is **Iowa**. The build scripts default to the Iowa extract from Geofabrik.
-A single-state metro extract keeps local builds fast (minutes, a few hundred MB) versus the whole US.
+A deployment covers an entire **country**, defaulting to the **United States** (FR-002). The configured
+country (`COUNTRY`, default `us`) drives the OSM extract, routing graph, vector tiles, geocoder index +
+whole-US TIGER house numbers, camera gathering, map framing, and coverage — all from
+[`Geocoding::CountryRegistry`](../backend/app/services/geocoding/country_registry.rb) and its bash mirror
+[`scripts/country-registry.sh`](scripts/country-registry.sh). Only **US** is populated and validated at
+launch; an unknown / un-provisioned country **fails fast** with an actionable error (FR-009).
 
-## Build the geo data
+> **Resource note:** a whole-US build is ~10+ GB of OSM plus the whole-US TIGER bundle (~1.8 GB) and a
+> long Nominatim import — run country builds on a larger/self-hosted machine, **not** a laptop or a
+> standard CI runner. See [docs/runbooks/geo-stack.md](../docs/runbooks/geo-stack.md).
+
+A single **US state** can still be built as an explicit **dev override** (cheaper, faster) — see
+"Dev override" below.
+
+## Provision a country (one command)
+
+The canonical, country-aware one-command provisioning path is
+[`scripts/build-geo.sh`](scripts/build-geo.sh) (FR-013). It fetches the country extract, builds routing
++ tiles, runs TIGER, seeds the data-region, imports cameras, and writes the manifest:
+
+```bash
+infra/scripts/build-geo.sh                 # full provisioning, whole US (default)
+COUNTRY=us infra/scripts/build-geo.sh      # explicit country
+```
+
+`infra/scripts/setup.sh` is the interactive wrapper (prompts + progress panel). At its prompt you can
+enter a **2-letter state** *or* **`US`** for the whole country — it **defaults to `IA`** (Iowa: a cheap,
+fast dev build). It writes `infra/.region` and `infra/.env` (the latter selects the backend's
+country-vs-state geocoder scope + map framing, turnkey — see "Dev override" below). For CI/artifact-only
+builds (extract + routing + tiles + manifest, no services), set `GEO_ARTIFACTS_ONLY=1`.
+
+### Individual steps
 
 All heavy tooling runs in containers — no host toolchain needed (local dev is Docker-only).
 
 ```bash
-# 1. Download the Iowa OSM extract → infra/data/extract.osm.pbf
+# 1. Download the configured country's OSM extract → infra/data/extract.osm.pbf
+#    (COUNTRY=us → the whole-US Geofabrik PBF)
 infra/scripts/fetch-extract.sh
 
 # 2. Build the Valhalla routing graph → infra/routing/data
@@ -180,23 +209,42 @@ detected and skipped; only missing files are fetched). HTTP 429 / 5xx responses 
 exponential backoff with jitter, up to 4 attempts per file. Lower `MAX_PARALLEL_DOWNLOADS` in the
 script if you see persistent rate-limit errors.
 
-## Expanding coverage to more states
+## Switching the configured country
 
-Iowa is just the launch region. To add more states (and eventually national coverage):
+Switching country is a **configuration change plus one provisioning run** — no code changes (SC-004):
 
-1. **Pick the extents.** Fetch each additional state extract from Geofabrik, e.g.
-   `REGION_URL=https://download.geofabrik.de/north-america/us/illinois-latest.osm.pbf infra/scripts/fetch-extract.sh`.
-   For multiple states, either build each separately or merge the `.osm.pbf` files first
-   (`osmium merge a.osm.pbf b.osm.pbf -o extract.osm.pbf`) and build once.
-2. **Rebuild** the routing graph and tiles from the new/merged extract (steps 2–3 above). Valhalla and
-   Planetiler scale to multi-state and full-US inputs given enough RAM/disk and time.
-3. **Geocoder:** re-import Nominatim for the new/merged extract (rebuild the `geocoder` service).
-4. **Camera data + coverage:** import camera data for the new states (`camera_data:import`) and add a
-   `CoverageArea` per state so the app reports where avoidance is supported (FR-018). The app already
-   degrades gracefully outside coverage (`coverage_warning: outside_coverage`).
-5. **Resources:** the whole US is ~10+ GB of OSM and needs substantially more RAM/disk and build time
-   than a single state — plan to build graphs/tiles on a beefier machine or in CI, not a laptop.
+```bash
+COUNTRY=<iso2> infra/scripts/build-geo.sh   # full provisioning incl. cameras + seed (FR-012/013)
+```
 
-When the launch set grows beyond Iowa, update the default `REGION_URL` in
-[scripts/fetch-extract.sh](scripts/fetch-extract.sh) (or document the per-region build) and seed the
-matching `CoverageArea` rows.
+Only **US** is populated and validated at launch. Adding a country means: (1) add a populated record to
+[`Geocoding::CountryRegistry`](../backend/app/services/geocoding/country_registry.rb) **and** its bash
+mirror [`scripts/country-registry.sh`](scripts/country-registry.sh) (extract URL, bbox, whether TIGER
+applies), and (2) provision its data with the command above. Until both exist, that country code fails
+setup fast (FR-009) — it is never silently swapped for another country.
+
+`build-geo.sh` seeds the country's data-region and frames the whole country from the registry bbox
+(`/coverage/bounds`), so the map frames the country however sparse the camera footprint. `/coverage`
+then reports honest present / absent / freshness **per ingested data-region** (FR-007/FR-008).
+
+## Dev override: a single US state
+
+For a cheaper, faster local build, pick a single US **state** at the `setup.sh` prompt (the default is
+`IA`), or pass it explicitly:
+
+```bash
+infra/scripts/setup.sh --region CA          # single-state dev scope
+infra/scripts/setup.sh --region US          # or the whole country, from the same wizard
+infra/scripts/setup.sh                       # interactive; defaults to IA
+```
+
+Selecting a state is **turnkey**: `setup.sh` writes `infra/.env` with `GEOCODER_REGION_STATE` (the
+state) and `GEOCODER_VIEWBOX` (the state's bbox), which `docker-compose` interpolates into the backend.
+That:
+- runs the legacy single-region geocoder behavior (strips the state token, fills the `…, IA` label
+  fallback) — needed because a single-state extract lacks state-level admin boundaries; and
+- **frames the initial map on that state** (`/coverage/bounds` returns the state's extent).
+
+Selecting `US` writes `GEOCODER_COUNTRY=us` instead, so the geocoder disambiguates by state and the map
+frames the **entire continental US**. Absent `infra/.env`, the backend defaults to whole-country US
+(FR-002). The single-state TIGER import is narrowed to just that state (not the whole-US bundle).

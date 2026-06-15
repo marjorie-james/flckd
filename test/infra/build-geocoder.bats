@@ -18,17 +18,20 @@ setup() {
   export BATS_TEST_TMPDIR
   BATS_TEST_TMPDIR="$(mktemp -d)"
 
+  # Isolate from the repo's real infra/.region (legacy single-state config).
+  export REGION_CONFIG="${BATS_TEST_TMPDIR}/.region"
+
   # The script writes/reads this state's county CSVs here
   export TIGER_HOST_DIR="${BATS_TEST_TMPDIR}/tiger"
   mkdir -p "${TIGER_HOST_DIR}"
 
-  # Default region config (build-geocoder.sh reads these)
-  export STATE_FIPS=19
+  # Default config: the US country build (all counties, TIGER applies).
+  export COUNTRY=us
   export YEAR=2024
-  export REGION_LABEL="TestState"
 
-  # Build a tiny preprocessed-bundle fixture containing one in-state county
-  # (19001) and one out-of-state county (20001), to prove the FIPS filter.
+  # Build a tiny preprocessed-bundle fixture with counties across TWO state FIPS
+  # (19001 = Iowa, 20001 = Kansas), to prove a whole-country build keeps ALL
+  # counties across multiple FIPS rather than a single state's.
   local fix="${BATS_TEST_TMPDIR}/fixsrc"
   mkdir -p "${fix}"
   printf 'segment,data\n' > "${fix}/19001.csv"
@@ -47,16 +50,16 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# US1 — Fresh setup: download bundle, extract only this state, import
+# US1 — Whole-country setup: download bundle, extract ALL counties, import
 # ---------------------------------------------------------------------------
 
-@test "bundle_download_extracts_only_state_csvs_then_imports" {
+@test "bundle_download_extracts_all_counties_across_fips_then_imports" {
   run bash "${SCRIPT}"
   assert_success
 
-  # In-state county extracted; out-of-state county filtered out by FIPS
+  # ALL counties kept — across BOTH state FIPS (19xxx and 20xxx), not one state.
   assert [ -f "${TIGER_HOST_DIR}/19001.csv" ]
-  assert [ ! -f "${TIGER_HOST_DIR}/20001.csv" ]
+  assert [ -f "${TIGER_HOST_DIR}/20001.csv" ]
 
   # The streamed bundle temp file is cleaned up
   assert [ ! -f "${TIGER_HOST_DIR}/.tiger-bundle.tar.gz" ]
@@ -158,4 +161,92 @@ teardown() {
     run grep -q "nominatim add-data" "${BATS_TEST_TMPDIR}/docker_calls"
     assert_failure
   fi
+}
+
+# ---------------------------------------------------------------------------
+# US1 — tiger:false country: skip the TIGER import entirely (no download/import)
+# ---------------------------------------------------------------------------
+
+@test "tiger_false_country_skips_the_whole_import" {
+  # Simulate a country whose registry marks tiger:false (none exist at launch,
+  # so use the documented test override).
+  export TIGER_APPLICABLE=false
+
+  run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "does not apply"
+
+  # No download and no import were attempted.
+  assert [ ! -f "${BATS_TEST_TMPDIR}/curl_calls" ]
+  if [ -f "${BATS_TEST_TMPDIR}/docker_calls" ]; then
+    run grep -q "nominatim add-data" "${BATS_TEST_TMPDIR}/docker_calls"
+    assert_failure
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# US1 — fail fast on an unknown / un-provisioned country (FR-009)
+# ---------------------------------------------------------------------------
+
+@test "unknown_country_fails_fast_before_any_import" {
+  export COUNTRY=zz
+
+  run bash "${SCRIPT}"
+  assert_failure
+  assert_output --partial "unknown or un-provisioned country"
+  assert [ ! -f "${BATS_TEST_TMPDIR}/curl_calls" ]
+}
+
+# ---------------------------------------------------------------------------
+# Dev override — a single-state build (STATE_FIPS set, COUNTRY unset) narrows
+# TIGER to just that state, not the whole-US ~3,200-county bundle.
+# ---------------------------------------------------------------------------
+
+@test "single_state_dev_build_extracts_only_that_states_counties" {
+  unset COUNTRY
+  export STATE_FIPS=19
+  export REGION_LABEL="Iowa"
+
+  run bash "${SCRIPT}"
+  assert_success
+
+  # Only the in-state county (19001) is kept; the out-of-state one (20001) is not.
+  assert [ -f "${TIGER_HOST_DIR}/19001.csv" ]
+  assert [ ! -f "${TIGER_HOST_DIR}/20001.csv" ]
+}
+
+# ---------------------------------------------------------------------------
+# DOWNLOAD_ONLY — the prefetch primitive build-geo.sh runs in the background:
+# fetch + extract the CSVs, then STOP (no geocoder health check, no import).
+# ---------------------------------------------------------------------------
+
+@test "download_only_caches_csvs_and_skips_the_import" {
+  export DOWNLOAD_ONLY=1
+
+  run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "DOWNLOAD_ONLY"
+
+  # Country (us) → all counties downloaded and cached…
+  assert [ -f "${TIGER_HOST_DIR}/19001.csv" ]
+  assert [ -f "${TIGER_HOST_DIR}/20001.csv" ]
+
+  # …but NO import was attempted, and the geocoder health check never ran.
+  if [ -f "${BATS_TEST_TMPDIR}/docker_calls" ]; then
+    run grep -q "nominatim add-data" "${BATS_TEST_TMPDIR}/docker_calls"
+    assert_failure
+  fi
+  if [ -f "${BATS_TEST_TMPDIR}/curl_calls" ]; then
+    run grep -q "status.php" "${BATS_TEST_TMPDIR}/curl_calls"
+    assert_failure
+  fi
+}
+
+@test "download_only_skips_when_country_has_no_tiger" {
+  export DOWNLOAD_ONLY=1 TIGER_APPLICABLE=false
+
+  run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "does not apply"
+  assert [ ! -f "${BATS_TEST_TMPDIR}/curl_calls" ]
 }
