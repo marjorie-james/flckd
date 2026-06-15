@@ -62,6 +62,13 @@ see `infra/README.md`). So today the camera table can contain cameras in regions
 we have **no routing graph for** — and a camera we can't route around is
 inert reference data.
 
+> **Update — superseded in part by feature `011-country-camera-mapping`:** deployment
+> scope was later lifted from a single state to a whole **country (default US)**, so a
+> production build serves the whole country rather than one launch region. The
+> coverage-coupling insight below still holds — cameras are ingested from the same
+> extract that builds the routing graph — only the per-deployment scope changed; coverage
+> is now reported per data-region.
+
 Deriving cameras from the same extract that builds the routing graph **couples
 camera coverage to served coverage**: we ingest exactly the cameras in the
 regions we can actually plan avoidance routes through. That coupling is the

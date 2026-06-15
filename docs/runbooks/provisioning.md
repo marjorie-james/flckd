@@ -123,7 +123,7 @@ curl -fsS "https://${API_DOMAIN}/api/v1/health"      # expect {"status":"ok"...}
 curl -fsS "https://${API_DOMAIN}/api/v1/routes" -H 'Content-Type: application/json' \
   -d '{"route":{"origin":{"lat":41.5868,"lng":-93.6250},
        "destination":{"lat":41.6611,"lng":-91.5302},
-       "aggressiveness":"completely_avoid","locale":"en"}}'
+       "locale":"en"}}'
 ```
 
 ## 7. Finding the accessory data paths (for the `*_DATA_PATH` vars)
