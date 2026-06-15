@@ -13,9 +13,19 @@ self-hosted vector tiles) so user route data stays on our own infrastructure.
 
 ## TL;DR — get it running
 
-You only need **[Docker Desktop](https://docs.docker.com/get-docker/)** (give it
-≥ 6 GB memory and ~10 GB free disk), **git**, and **curl**. Everything else runs in
-containers — no Ruby, Node, or Postgres to install.
+A deployment covers an entire **country, defaulting to the United States** — and a
+whole-US build is **heavy**: budget **16 GB+ RAM**, **~25 GB free disk** (~10+ GB OSM
+extract + ~1.8 GB TIGER bundle + Postgres/Nominatim volumes), and a **multi-hour,
+mostly-unattended** build (the Nominatim geocoder import is the long pole — *hours*).
+Run it on a larger/self-hosted machine, **not** a laptop or a standard CI runner.
+
+> **Just kicking the tires?** Build a single **US state** instead (`--region IA`, the
+> default at the prompt): a few hundred MB, **~25–30 min**, and it runs fine on a laptop
+> with **≥ 6 GB RAM / ~10 GB disk**. See [Quick start](#quick-start-local) below.
+
+You only need **[Docker Desktop](https://docs.docker.com/get-docker/)** (sized per the
+target above), **git**, and **curl**. Everything else runs in containers — no Ruby,
+Node, or Postgres to install.
 
 1. **Get the code:**
 
@@ -24,8 +34,9 @@ containers — no Ruby, Node, or Postgres to install.
    cd flckd
    ```
 
-2. **Run the one-time setup wizard** (downloads map data and starts everything;
-   takes ~25–30 min, mostly unattended). Run it from the repo root:
+2. **Run the one-time setup wizard** (downloads map data and starts everything). Run it
+   from the repo root. At its prompt enter **`US`** for the whole country (*hours*) or a
+   **2-letter state** for a fast dev build (it defaults to **`IA`**):
 
    | OS | Command |
    |---|---|
@@ -85,10 +96,19 @@ Everything runs in Docker — you do **not** need to install Ruby, Node, pnpm, o
 PostgreSQL on your machine. The versions in the Stack table above are
 informational (they're what the containers use). All you need on the host is:
 
-- **[Docker Desktop](https://docs.docker.com/get-docker/)** (Compose v2), configured
-  with **≥ 6 GB of memory** and **~10 GB of free disk**. The first-run geo build runs
-  Nominatim, Planetiler, Valhalla, and Postgres at once; below ~6 GB one of them gets
-  OOM-killed mid-import. Raise it in *Docker Desktop → Settings → Resources → Memory*.
+- **[Docker Desktop](https://docs.docker.com/get-docker/)** (Compose v2), sized for your
+  target. The first-run geo build runs Nominatim, Planetiler, Valhalla, and Postgres at
+  once; below ~6 GB one of them gets OOM-killed mid-import. Raise it in *Docker Desktop →
+  Settings → Resources → Memory*.
+
+  | Target | Memory | Free disk | Build time |
+  |---|---|---|---|
+  | **Whole US** (default) | **16 GB+** | **~25 GB** (~10+ GB OSM + ~1.8 GB TIGER + volumes) | **hours** (Nominatim import is the long pole) |
+  | **Single state** (dev override) | ≥ 6 GB | ~10 GB | ~25–30 min |
+
+  A whole-US build belongs on a larger/self-hosted machine, not a laptop or a standard
+  CI runner. See [docs/runbooks/geo-stack.md](docs/runbooks/geo-stack.md) for the full
+  resource envelope and tuning knobs (`NOMINATIM_SHM`, `PLANETILER_XMX`, `GEO_GEOCODER_TIMEOUT`).
 - **git** and **curl** (both ship with macOS; on Linux install via your package manager).
 - **Windows:** run everything inside **WSL2** (the setup script is bash).
 
@@ -98,23 +118,27 @@ Local dev is **Docker-only** for the backend (host Ruby native extensions are
 broken). Run from the repo root.
 
 **First time?** The setup wizard handles everything end-to-end — prerequisites,
-region selection, geo build, database, sample camera data, services, and
-house-number geocoding (~25–30 min total; most of that is the Nominatim OSM
-import running in the background):
+country/region selection, geo build, database, sample camera data, services, and
+house-number geocoding. Most of the time is the Nominatim OSM import running in the
+background — **hours for the whole US**, **~25–30 min for a single state**:
 
 ```bash
 ./setup.sh
 ```
 
-(`./setup.sh` is a thin wrapper around `infra/scripts/setup.sh` — either works,
-and both accept the same flags, e.g. `-v` for verbose or `--region CA` to skip
-the state prompt.) It's safe to re-run: if a step fails (e.g. the geocoder
-import times out), fix the cause and run it again — completed work is reused.
+At the prompt, enter **`US`** for the whole country (the supported default — heavy;
+see [Prerequisites](#prerequisites)) or a **2-letter state** for a fast dev build
+(defaults to **`IA`**). (`./setup.sh` is a thin wrapper around `infra/scripts/setup.sh`
+— either works, and both accept the same flags, e.g. `-v` for verbose, `--region US`
+for the whole country, or `--region CA` to skip the prompt.) It's safe to re-run: if a
+step fails (e.g. the geocoder import times out), fix the cause and run it again —
+completed work is reused.
 
-The wizard writes `infra/.region` (gitignored), runs `infra/scripts/build-geo.sh`,
-then automatically prepares the database, imports fixture cameras, starts all
-services, waits for the geocoder, and loads TIGER/Line address data. When it
-finishes, the app is ready at the URLs it prints.
+The wizard writes `infra/.region` and `infra/.env` (both gitignored), runs
+`infra/scripts/build-geo.sh`, then automatically prepares the database, imports fixture
+cameras, starts all services, waits for the geocoder, and loads TIGER/Line address data
+(the whole-US bundle for `US`, just that state otherwise). When it finishes, the app is
+ready at the URLs it prints.
 
 **Day-to-day** (after the first run — bringing services back up):
 
@@ -186,7 +210,7 @@ AGPL. See [docs/adr/0002-pbf-derived-camera-source.md](docs/adr/0002-pbf-derived
 - [docs/runbooks/refresh-ops.md](docs/runbooks/refresh-ops.md) — the daily 08:00
   UTC camera-data refresh: manual triggers, status, telemetry, stale→retire.
 - [docs/runbooks/geo-stack.md](docs/runbooks/geo-stack.md) — building/rebuilding
-  the self-hosted geo stack and expanding coverage beyond Iowa.
+  the self-hosted geo stack, the whole-US resource envelope, and switching country/region.
 - [docs/runbooks/incident-response.md](docs/runbooks/incident-response.md) — fast
   triage for 5xx spikes, routing/geocoder/DB outages, stuck refreshes.
 - [docs/runbooks/backups.md](docs/runbooks/backups.md) — PostGIS backup &
