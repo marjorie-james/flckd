@@ -1,6 +1,7 @@
 {
   "app": {
-    "title": "Camera-Avoiding Route Planner"
+    "title": "Camera-Avoiding Route Planner",
+    "getApp": "Get flckd"
   },
   "form": {
     "origin": "Start",
