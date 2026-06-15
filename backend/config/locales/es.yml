@@ -1,0 +1,14 @@
+es:
+  errors:
+    bad_request: "Falta información requerida (inicio y destino). Revísala e inténtalo de nuevo."
+    not_found: "No pudimos encontrar lo que buscabas."
+    service_unavailable: "El servicio de rutas no está disponible temporalmente. Inténtalo en breve."
+    no_route: "No encontramos una ruta para conducir entre esos puntos. Prueba otras ubicaciones."
+    outside_coverage: "Los datos de cámaras aún no están disponibles para esta zona; calculamos la ruta normal."
+    stale_data: "Los datos de cámaras de esta zona pueden estar desactualizados; la evitación podría ser incompleta."
+  coverage:
+    available: "La evitación de cámaras está disponible para esta zona."
+    unavailable: "La evitación de cámaras aún no está disponible para esta zona."
+  route:
+    fully_clean: "Esta ruta evita todas las cámaras conocidas."
+    minimum_exposure: "No existe una ruta totalmente libre de cámaras. Esta pasa por la menor cantidad."

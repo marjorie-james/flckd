@@ -1,0 +1,51 @@
+name: CI (frontend)
+
+# Frontend Quality Gates (ESLint, pnpm audit, tsc, Vitest).
+#
+# Minutes hygiene (private repo — Actions are metered): native `paths` filters
+# mean this runs ONLY when frontend/** (or this file) changes — docs-only and
+# backend-only changes cost zero frontend minutes. `concurrency` cancels a
+# superseded in-flight run when a new commit lands. The pnpm store is cached so
+# `install` doesn't re-download every run.
+on:
+  # Pull requests only — `main` lands via fast-forward of an already-tested PR
+  # branch, so re-running CI post-merge would just re-test the same tree.
+  pull_request:
+    paths: ["frontend/**", ".github/workflows/ci-frontend.yml"]
+
+concurrency:
+  group: ci-frontend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      # pnpm must be set up BEFORE setup-node so its cache backend resolves.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.5.2
+      - uses: actions/setup-node@v6
+        with:
+          # Pinned to 22.13+: pnpm 11.5.2 (above) requires Node >= 22.13, and the
+          # bare "22" range was resolving to a cached 22.12 on the runner, failing
+          # `pnpm install` before any check ran.
+          node-version: "22.13"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Lint (ESLint)
+        run: pnpm lint
+      - name: Dependency audit (pnpm)
+        # Fail only on high/critical advisories in production deps; dev-only or
+        # low/moderate transitive advisories don't block the build.
+        run: pnpm audit --prod --audit-level high
+      - name: Typecheck
+        run: pnpm exec tsc -b --noEmit
+      - name: Tests (Vitest)
+        run: pnpm exec vitest run

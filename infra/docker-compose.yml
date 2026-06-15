@@ -1,0 +1,179 @@
+# Local development stack for the Camera-Avoiding Route Planner.
+#
+# Local development is Docker-only — nothing runs on the host. Everything below
+# runs on the developer's own machine; in production these same roles (routing,
+# geocoding, tiles) are self-hosted too, so no user origin/destination/route is
+# ever sent to a third party.
+#
+# Usage (from repo root):
+#
+#   Start everything at once (normal dev flow):
+#     docker compose -f infra/docker-compose.yml up -d
+#
+#   Start individual services:
+#     docker compose -f infra/docker-compose.yml up -d postgres
+#     docker compose -f infra/docker-compose.yml up -d routing tileserver geocoder
+#     docker compose -f infra/docker-compose.yml up -d backend frontend
+#
+#   Run tests:
+#     docker compose -f infra/docker-compose.yml run --rm \
+#       -e RAILS_ENV=test backend bundle exec rspec
+#     docker compose -f infra/docker-compose.yml run --rm frontend pnpm test -- run
+#
+# NOTE: the geo services (routing/geocoder/tileserver) require built OSM data
+# before they will serve successfully. Run infra/scripts/build-geo.sh first.
+# If data is absent they will start but immediately exit — the backend handles
+# this gracefully (geo service failures are soft / non-fatal).
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.4
+    # Backend reaches it as postgres:5432 over the compose network; the host port
+    # is published only for ad-hoc DB tools.
+    environment:
+      POSTGRES_USER: flckd
+      POSTGRES_PASSWORD: flckd
+      POSTGRES_DB: flckd_development
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flckd"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    command: bin/rails server -b 0.0.0.0 -p 3000
+    environment:
+      RAILS_ENV: development
+      # Run the Solid Queue supervisor inside Puma so background jobs (camera
+      # refresh, geo staleness) are processed locally without a separate worker
+      # container (config/puma.rb enables the plugin on this flag).
+      SOLID_QUEUE_IN_PUMA: "true"
+      DATABASE_HOST: postgres
+      DATABASE_USER: flckd
+      DATABASE_PASSWORD: flckd
+      DATABASE_NAME: flckd_development
+      # Self-hosted geo services (private network names).
+      ROUTING_URL: http://routing:8002
+      GEOCODER_URL: http://geocoder:8080
+      # Restrict geocoder results to the loaded region.
+      # Format: min_lng,max_lat,max_lng,min_lat (Nominatim viewbox, left,top,right,bottom).
+      GEOCODER_VIEWBOX: "-96.7,43.6,-90.0,40.3"
+      # Single-state OSM extract has no state (admin_level 4) boundary, so a
+      # typed "..., Iowa" filters out house-number matches. The backend strips
+      # this state name (and any USPS abbreviation) from queries. Match .region.
+      GEOCODER_REGION_STATE: "Iowa"
+    volumes:
+      - ../backend:/app
+      - bundle_cache:/usr/local/bundle
+      # Versioned API contract (read-only) for the OpenAPI contract test (T025).
+      - ../specs/002-flock-route-avoidance/contracts:/contracts:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Geo services are soft dependencies — the backend handles their absence
+      # gracefully. service_started (not service_healthy) so a missing data dir
+      # or slow Nominatim import doesn't block the backend from coming up.
+      routing:
+        condition: service_started
+      tileserver:
+        condition: service_started
+      geocoder:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    # Vite dev server; proxies /api to the backend over the compose network.
+    command: pnpm dev --host --port 5173
+    environment:
+      VITE_API_PROXY: http://backend:3000
+      VITE_TILES_PROXY: http://tileserver:8080
+    volumes:
+      - ../frontend:/app
+      # Keep node_modules in a named volume so the host stays clean and platform
+      # binaries (rolldown, etc.) are built for the container, not the host.
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  # --- Self-hosted geo stack ---
+  # Build the data first (Iowa launch region): infra/scripts/build-geo.sh
+  # See infra/README.md for details.
+
+  routing:                         # Valhalla — segment-exclusion routing
+    # Pinned by digest (matches prod) so dev/prod and reruns are reproducible.
+    image: ghcr.io/valhalla/valhalla:latest@sha256:a18ece289efc24a08818f2de9d07d49d0454b83aa574352ff1832e31b104d8a6
+    # Serve the prebuilt graph (valhalla.json + valhalla_tiles.tar in ./routing/data).
+    command: valhalla_service /data/valhalla.json 1
+    volumes:
+      - ./routing/data:/data
+    ports:
+      - "8002:8002"
+    healthcheck:
+      # Valhalla is Ubuntu-based; curl is available.
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/status || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  tileserver:                      # Self-hosted vector tiles (Protomaps PMTiles)
+    # Serves ./tiles/data/tiles.pmtiles as XYZ + metadata over HTTP (range reads).
+    image: protomaps/go-pmtiles:latest@sha256:dfd5ce912b0f061002a853fef6dca87dcd3c21ee900c57a3e32bb974daa3e061
+    command: serve /data --port 8080 --cors=*
+    volumes:
+      - ./tiles/data:/data
+    ports:
+      - "8080:8080"
+    # go-pmtiles is a distroless single-binary container — no shell or curl.
+    # Healthcheck omitted. Check 'docker compose logs tileserver' or probe
+    # http://localhost:8080/tiles/metadata directly.
+
+  geocoder:                        # Self-hosted Nominatim — forward/reverse geocoding
+    # Imports the Iowa OSM extract on first run (slow; persisted in a volume).
+    # The backend reaches it as geocoder:8080; host 8081 avoids clashing with tiles.
+    image: mediagis/nominatim:4.4@sha256:b772911424d31f8c36b337fe4b8d4ef3b93d4bf09f96407905a1e9d475d42632
+    environment:
+      PBF_PATH: /nominatim/import/extract.osm.pbf
+      NOMINATIM_PASSWORD: nominatim
+      IMPORT_STYLE: address # addresses/places only — faster import for autocomplete
+      # Import Wikipedia/Wikimedia importance so place ranking reflects real-world
+      # prominence. Without it, importance falls back to admin rank, which ranks a
+      # county above the city inside it (e.g. "Des Moines" the county outranks the
+      # capital), pulling the wrong address to the top of autocomplete. The image
+      # fetches the dump and applies it during the OSM import.
+      IMPORT_WIKIPEDIA: "true"
+    shm_size: "1gb"         # Postgres needs shared memory for the import
+    volumes:
+      # Not :ro — the image's entrypoint chowns /nominatim and aborts on a
+      # read-only mount. It only reads the pbf.
+      - ./data:/nominatim/import
+      - nominatim_data:/var/lib/postgresql/14/main
+    ports:
+      - "8081:8080"
+    healthcheck:
+      # Nominatim is Ubuntu-based; curl is available.
+      # start_period is long — first-run OSM import for Iowa takes ~20 min.
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/status.php || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30m
+
+volumes:
+  pg_data:
+  bundle_cache:
+  frontend_node_modules:
+  nominatim_data:

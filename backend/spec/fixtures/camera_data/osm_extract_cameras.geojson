@@ -1,0 +1,35 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "n1001",
+      "geometry": { "type": "Point", "coordinates": [-93.6250, 41.5868] },
+      "properties": { "man_made": "surveillance", "surveillance:type": "ALPR", "brand": "Flock Safety", "camera:direction": "90" }
+    },
+    {
+      "type": "Feature",
+      "id": "n1002",
+      "geometry": { "type": "Point", "coordinates": [-91.5302, 41.6611] },
+      "properties": { "man_made": "surveillance", "camera:type": "ANPR", "direction": "NE" }
+    },
+    {
+      "type": "Feature",
+      "id": "n1003",
+      "geometry": { "type": "Point", "coordinates": [-90.5776, 41.5236] },
+      "properties": { "man_made": "surveillance", "operator": "Flock" }
+    },
+    {
+      "type": "Feature",
+      "id": "n2001",
+      "geometry": { "type": "Point", "coordinates": [-93.6000, 41.6000] },
+      "properties": { "man_made": "surveillance", "surveillance:type": "public", "camera:type": "fixed" }
+    },
+    {
+      "type": "Feature",
+      "id": "w3001",
+      "geometry": { "type": "LineString", "coordinates": [[-93.6, 41.6], [-93.5, 41.5]] },
+      "properties": { "man_made": "surveillance", "surveillance:type": "ALPR" }
+    }
+  ]
+}

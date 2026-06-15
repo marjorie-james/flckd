@@ -1,0 +1,136 @@
+# Kamal 2 deployment for the Camera-Avoiding Route Planner backend.
+#
+# Anonymity model (Constitution / FR-012a): the routing, geocoding, and tile
+# services are deployed here as Kamal *accessories* on the SAME private network
+# as the app — they are our own infrastructure, never third parties. No user
+# origin/destination/route ever leaves this boundary. The app reaches each
+# accessory by its service name over the private Docker network.
+#
+# Fill in the <PLACEHOLDER> values (or supply them via .kamal/secrets) before a
+# real deploy. Run with: `kamal setup` (first time) then `kamal deploy`.
+
+service: flckd-backend
+
+# Container image. Push to your own registry — see `registry:` below.
+image: <REGISTRY_HOST>/flckd-backend
+
+servers:
+  # HTTP app servers (Puma behind Thruster on port 80; see Dockerfile).
+  web:
+    - <WEB_HOST_1>
+  # Dedicated Solid Queue worker for the camera-data pipeline (import/snap/refresh).
+  job:
+    hosts:
+      - <JOB_HOST_1>
+    cmd: bin/jobs
+
+# Kamal's built-in proxy terminates TLS and routes to the app's port 80.
+proxy:
+  ssl: true
+  host: <API_DOMAIN>            # e.g. api.flckd.example
+  app_port: 80
+  healthcheck:
+    path: /api/v1/health
+    interval: 10
+
+# Image registry (use your own — keeps the supply chain self-controlled).
+registry:
+  server: <REGISTRY_HOST>
+  username:
+    - KAMAL_REGISTRY_USERNAME
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+# Build the production image (multi-stage Dockerfile at backend/Dockerfile).
+builder:
+  arch: amd64
+
+env:
+  clear:
+    # Bind the app to the private geo accessories by service name.
+    DATABASE_HOST: flckd-backend-postgres
+    ROUTING_URL: http://flckd-backend-routing:8002
+    # Nominatim serves on 8080 (same engine/port as dev) — no dev/prod drift.
+    GEOCODER_URL: http://flckd-backend-geocoder:8080
+    # Single-state OSM extract has no state (admin_level 4) boundary, so a typed
+    # "..., Iowa" filters out house-number matches. The backend strips this state
+    # name (and any USPS abbreviation) from queries before they reach Nominatim.
+    GEOCODER_REGION_STATE: Iowa
+    TILES_URL: http://flckd-backend-tiles:8080
+    # Run Solid Queue inside Puma off (we run a dedicated job host above).
+    SOLID_QUEUE_IN_PUMA: false
+    WEB_CONCURRENCY: 2
+  secret:
+    - RAILS_MASTER_KEY
+    - DATABASE_PASSWORD
+
+# Persist gem-free; logs go to the platform. Limit retained logs (anonymity:
+# the anonymity_logging init strips client IPs from the request "Started" line
+# and scrubs coordinates from log output).
+logging:
+  options:
+    max-size: 100m
+    max-file: 3
+
+# Self-hosted geo stack + database, all on the private network. Images are
+# pinned by digest and match the dev docker-compose stack exactly (Valhalla +
+# Nominatim + go-pmtiles), so what passes in dev is what runs in prod.
+#
+# Container healthchecks: only Postgres has a reliable in-image probe
+# (pg_isready). The minimal geo images ship no curl/wget, so their readiness is
+# observed end-to-end via the app's /api/v1/health (DB-gated) + the Telemetry
+# alert on degraded refresh runs, rather than per-container healthchecks.
+accessories:
+  postgres:
+    image: postgis/postgis:17-3.4
+    host: <DB_HOST>
+    port: "127.0.0.1:5432:5432"
+    env:
+      clear:
+        POSTGRES_USER: flckd
+        POSTGRES_DB: flckd_production
+      secret:
+        - POSTGRES_PASSWORD
+    options:
+      health-cmd: "pg_isready -U flckd"
+      health-interval: "10s"
+      health-timeout: "5s"
+      health-retries: "10"
+    directories:
+      - data:/var/lib/postgresql/data
+
+  routing:                       # Valhalla — segment-exclusion routing
+    image: ghcr.io/valhalla/valhalla:latest@sha256:a18ece289efc24a08818f2de9d07d49d0454b83aa574352ff1832e31b104d8a6
+    host: <ROUTING_HOST>
+    port: "127.0.0.1:8002:8002"
+    cmd: valhalla_service /data/valhalla.json 1
+    directories:
+      - routing-data:/data       # prebuilt US graph (see infra/scripts/build-routing-graph.sh)
+
+  geocoder:                      # Nominatim — forward/reverse geocoding (matches dev)
+    image: mediagis/nominatim:4.4@sha256:b772911424d31f8c36b337fe4b8d4ef3b93d4bf09f96407905a1e9d475d42632
+    host: <GEOCODER_HOST>
+    port: "127.0.0.1:8080:8080"
+    env:
+      clear:
+        PBF_PATH: /nominatim/import/extract.osm.pbf
+        IMPORT_STYLE: address    # addresses/places only — faster import for autocomplete
+        # Import Wikipedia importance so place ranking reflects real-world
+        # prominence (without it, a county outranks the city inside it). Applied
+        # during the OSM import; matches dev (docker-compose.yml).
+        IMPORT_WIKIPEDIA: "true"
+      secret:
+        - NOMINATIM_PASSWORD
+    directories:
+      # Place the prebuilt OSM extract here (infra/scripts/fetch-extract.sh);
+      # Nominatim imports it on first boot and persists the index in the volume.
+      - nominatim-import:/nominatim/import
+      - nominatim-data:/var/lib/postgresql/14/main
+
+  tiles:                         # Self-hosted vector tiles (Protomaps PMTiles via go-pmtiles)
+    image: protomaps/go-pmtiles:latest@sha256:dfd5ce912b0f061002a853fef6dca87dcd3c21ee900c57a3e32bb974daa3e061
+    host: <TILES_HOST>
+    port: "127.0.0.1:8080:8080"
+    cmd: serve /data --port 8080 --cors=*
+    directories:
+      - tiles-data:/data         # prebuilt PMTiles (see infra/scripts/build-tiles.sh)

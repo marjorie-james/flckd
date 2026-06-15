@@ -1,0 +1,40 @@
+# Solid Queue recurring tasks (Rails 8.1). Keeps the camera dataset and coverage
+# freshness current without external schedulers. No coordinates or user data are
+# involved — this operates only on reference data.
+#
+# Fixed 08:00 UTC daily (= 2am CST / 3am CDT), not adjusted for daylight saving
+# (spec clarification, FR-010 / SC-006). Runs the full aggregate over all live
+# sources, continental-US.
+production:
+  camera_data_refresh:
+    class: DataRefreshJob
+    queue: default
+    args: [ aggregate ]
+    schedule: "0 8 * * *"
+
+  # Weekly check that the OSM-derived routing graph / tiles / geocoder index
+  # haven't gone stale (they aren't rebuilt on the camera-refresh cadence).
+  # Alerts via Telemetry; see docs/runbooks/geo-stack.md. Reference data only.
+  geo_substrate_freshness:
+    class: GeoStalenessJob
+    queue: default
+    schedule: "0 9 * * 1"
+
+# Local dev mirrors the production cadence, just on your own machine: the daily
+# refresh reads the PBF-derived local extract (ADR 0002) — no third-party API —
+# and the weekly check verifies the self-hosted geo stack hasn't gone stale.
+# Both only run while a job processor is up (SOLID_QUEUE_IN_PUMA / bin/jobs); you
+# can still trigger the refresh on demand with `rake camera_data:refresh`.
+development:
+  camera_data_refresh:
+    class: DataRefreshJob
+    queue: default
+    args: [ aggregate ]
+    schedule: "0 8 * * *"
+
+  geo_substrate_freshness:
+    class: GeoStalenessJob
+    queue: default
+    schedule: "0 9 * * 1"
+
+test: {}

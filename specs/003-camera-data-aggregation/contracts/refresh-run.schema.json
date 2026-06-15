@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flckd.local/contracts/refresh-run.schema.json",
+  "title": "RefreshRun",
+  "description": "Structured summary of a single camera-data refresh. Reference-data only; contains NO user data (no coordinates, IPs, origins, destinations, or routes).",
+  "type": "object",
+  "required": ["trigger", "status", "started_at", "per_source", "totals"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "integer" },
+    "trigger": { "type": "string", "enum": ["scheduled", "manual"] },
+    "status": { "type": "string", "enum": ["running", "success", "partial", "failed"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": ["string", "null"], "format": "date-time" },
+    "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "totals": { "$ref": "#/$defs/counts" },
+    "per_source": {
+      "type": "object",
+      "description": "Map of data-source name to its per-run outcome.",
+      "additionalProperties": { "$ref": "#/$defs/sourceOutcome" }
+    }
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "required": ["added", "updated", "skipped", "retired"],
+      "additionalProperties": false,
+      "properties": {
+        "added": { "type": "integer", "minimum": 0 },
+        "updated": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "retired": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sourceOutcome": {
+      "type": "object",
+      "required": ["status", "added", "updated", "skipped", "retired"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "enum": ["success", "failed"] },
+        "added": { "type": "integer", "minimum": 0 },
+        "updated": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "retired": { "type": "integer", "minimum": 0 },
+        "error_class": {
+          "type": "string",
+          "description": "Exception class name only when status=failed. Never a message body (anonymity-safe)."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# bats stub: docker
+# Records invocations; exits 0 for all args.
+
+echo "$*" >> "${BATS_TEST_TMPDIR}/docker_calls"
+exit 0

@@ -1,0 +1,22 @@
+# Solid Queue supervisor configuration (workers + dispatcher). Read by `bin/jobs`
+# and by the in-Puma plugin (SOLID_QUEUE_IN_PUMA=true). Recurring tasks live in
+# config/recurring.yml. Worker threads default to SOLID_QUEUE_THREADS so the DB
+# pool headroom reserved in database.yml matches the worker count.
+default: &default
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+  workers:
+    - queues: "*"
+      threads: <%= ENV.fetch("SOLID_QUEUE_THREADS", 5) %>
+      processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
+      polling_interval: 0.1
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  <<: *default

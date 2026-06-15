@@ -1,0 +1,111 @@
+name: CI (backend)
+
+# Backend Quality Gates (RuboCop, Brakeman, bundler-audit, RSpec).
+#
+# Required-check + minutes hygiene: `backend` is a branch-protection required
+# context, so it must report on EVERY pull request — a top-level `paths:` filter
+# would skip the whole workflow on docs/frontend PRs and leave the required
+# check pending forever (merge deadlock). Instead the workflow always runs, but
+# only the cheap `changes` detector and the `backend` gate run on unrelated PRs;
+# the expensive `backend-tests` job (Postgres service + RSpec) is gated on
+# backend/** actually changing, so unrelated PRs cost ~seconds.
+on:
+  # Pull requests only — `main` lands via fast-forward of an already-tested PR
+  # branch, so re-running CI post-merge would just re-test the same tree.
+  pull_request:
+
+concurrency:
+  group: ci-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Cheap path detector — decides whether the heavy job needs to run.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          if git diff --name-only "$base...$head" \
+               | grep -qE '^(backend/|\.github/workflows/ci-backend\.yml$)'; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  backend-tests:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.4
+        env:
+          POSTGRES_USER: flckd
+          POSTGRES_PASSWORD: flckd
+          POSTGRES_DB: flckd_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U flckd" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      RAILS_ENV: test
+      DATABASE_HOST: localhost
+      DATABASE_USER: flckd
+      DATABASE_PASSWORD: flckd
+      TEST_DATABASE_NAME: flckd_test
+      CI: "true"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.9"
+          bundler-cache: true
+          working-directory: backend # Gemfile lives in backend/, not repo root
+      - name: Lint (RuboCop)
+        run: bundle exec rubocop
+      - name: Security (Brakeman)
+        # Static analysis; fail the build on any new warning or scan error.
+        run: bundle exec brakeman -q --no-pager --exit-on-warn --exit-on-error
+      - name: Dependency audit (bundler-audit)
+        # Audit gems against the Ruby advisory DB (config/bundler-audit.yml).
+        run: bundle exec bundler-audit check --update
+      - name: DB setup
+        run: bin/rails db:migrate
+      - name: Tests (RSpec)
+        # COVERAGE=1 enforces the SimpleCov line floor (spec/spec_helper.rb).
+        run: COVERAGE=1 bundle exec rspec
+
+  # Required branch-protection context. Always runs (a few seconds) and passes
+  # unless the real job failed — so unrelated PRs satisfy the check without
+  # running the heavy job, and a real failure still blocks the merge.
+  backend:
+    needs: [changes, backend-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Gate on backend-tests result
+        run: |
+          changes='${{ needs.changes.result }}'
+          result='${{ needs.backend-tests.result }}'
+          echo "changes=${changes} backend-tests=${result}"
+          # Fail closed if the path detector itself broke.
+          if [ "${changes}" != "success" ]; then
+            echo "path detection did not succeed"; exit 1
+          fi
+          if [ "${result}" = "failure" ] || [ "${result}" = "cancelled" ]; then
+            exit 1
+          fi
+          exit 0

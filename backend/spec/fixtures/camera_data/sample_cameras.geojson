@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "city-cam-7",
+      "geometry": { "type": "Point", "coordinates": [-104.9903, 39.7392] },
+      "properties": { "brand": "Flock", "direction": 180, "confidence": 0.8 }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-104.93, 39.73] },
+      "properties": { "type": "ANPR" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "LineString", "coordinates": [[-104.9, 39.7], [-104.8, 39.6]] },
+      "properties": { "note": "not a point; must be skipped" }
+    }
+  ]
+}

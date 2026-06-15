@@ -1,0 +1,65 @@
+name: Deploy
+
+# Manual-dispatch deploy via Kamal 2. It is NOT wired to auto-deploy on push:
+# the geo accessories (Valhalla/Nominatim/tiles) need prebuilt data on the hosts
+# and the infra must be provisioned first. Turn on the `push` trigger once the
+# hosts and secrets below are configured and a staging run has passed.
+#
+# Required GitHub config before this can run:
+#   Secrets: KAMAL_REGISTRY_PASSWORD, RAILS_MASTER_KEY, DATABASE_PASSWORD,
+#            POSTGRES_PASSWORD, NOMINATIM_PASSWORD, SSH_PRIVATE_KEY
+#   Variables: API_DOMAIN (e.g. api.flckd.example)
+# And fill the <PLACEHOLDER> hosts/registry in backend/config/deploy.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm a production deploy'
+        required: true
+        default: ""
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'deploy' }}
+    runs-on: ubuntu-latest
+    environment: production # add required reviewers in repo settings for a gate
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      NOMINATIM_PASSWORD: ${{ secrets.NOMINATIM_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.9"
+          bundler-cache: true
+          working-directory: backend
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Install Kamal
+        run: gem install kamal -v "~> 2.0"
+      - name: Deploy (Kamal)
+        run: kamal deploy
+      - name: Smoke test (health endpoint)
+        # Fail the deploy if the app doesn't report healthy after rollout.
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://${{ vars.API_DOMAIN }}/api/v1/health" || true)
+            echo "attempt $i: HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 6
+          done
+          echo "health check never returned 200" >&2
+          exit 1

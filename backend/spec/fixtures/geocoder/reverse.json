@@ -1,0 +1,20 @@
+{
+  "place_id": 240200000,
+  "display_name": "Old Capitol, Clinton Street, Iowa City, Johnson County, Iowa, United States",
+  "lat": "41.6611277",
+  "lon": "-91.5354708",
+  "category": "tourism",
+  "type": "attraction",
+  "importance": 0.55,
+  "place_rank": 30,
+  "name": "Old Capitol",
+  "address": {
+    "tourism": "Old Capitol",
+    "road": "Clinton Street",
+    "city": "Iowa City",
+    "county": "Johnson County",
+    "state": "Iowa",
+    "country": "United States",
+    "country_code": "us"
+  }
+}

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# bats stub: curl — used by test/infra/build-geocoder.bats
+#
+# Handles the two call shapes build-geocoder.sh makes:
+#   1. Geocoder health check:  curl -sf http://localhost:8081/status.php
+#        -> exit 0 if GEOCODER_HEALTHY=1 (default), else exit 1
+#   2. Bundle download:        curl -fsSL -o <dest> <url>
+#        -> exit 22 (HTTP error) if CURL_STUB_FAIL=1, else copy the fixture
+#           bundle (TIGER_BUNDLE_FIXTURE) to <dest>
+#
+# Records every invocation to BATS_TEST_TMPDIR/curl_calls.
+
+echo "$*" >> "${BATS_TEST_TMPDIR}/curl_calls"
+
+# (1) Health check — matched by the status.php URL.
+case " $* " in
+  *status.php*)
+    [ "${GEOCODER_HEALTHY:-1}" = "1" ] && exit 0 || exit 1
+    ;;
+esac
+
+# (2) Bundle download — identified by the -o <dest> flag.
+dest=""
+prev=""
+for arg in "$@"; do
+  [ "${prev}" = "-o" ] && dest="${arg}"
+  prev="${arg}"
+done
+if [ -n "${dest}" ]; then
+  [ "${CURL_STUB_FAIL:-0}" = "1" ] && exit 22
+  cp "${TIGER_BUNDLE_FIXTURE}" "${dest}"
+  exit 0
+fi
+
+exit 0

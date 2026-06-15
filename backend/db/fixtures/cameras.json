@@ -1,0 +1,41 @@
+[
+  {
+    "external_ref": "fixture-ia-i80-newton",
+    "lat": 41.68230,
+    "lng": -93.13263,
+    "facing_direction": 90,
+    "camera_type": "Flock",
+    "confidence": 0.9
+  },
+  {
+    "external_ref": "fixture-ia-i80-grinnell",
+    "lat": 41.69631,
+    "lng": -92.54076,
+    "facing_direction": 90,
+    "camera_type": "Flock",
+    "confidence": 0.9
+  },
+  {
+    "external_ref": "fixture-ia-i80-westliberty",
+    "lat": 41.68724,
+    "lng": -92.05000,
+    "facing_direction": 270,
+    "camera_type": "ALPR",
+    "confidence": 0.7
+  },
+  {
+    "external_ref": "fixture-ia-desmoines",
+    "lat": 41.59100,
+    "lng": -93.60300,
+    "facing_direction": 0,
+    "camera_type": "Flock",
+    "confidence": 0.7
+  },
+  {
+    "external_ref": "fixture-ia-iowacity",
+    "lat": 41.65800,
+    "lng": -91.53500,
+    "camera_type": "ALPR",
+    "confidence": 0.6
+  }
+]

@@ -1,0 +1,31 @@
+# Keep dependencies patched. Weekly PRs, grouped to reduce noise; security
+# updates always come through regardless of schedule.
+version: 2
+updates:
+  - package-ecosystem: bundler
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      backend-deps:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      frontend-deps:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /backend
+    schedule:
+      interval: weekly

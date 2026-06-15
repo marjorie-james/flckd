@@ -1,0 +1,46 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API",
+  "elements": [
+    {
+      "type": "node",
+      "id": 1001,
+      "lat": 41.6823,
+      "lon": -93.13263,
+      "tags": {
+        "man_made": "surveillance",
+        "surveillance:type": "ALPR",
+        "brand": "Flock Safety",
+        "camera:direction": "90"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1002,
+      "lat": 41.69631,
+      "lon": -92.54076,
+      "tags": {
+        "man_made": "surveillance",
+        "camera:type": "ALPR",
+        "direction": "NE"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1003,
+      "lat": 41.5910,
+      "lon": -93.6030,
+      "tags": {
+        "man_made": "surveillance",
+        "operator": "Flock"
+      }
+    },
+    {
+      "type": "way",
+      "id": 2001,
+      "tags": {
+        "man_made": "surveillance"
+      }
+    }
+  ]
+}

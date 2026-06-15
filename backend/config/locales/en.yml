@@ -1,0 +1,14 @@
+en:
+  errors:
+    bad_request: "Your request was missing required information. Please check and try again."
+    not_found: "We couldn't find what you were looking for."
+    service_unavailable: "The routing service is temporarily unavailable. Please try again shortly."
+    no_route: "We couldn't find a drivable route between those points. Try different locations."
+    outside_coverage: "Camera data isn't available for this area yet, so we routed normally."
+    stale_data: "Camera data for this area may be out of date; avoidance could be incomplete."
+  coverage:
+    available: "Camera avoidance is available for this area."
+    unavailable: "Camera avoidance isn't available for this area yet."
+  route:
+    fully_clean: "This route avoids all known cameras."
+    minimum_exposure: "No fully camera-free route exists. This route passes the fewest known cameras."

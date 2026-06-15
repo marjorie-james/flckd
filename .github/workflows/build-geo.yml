@@ -1,0 +1,66 @@
+name: Build geo artifacts
+
+# Rebuilds the self-hosted geo substrate (routing graph + vector tiles) from a
+# fresh public OSM extract and publishes versioned, digest-pinned artifacts as a
+# GitHub Release (ADR 0001 — OSM substrate automation). The substrate isn't
+# refreshed on the camera cadence and drifts from current OSM; GeoStalenessJob
+# (weekly) alerts when it's stale — this is how you produce the new build.
+#
+# Deploying the new build onto the geo hosts (dropping the artifacts into the
+# Kamal accessory volumes + restarting) is the one manual ops step — it needs
+# host access. See docs/runbooks/geo-stack.md#rebuild-automation.
+
+on:
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Region label (used in the release tag)"
+        default: "iowa"
+      region_url:
+        description: "Geofabrik .osm.pbf URL to build from"
+        default: "https://download.geofabrik.de/north-america/us/iowa-latest.osm.pbf"
+  # Manual-dispatch only — no cron. The substrate is a heavy build (full extract
+  # + Valhalla graph + tiles); rather than rebuild it on a fixed schedule (and
+  # burn minutes producing artifacts that may not need deploying), run it on
+  # demand when GeoStalenessJob's weekly alert says the graph has drifted.
+
+concurrency:
+  group: build-geo
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Cap a hung build so a stuck scheduled run can't silently drain minutes.
+    timeout-minutes: 60
+    # Hosted runners fit the Iowa launch region (~0.5 GB of artifacts + build
+    # intermediates). A full-US build needs substantially more RAM/disk — point
+    # this at a larger or self-hosted runner before expanding coverage.
+    permissions:
+      contents: write # create the release
+    env:
+      REGION: ${{ github.event.inputs.region || 'iowa' }}
+      REGION_URL: ${{ github.event.inputs.region_url || 'https://download.geofabrik.de/north-america/us/iowa-latest.osm.pbf' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build geo artifacts + manifest
+        run: infra/scripts/build-geo.sh
+
+      - name: Verify manifest integrity
+        run: infra/scripts/geo-manifest.sh verify
+
+      - name: Publish versioned release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="geo-${REGION}-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}"
+          gh release create "$tag" \
+            --title "Geo artifacts: ${REGION} ($(date -u +%Y-%m-%d))" \
+            --notes-file infra/build/manifest.json \
+            infra/build/manifest.json \
+            infra/build/manifest.sha256 \
+            infra/data/extract.osm.pbf \
+            infra/routing/data/valhalla.json \
+            infra/routing/data/valhalla_tiles.tar \
+            infra/tiles/data/tiles.pmtiles

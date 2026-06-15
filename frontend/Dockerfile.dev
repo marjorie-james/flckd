@@ -1,0 +1,26 @@
+# Development image for the Camera-Avoiding Route Planner frontend.
+# Local development is Docker-only — this image provides the Node toolchain and
+# installs deps so nothing needs to run on the host. Source is bind-mounted by
+# docker-compose; node_modules lives in a named volume (see infra/docker-compose.yml).
+FROM node:22-slim
+
+ENV PNPM_HOME=/usr/local/pnpm \
+    PATH=/usr/local/pnpm:$PATH
+
+WORKDIR /app
+
+# pnpm via npm (corepack's bundled keys can be stale on older Node images).
+RUN npm install -g pnpm@11.5.2
+
+# Install deps first for layer caching. Lockfile drives a reproducible install.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install
+
+# App code is bind-mounted in dev; copy as a fallback for standalone runs.
+COPY . .
+
+EXPOSE 5173
+
+# Vite dev server, reachable from the host and proxying /api to the backend
+# service over the compose network.
+CMD ["pnpm", "dev", "--host", "--port", "5173"]

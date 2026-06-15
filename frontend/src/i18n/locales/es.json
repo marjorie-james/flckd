@@ -1,0 +1,70 @@
+{
+  "app": {
+    "title": "Planificador de rutas que evita cámaras"
+  },
+  "form": {
+    "origin": "Inicio",
+    "destination": "Destino",
+    "useMyLocation": "Usar mi ubicación",
+    "plan": "Planificar ruta",
+    "planning": "Planificando…",
+    "suggestionsAvailable_one": "{{count}} sugerencia disponible",
+    "suggestionsAvailable_other": "{{count}} sugerencias disponibles",
+    "searching": "Buscando…",
+    "noMatches": "No se encontraron coincidencias",
+    "searchError": "Búsqueda no disponible: revisa tu conexión"
+  },
+  "map": {
+    "ariaLabel": "Mapa de tu ruta y las cámaras cercanas"
+  },
+  "cameras": {
+    "popup": {
+      "title": "Cámara",
+      "direction": "Dirección",
+      "type": "Tipo",
+      "confidence": "Confianza",
+      "status": "Estado",
+      "unknown": "desconocido",
+      "faces": "Orientada al {{cardinal}} · {{deg}}°",
+      "omnidirectional": "360° · todas las direcciones"
+    }
+  },
+  "result": {
+    "fullyClean": "Esta ruta evita todas las cámaras conocidas.",
+    "alreadyClean": "No hay cámaras en tu ruta; no se necesitan desvíos.",
+    "notCameraFree": "Atención: no existe una ruta totalmente libre de cámaras. Esta ruta aún pasa a la vista de algunas cámaras (las menos posibles). Tenlo en cuenta al conducir.",
+    "avoided_one": "{{count}} cámara evitada",
+    "avoided_other": "{{count}} cámaras evitadas",
+    "remaining_one": "{{count}} cámara inevitable en la ruta",
+    "remaining_other": "{{count}} cámaras inevitables en la ruta",
+    "addedTime": "+{{minutes}} min frente a la más rápida",
+    "addedDistance": "+{{km}} km frente a la más rápida",
+    "travelTime": "{{minutes}} min",
+    "fastestExposes_one": "La ruta más rápida pasa por {{count}} cámara",
+    "fastestExposes_other": "La ruta más rápida pasa por {{count}} cámaras",
+    "showComparison": "Mostrar ruta más rápida",
+    "hideComparison": "Ocultar ruta más rápida",
+    "remainingItem": "Vía vigilada n.º {{id}}",
+    "distance": "{{km}} km",
+    "openInMaps": "Abrir en Mapas",
+    "directions": "Indicaciones"
+  },
+  "handoff": {
+    "warning": "Abrir un mapa externo comparte las ubicaciones de esta ruta con ese proveedor. ¿Continuar?",
+    "apple": "Apple Maps",
+    "google": "Google Maps",
+    "cancel": "Cancelar"
+  },
+  "errors": {
+    "no_route": "No encontramos una ruta para conducir. Prueba otras ubicaciones.",
+    "bad_request": "Introduce un inicio y un destino.",
+    "outside_coverage": "Los datos de cámaras aún no están disponibles para esta zona; calculamos la ruta normal.",
+    "stale_data": "Los datos de cámaras de esta zona pueden estar desactualizados; la evitación podría ser incompleta.",
+    "generic": "Algo salió mal. Inténtalo de nuevo.",
+    "locationDenied": "Se denegó el acceso a la ubicación. Introduce tu dirección de inicio.",
+    "locationUnavailable": "Tu ubicación no está disponible ahora. Introduce tu dirección de inicio.",
+    "locationTimeout": "Se agotó el tiempo para obtener tu ubicación. Inténtalo de nuevo o introduce tu dirección de inicio.",
+    "locationUnsupported": "Este navegador no puede compartir tu ubicación. Introduce tu dirección de inicio."
+  },
+  "language": "Idioma"
+}

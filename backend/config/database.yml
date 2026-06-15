@@ -1,0 +1,44 @@
+# PostgreSQL + PostGIS configuration for the Camera-Avoiding Route Planner.
+#
+# Connection settings come from environment variables so the same config works
+# in the Docker dev stack (host: postgres) and in CI/production. PostGIS is
+# required for the spatial columns (camera points, monitored road segments).
+default: &default
+  adapter: postgis
+  encoding: unicode
+  # Size the pool for request threads PLUS the Solid Queue worker threads so the
+  # daily camera refresh can't starve API requests of connections. Override with
+  # RAILS_DB_POOL if needed. (Web and job run as separate processes in prod, so
+  # the headroom is harmless on the web host.)
+  pool: <%= ENV.fetch("RAILS_DB_POOL") { Integer(ENV.fetch("RAILS_MAX_THREADS", 5)) + Integer(ENV.fetch("SOLID_QUEUE_THREADS", 5)) } %>
+  host: <%= ENV.fetch("DATABASE_HOST", "localhost") %>
+  port: <%= ENV.fetch("DATABASE_PORT", 5432) %>
+  username: <%= ENV.fetch("DATABASE_USER", "flckd") %>
+  password: <%= ENV.fetch("DATABASE_PASSWORD", "flckd") %>
+
+development:
+  <<: *default
+  database: <%= ENV.fetch("DATABASE_NAME", "flckd_development") %>
+
+test:
+  <<: *default
+  database: <%= ENV.fetch("TEST_DATABASE_NAME", "flckd_test") %>
+
+# Production uses the Solid* adapters. Solid Queue runs on the PRIMARY database
+# (its tables are in the primary schema via the create_solid_queue_tables
+# migration, and no config.solid_queue.connects_to is set), so there is no
+# separate queue database. Cache/cable keep dedicated databases.
+production:
+  primary: &primary_production
+    <<: *default
+    database: <%= ENV.fetch("DATABASE_NAME", "flckd_production") %>
+    username: <%= ENV.fetch("DATABASE_USER", "flckd") %>
+    password: <%= ENV["DATABASE_PASSWORD"] %>
+  cache:
+    <<: *primary_production
+    database: <%= ENV.fetch("CACHE_DATABASE_NAME", "flckd_production_cache") %>
+    migrations_paths: db/cache_migrate
+  cable:
+    <<: *primary_production
+    database: <%= ENV.fetch("CABLE_DATABASE_NAME", "flckd_production_cable") %>
+    migrations_paths: db/cable_migrate

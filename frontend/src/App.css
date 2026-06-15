@@ -1,0 +1,721 @@
+/* ─── Design tokens (dark-first) ─── */
+:root {
+  --bg:          #080b12;
+  --panel:       #0f1420;
+  --raised:      #18202f;
+  --input-bg:    #0a0e18;
+  --border:      #1c2540;
+  --border-hi:   #2a3a5c;
+
+  --text:        #c8d6ed;
+  --text-muted:  #7a96b8;
+  --text-faint:  #273045;
+  /* Meets WCAG AA (4.5:1) on the dark input/panel backgrounds. --text-faint is
+     decorative only; --placeholder is for any text a user must read. */
+  --placeholder: #6b82a8;
+
+  --accent:      #5254cc;
+  --accent-hi:   #818cf8;
+  --accent-glow: rgba(82, 84, 204, 0.2);
+  --accent-muted:rgba(82, 84, 204, 0.1);
+
+  --green:       #34d399;
+  --green-bg:    rgba(52, 211, 153, 0.08);
+  --green-ring:  rgba(52, 211, 153, 0.2);
+  --amber:       #fbbf24;
+  --amber-bg:    rgba(251, 191, 36, 0.08);
+  --amber-ring:  rgba(251, 191, 36, 0.2);
+  --red:         #f87171;
+  --red-bg:      rgba(248, 113, 113, 0.08);
+  --red-ring:    rgba(248, 113, 113, 0.2);
+
+  --r-sm:  6px;
+  --r:     10px;
+  --r-lg:  14px;
+  --shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Reset ─── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Page shell (responsive) ───
+   Mobile-first: a full-width, edge-to-edge vertical stack (header → map →
+   controls → results). On wide screens (≥900px) `.layout-body` becomes a
+   two-pane grid (see the responsive section below). There is deliberately no
+   max-width or centering — the app fills the viewport at every size. */
+.plan-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--panel);
+}
+
+/* Body region holding the map + the content (controls/results) pane: a column
+   on mobile (map above content), a two-column grid on desktop. */
+.layout-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The control rail — planning form + results. Below the map on mobile; beside it
+   (independently scrollable) on desktop. */
+.content-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Header ─── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+
+.app-header h1 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.app-header h1::before {
+  content: '';
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  flex-shrink: 0;
+}
+
+.app-header p { display: none; }
+
+/* ─── Language switcher ─── */
+.language-switcher select {
+  appearance: none;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+}
+
+.language-switcher select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+/* ─── Map ─── */
+.map-container {
+  height: 46svh;
+  min-height: 280px;
+  flex-shrink: 0;
+  background: #080b12;
+}
+
+/* ─── Responsive: two-pane desktop layout (≥900px) ───
+   The map becomes the dominant surface (the 1fr column) with a bounded,
+   independently-scrolling control rail beside it. `min(420px, 38%)` caps the
+   rail on ultra-wide screens — the map absorbs the extra width, so no separate
+   ultra-wide breakpoint is needed — while keeping it from crowding the map near
+   900px. The header spans the top because it sits outside `.layout-body`.
+   `min-width: 0` lets the grid tracks shrink instead of overflowing. */
+@media (min-width: 900px) {
+  .plan-page {
+    height: 100svh;
+    min-height: 0;
+  }
+
+  .layout-body {
+    display: grid;
+    grid-template-columns: 1fr min(420px, 38%);
+    min-height: 0;
+  }
+
+  .map-container {
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .content-pane {
+    min-width: 0;
+    overflow-y: auto;
+  }
+}
+
+/* ─── Route input panel ─── */
+.route-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.route-panel label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.route-panel input[inputmode="search"] {
+  width: 100%;
+  padding: 10px 40px 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.route-panel input[inputmode="search"]::placeholder {
+  color: var(--placeholder);
+}
+
+.route-panel input[inputmode="search"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+/* geo / location pin icon button inside input */
+.geo-btn {
+  position: absolute;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.geo-btn:hover { color: var(--accent-hi); background: var(--accent-muted); }
+.geo-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ─── Suggestion dropdown ─── */
+.suggestions {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  z-index: 200;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+}
+
+.suggestions li button {
+  width: 100%;
+  text-align: left;
+  padding: 9px 11px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: background 0.1s;
+  line-height: 1.35;
+}
+
+.suggestions li button:hover,
+.suggestions li button:focus,
+/* Keyboard navigation keeps focus on the input (combobox pattern), so the
+   highlighted option is conveyed via aria-selected, not :focus. */
+.suggestions li button[aria-selected="true"] {
+  background: var(--accent-muted);
+  outline: none;
+}
+
+/* Non-interactive status row inside the listbox: searching / no matches / error.
+   Distinct from the selectable option buttons above. */
+.suggestion-status {
+  padding: 9px 11px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.suggestion-status.error {
+  color: var(--red);
+}
+
+/* Inline field-level error (e.g. geolocation denied/unavailable). */
+.field-error {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--red);
+}
+
+/* ─── Preference segmented control ─── */
+.preference,
+.avoidance-control {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preference legend,
+.avoidance-control legend {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  float: none;
+  padding: 0;
+  width: 100%;
+  margin-bottom: 0;
+}
+
+
+/* ─── Plan button ─── */
+.route-panel button[type="submit"] {
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background 0.15s, box-shadow 0.15s;
+  margin-top: 2px;
+}
+
+.route-panel button[type="submit"]:hover:not(:disabled) {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.route-panel button[type="submit"]:disabled {
+  background: var(--border-hi);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* ─── Post-plan results section ─── */
+.result-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+
+/* ─── Camera summary ─── */
+.camera-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.camera-summary .avoided-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
+  background: var(--green-bg);
+  border: 1px solid var(--green-ring);
+  border-radius: 100px;
+  padding: 3px 10px;
+}
+
+.camera-summary .exposed {
+  color: var(--amber);
+  font-size: 12px;
+}
+
+.camera-summary details {
+  font-size: 12px;
+}
+
+.camera-summary summary { cursor: pointer; color: var(--amber); }
+
+.camera-summary ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  color: var(--text-muted);
+}
+
+/* ─── Route result ─── */
+.route-result {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 100px;
+  align-self: flex-start;
+}
+
+.status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status.clean {
+  background: var(--green-bg);
+  color: var(--green);
+  border: 1px solid var(--green-ring);
+}
+
+.status.clean::before { background: var(--green); }
+
+.status.exposed {
+  background: var(--amber-bg);
+  color: var(--amber);
+  border: 1px solid var(--amber-ring);
+}
+
+.status.exposed::before { background: var(--amber); }
+
+.stats {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.stats li {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 4px 10px;
+  color: var(--text-muted);
+}
+
+/* The fastest route's camera exposure reads as a caution, matching .exposed. */
+.stats li.fastest-exposes {
+  color: var(--amber);
+}
+
+/* Show/hide the fastest-route comparison line — secondary button, matches the
+   open-in-maps trigger. The dashed swatch mirrors the comparison line on the map. */
+.comparison-toggle {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.comparison-toggle::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  margin-right: 7px;
+  vertical-align: middle;
+  border-top: 2px dashed #9ca3af;
+}
+
+.comparison-toggle:hover,
+.comparison-toggle:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.route-result h3 {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.directions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.directions li {
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  color: var(--text);
+  counter-increment: step;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.directions li::before {
+  content: counter(step);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 14px;
+  text-align: right;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.directions li:hover {
+  background: var(--raised);
+}
+
+.directions { counter-reset: step; }
+
+/* ─── Handoff warning ─── */
+.handoff-warning {
+  border: 1px solid var(--amber-ring);
+  background: var(--amber-bg);
+  border-radius: var(--r);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--amber);
+}
+
+.handoff-warning p { margin: 0; font-weight: 500; }
+
+.handoff-warning a {
+  display: block;
+  padding: 9px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: border-color 0.15s;
+}
+
+.handoff-warning a:hover { border-color: var(--accent); }
+
+.handoff-warning button {
+  padding: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.handoff-warning button:hover { color: var(--text); border-color: var(--border-hi); }
+
+/* open-in-maps trigger button */
+.open-in-maps-btn {
+  padding: 9px 14px;
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  align-self: flex-start;
+}
+
+.open-in-maps-btn:hover { color: var(--text); border-color: var(--accent); }
+
+/* ─── Coverage warning ─── */
+.coverage-warning {
+  font-size: 12px;
+  color: var(--amber);
+  margin: 0;
+}
+
+/* ─── Error ─── */
+.error {
+  padding: 12px 16px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--red);
+  background: var(--red-bg);
+  border-top: 1px solid var(--red-ring);
+  border-bottom: 1px solid var(--red-ring);
+}
+
+/* ─── Camera popup ─── */
+/* MapLibre's default popup is a white box; on the dark theme the inherited light
+   text rendered light-on-white (unreadable). Re-skin the content/tip/close button
+   to the panel theme, scoped to the camera popup's shell class. */
+.camera-popup-shell .maplibregl-popup-content {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.camera-popup-shell.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.camera-popup-shell.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.camera-popup-shell.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--panel);
+}
+.camera-popup-shell.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.camera-popup-shell.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.camera-popup-shell.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--panel);
+}
+.camera-popup-shell.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--panel);
+}
+.camera-popup-shell.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--panel);
+}
+.camera-popup-shell .maplibregl-popup-close-button {
+  color: var(--text-muted);
+  font-size: 18px;
+  padding: 2px 8px;
+}
+.camera-popup-shell .maplibregl-popup-close-button:hover {
+  color: var(--text);
+  background: transparent;
+}
+.camera-popup__title {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+  padding-right: 12px;
+}
+.camera-popup__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  line-height: 1.7;
+}
+.camera-popup__k { color: var(--text-muted); }
+.camera-popup__v { color: var(--text); }
+
+/* ─── Not-camera-free notice ─── */
+/* Shown when no fully camera-free route exists and the planner fell back to the
+   fewest-cameras route. Deliberately prominent — full-width banner in the amber
+   caution palette with a leading dot — so the user can't miss that the route still
+   passes within view of some cameras. */
+.route-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--amber);
+  background: var(--amber-bg);
+  border-top: 1px solid var(--amber-ring);
+  border-bottom: 1px solid var(--amber-ring);
+}
+.route-notice::before {
+  content: '';
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+/* ─── Utility ─── */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

@@ -1,0 +1,70 @@
+{
+  "app": {
+    "title": "Camera-Avoiding Route Planner"
+  },
+  "form": {
+    "origin": "Start",
+    "destination": "Destination",
+    "useMyLocation": "Use my location",
+    "plan": "Plan route",
+    "planning": "Planning…",
+    "suggestionsAvailable_one": "{{count}} suggestion available",
+    "suggestionsAvailable_other": "{{count}} suggestions available",
+    "searching": "Searching…",
+    "noMatches": "No matches found",
+    "searchError": "Search unavailable — check your connection"
+  },
+  "map": {
+    "ariaLabel": "Map of your route and nearby cameras"
+  },
+  "cameras": {
+    "popup": {
+      "title": "Camera",
+      "direction": "Direction",
+      "type": "Type",
+      "confidence": "Confidence",
+      "status": "Status",
+      "unknown": "unknown",
+      "faces": "Faces {{cardinal}} · {{deg}}°",
+      "omnidirectional": "360° · all directions"
+    }
+  },
+  "result": {
+    "fullyClean": "This route avoids all known cameras.",
+    "alreadyClean": "No cameras on your route — no detours needed.",
+    "notCameraFree": "Heads up: no fully camera-free route exists. This route still passes within view of some cameras — the fewest possible. Drive with that in mind.",
+    "avoided_one": "{{count}} camera avoided",
+    "avoided_other": "{{count}} cameras avoided",
+    "remaining_one": "{{count}} unavoidable camera on route",
+    "remaining_other": "{{count}} unavoidable cameras on route",
+    "addedTime": "+{{minutes}} min vs fastest",
+    "addedDistance": "+{{km}} km vs fastest",
+    "travelTime": "{{minutes}} min",
+    "fastestExposes_one": "Fastest route passes {{count}} camera",
+    "fastestExposes_other": "Fastest route passes {{count}} cameras",
+    "showComparison": "Show fastest route",
+    "hideComparison": "Hide fastest route",
+    "remainingItem": "Monitored road #{{id}}",
+    "distance": "{{km}} km",
+    "openInMaps": "Open in Maps",
+    "directions": "Directions"
+  },
+  "handoff": {
+    "warning": "Opening an external map shares this route's locations with that provider. Continue?",
+    "apple": "Apple Maps",
+    "google": "Google Maps",
+    "cancel": "Cancel"
+  },
+  "errors": {
+    "no_route": "We couldn't find a drivable route. Try different locations.",
+    "bad_request": "Please enter both a start and a destination.",
+    "outside_coverage": "Camera data isn't available for this area yet, so we routed normally.",
+    "stale_data": "Camera data for this area may be out of date; avoidance could be incomplete.",
+    "generic": "Something went wrong. Please try again.",
+    "locationDenied": "Location access was denied. Enter your start address instead.",
+    "locationUnavailable": "Your location is unavailable right now. Enter your start address instead.",
+    "locationTimeout": "Getting your location timed out. Try again or enter your start address.",
+    "locationUnsupported": "This browser can't share your location. Enter your start address instead."
+  },
+  "language": "Language"
+}

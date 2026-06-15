@@ -1,0 +1,5 @@
+{
+  "version": "3.7.0",
+  "tileset_last_modified": 1780330310,
+  "available_actions": ["route", "locate", "status"]
+}

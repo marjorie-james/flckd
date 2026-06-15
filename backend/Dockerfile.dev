@@ -1,0 +1,36 @@
+# Development image for the Camera-Avoiding Route Planner backend.
+# Runs Rails inside a container to sidestep host native-extension build issues.
+# Source is bind-mounted via docker-compose; this image only provides the toolchain + gems.
+FROM ruby:3.4-slim
+
+ENV LANG=C.UTF-8 \
+    BUNDLE_PATH=/usr/local/bundle \
+    RAILS_ENV=development
+
+# System packages: build toolchain for native gems (pg, rgeo, oj),
+# PostGIS/GEOS for rgeo, and postgres client libs.
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+      build-essential \
+      git \
+      libpq-dev \
+      libgeos-dev \
+      libproj-dev \
+      libyaml-dev \
+      curl \
+      postgresql-client && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install gems first for layer caching. Gemfile* are bind-mounted at build time
+# via the build context (backend/ is the context).
+COPY Gemfile Gemfile.lock ./
+RUN gem install bundler && bundle install
+
+# App code is bind-mounted by docker-compose in dev; copy as a fallback.
+COPY . .
+
+EXPOSE 3000
+
+CMD ["bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]

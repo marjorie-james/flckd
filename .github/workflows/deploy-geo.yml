@@ -1,0 +1,76 @@
+name: Deploy geo artifacts
+
+# Roll a built geo substrate (a `geo-*` release from build-geo.yml) onto the geo
+# hosts: download → verify integrity → place into the Kamal accessory volumes →
+# reboot the accessories (ADR 0001). Manual-dispatch only; like the app
+# `deploy.yml` it is a template that needs host/SSH config before it can run.
+#
+# Required GitHub config:
+#   Secrets:   SSH_PRIVATE_KEY (access to the geo hosts)
+#   Variables: ROUTING_HOST, TILES_HOST, GEOCODER_HOST  (host[:user]@addr)
+#              ROUTING_DATA_PATH, TILES_DATA_PATH, GEOCODER_IMPORT_PATH
+#                (the on-host dirs backing the Kamal accessory `directories:` —
+#                 must match backend/config/deploy.yml)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Geo release tag to deploy (e.g. geo-iowa-20260601-12)"
+        required: true
+      confirm:
+        description: 'Type "deploy" to confirm'
+        required: true
+        default: ""
+
+concurrency:
+  group: deploy-geo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm == 'deploy' }}
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ inputs.tag }}" --dir /tmp/geo
+
+      - name: Stage into the infra/ layout and verify integrity
+        run: |
+          mkdir -p infra/data infra/routing/data infra/tiles/data infra/build
+          mv /tmp/geo/extract.osm.pbf     infra/data/
+          mv /tmp/geo/valhalla.json       infra/routing/data/
+          mv /tmp/geo/valhalla_tiles.tar  infra/routing/data/
+          mv /tmp/geo/tiles.pmtiles       infra/tiles/data/
+          mv /tmp/geo/manifest.sha256     infra/build/
+          infra/scripts/geo-manifest.sh verify
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Copy artifacts into the accessory volumes
+        run: |
+          scp -o StrictHostKeyChecking=accept-new \
+            infra/routing/data/valhalla.json infra/routing/data/valhalla_tiles.tar \
+            "${{ vars.ROUTING_HOST }}:${{ vars.ROUTING_DATA_PATH }}/"
+          scp -o StrictHostKeyChecking=accept-new \
+            infra/tiles/data/tiles.pmtiles \
+            "${{ vars.TILES_HOST }}:${{ vars.TILES_DATA_PATH }}/"
+          scp -o StrictHostKeyChecking=accept-new \
+            infra/data/extract.osm.pbf \
+            "${{ vars.GEOCODER_HOST }}:${{ vars.GEOCODER_IMPORT_PATH }}/"
+
+      - name: Reboot the geo accessories (Kamal)
+        working-directory: backend
+        run: |
+          gem install kamal -v "~> 2.0"
+          kamal accessory reboot routing
+          kamal accessory reboot tiles
+          kamal accessory reboot geocoder

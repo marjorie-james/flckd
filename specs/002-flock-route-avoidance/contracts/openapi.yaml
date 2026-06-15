@@ -1,0 +1,298 @@
+openapi: 3.1.0
+info:
+  title: Camera-Avoiding Route Planner API
+  version: 1.0.0
+  description: >
+    Anonymous, self-hosted HTTP API for planning driving routes that avoid the road segments
+    monitored by known ALPR/Flock cameras. No authentication, no accounts, no user data persisted.
+    All geo processing is performed on the product's own infrastructure (no third-party exposure of
+    user origin/destination/route). Route requests use POST so coordinates never appear in URLs/logs.
+servers:
+  - url: /api/v1
+tags:
+  - name: routing
+  - name: geocoding
+  - name: cameras
+  - name: meta
+
+paths:
+  /routes:
+    post:
+      tags: [routing]
+      summary: Plan a camera-avoiding driving route
+      description: >
+        Returns a drivable route avoiding all monitored segments when possible (FR-003); otherwise a
+        minimum-exposure route flagged is_fully_clean=false (FR-004). Coordinates are processed
+        in-memory and excluded from logs (FR-011).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RouteRequest' }
+      responses:
+        '200':
+          description: A planned route
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Route' }
+        '400': { $ref: '#/components/responses/Error' }
+        '422':
+          description: >
+            No usable route. code=no_route when no drivable route exists between the points.
+            Note: camera avoidance never fails — when no fully camera-free route exists the
+            planner returns the fewest-cameras route with is_fully_clean=false (200), not an error.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /geocode/search:
+    get:
+      tags: [geocoding]
+      summary: Forward geocode / address autocomplete
+      description: Text place search for origin/destination entry and disambiguation (FR-001, FR-016).
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: lang
+          in: query
+          required: false
+          schema: { type: string, description: BCP-47 locale }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 5, maximum: 10 }
+      responses:
+        '200':
+          description: Ranked matches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/GeocodeResult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /geocode/reverse:
+    post:
+      tags: [geocoding]
+      summary: Reverse geocode a coordinate
+      description: Used when the user shares device location for the origin (FR-001). POST keeps the
+        coordinate out of URLs/logs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Coordinate' }
+      responses:
+        '200':
+          description: Nearest matching place
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GeocodeResult' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /cameras:
+    get:
+      tags: [cameras]
+      summary: List known cameras within a viewport
+      description: >
+        Reference data for display (US4). Returns camera reference points only — never user data.
+        Bounded by a bounding box to keep responses small.
+      parameters:
+        - name: bbox
+          in: query
+          required: true
+          description: "minLng,minLat,maxLng,maxLat"
+          schema: { type: string }
+        - name: min_confidence
+          in: query
+          required: false
+          schema: { type: number, default: 0.0 }
+      responses:
+        '200':
+          description: Cameras in the bbox
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cameras:
+                    type: array
+                    items: { $ref: '#/components/schemas/Camera' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /coverage:
+    get:
+      tags: [meta]
+      summary: Check camera-data coverage for a point
+      description: Tells the client whether avoidance is available and how fresh the data is (FR-018).
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema: { type: number }
+        - name: lng
+          in: query
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: Coverage status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  covered: { type: boolean }
+                  area_name: { type: string, nullable: true }
+                  data_freshness_at: { type: string, format: date-time, nullable: true }
+
+  /meta/locales:
+    get:
+      tags: [meta]
+      summary: List supported interface languages
+      description: Drives the language switcher (FR-013).
+      responses:
+        '200':
+          description: Supported locales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  default: { type: string }
+                  locales:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string }
+                        name: { type: string }
+
+components:
+  responses:
+    Error:
+      description: A structured, localized, actionable error (Constitution Principle III)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Coordinate:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+
+    RouteRequest:
+      type: object
+      required: [origin, destination]
+      properties:
+        origin: { $ref: '#/components/schemas/Coordinate' }
+        destination: { $ref: '#/components/schemas/Coordinate' }
+        locale: { type: string, description: BCP-47, default: en }
+
+    Maneuver:
+      type: object
+      properties:
+        type: { type: string, description: provider-neutral maneuver type }
+        localized_text: { type: string }
+        distance_m: { type: integer }
+        shape_index: { type: integer, description: index into the route polyline where the maneuver begins }
+
+    RemainingCamera:
+      type: object
+      properties:
+        location: { $ref: '#/components/schemas/Coordinate' }
+        osm_way_id: { type: integer, format: int64 }
+
+    FastestComparison:
+      type: object
+      properties:
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        added_distance_m: { type: integer }
+        added_duration_s: { type: integer }
+        geometry:
+          type: string
+          description: Encoded polyline (precision 6) of the fastest non-avoiding route, for drawing the comparison line.
+        cameras_passed_count:
+          type: integer
+          minimum: 0
+          description: Number of monitored camera segments the fastest route would pass.
+
+    Route:
+      type: object
+      properties:
+        geometry: { type: string, description: encoded polyline }
+        distance_m: { type: integer }
+        duration_s: { type: integer }
+        maneuvers:
+          type: array
+          items: { $ref: '#/components/schemas/Maneuver' }
+        cameras_avoided_count: { type: integer }
+        remaining_cameras:
+          type: array
+          items: { $ref: '#/components/schemas/RemainingCamera' }
+        is_fully_clean: { type: boolean }
+        fastest_comparison: { $ref: '#/components/schemas/FastestComparison' }
+        coverage_warning:
+          type: string
+          nullable: true
+          enum: [outside_coverage, stale_data, partial_coverage, null]
+
+    GeocodeResult:
+      type: object
+      properties:
+        label: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        type: { type: string }
+        confidence: { type: number }
+
+    Camera:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        location: { $ref: '#/components/schemas/Coordinate' }
+        snapped_location:
+          type: object
+          nullable: true
+          description: Camera point snapped onto its monitored road segment; null until the camera is snapped.
+          properties:
+            lat: { type: number }
+            lng: { type: number }
+        segment:
+          type: array
+          nullable: true
+          description: Monitored-segment geometry as [lng, lat] pairs; null until the camera is snapped.
+          items:
+            type: array
+            items: { type: number }
+            minItems: 2
+            maxItems: 2
+        facing_direction:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 359
+          description: Compass bearing the camera faces (0–359); null for omnidirectional / 360°.
+        camera_type: { type: string, nullable: true }
+        confidence: { type: number }
+        verification_status:
+          type: string
+          enum: [unverified, verified, disputed, removed]
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, description: stable machine code (e.g., no_route, outside_coverage) }
+        message: { type: string, description: human-readable, localized, actionable }
+        details: { type: object, additionalProperties: true, nullable: true }
