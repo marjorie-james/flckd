@@ -143,8 +143,7 @@ informational (they're what the containers use). All you need on the host is:
 
 ## Quick start (local)
 
-Local dev is **Docker-only** for the backend (host Ruby native extensions are
-broken). Run from the repo root.
+Local dev is **Docker-only** for the backend. Run from the repo root.
 
 **First time?** The setup wizard handles everything end-to-end — prerequisites,
 region selection, geo build, database, sample camera data, services, and house-number
