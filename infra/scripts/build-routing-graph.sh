@@ -10,6 +10,10 @@
 # goes to infra/routing/data and is mounted by the `routing` compose service.
 #
 # Usage: infra/scripts/build-routing-graph.sh
+#
+# Parallelism: GEO_BUILD_JOBS caps the Valhalla build concurrency (mjolnir). Unset
+# → Valhalla uses all cores (its default). Set it to share cores when this runs
+# concurrently with the tile build / Nominatim import on the same box.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,11 +26,20 @@ IMAGE="${VALHALLA_IMAGE:-ghcr.io/valhalla/valhalla:latest@sha256:a18ece289efc24a
 mkdir -p "${ROUTING_DATA}"
 cp -f "${EXTRACT}" "${ROUTING_DATA}/extract.osm.pbf"
 
+# Cap concurrency only when GEO_BUILD_JOBS is set; otherwise let Valhalla default
+# to all cores. Passed into the container so the inner build config honors it.
+CONCURRENCY_FLAG=""
+if [ -n "${GEO_BUILD_JOBS:-}" ]; then
+  CONCURRENCY_FLAG="--mjolnir-concurrency ${GEO_BUILD_JOBS}"
+fi
+
 echo "Building Valhalla graph in ${ROUTING_DATA} (this can take a while)…"
-docker run --rm -v "${ROUTING_DATA}:/data" -w /data "${IMAGE}" bash -lc '
+docker run --rm -e CONCURRENCY_FLAG="${CONCURRENCY_FLAG}" \
+  -v "${ROUTING_DATA}:/data" -w /data "${IMAGE}" bash -lc '
   set -e
+  # shellcheck disable=SC2086
   valhalla_build_config --mjolnir-tile-dir /data/valhalla_tiles \
-    --mjolnir-tile-extract /data/valhalla_tiles.tar > /data/valhalla.json
+    --mjolnir-tile-extract /data/valhalla_tiles.tar ${CONCURRENCY_FLAG} > /data/valhalla.json
   valhalla_build_tiles -c /data/valhalla.json /data/extract.osm.pbf
   find /data/valhalla_tiles | sort -n | valhalla_build_extract -c /data/valhalla.json -v --overwrite
 '

@@ -204,7 +204,7 @@ export interface paths {
         };
         /**
          * Check camera-data coverage for a point
-         * @description Tells the client whether avoidance is available and how fresh the data is (FR-018).
+         * @description Whether the point falls in an ingested camera-data region and how fresh that region's data is (FR-008). `covered` reflects camera-data PRESENCE at the point (a data-region containing it), not merely being inside the country; `data_freshness_at` is the containing region's own last-refresh time, or null when absent.
          */
         get: {
             parameters: {
@@ -225,10 +225,50 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            covered?: boolean;
-                            area_name?: string | null;
+                            covered: boolean;
                             /** Format: date-time */
-                            data_freshness_at?: string | null;
+                            data_freshness_at: string | null;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/coverage/bounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Map-framing extent for the configured country
+         * @description The configured country's extent (FR-007), sourced from the country registry bbox — NOT the union of camera-data footprints — so the client frames the whole country however sparse the data. `[[west, south], [east, north]]` (lng/lat corners).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Country framing bounds */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            bounds: number[][] | null;
                         };
                     };
                 };

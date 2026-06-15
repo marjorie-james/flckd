@@ -30,21 +30,41 @@ module Geocoding
       "Wisconsin" => "WI", "Wyoming" => "WY", "District of Columbia" => "DC"
     }.freeze
 
-    # viewbox restricts search results to the loaded region.
-    # Format: "min_lng,max_lat,max_lng,min_lat" (Nominatim left,top,right,bottom).
+    # Builds the configured client. By default the deployment spans a whole
+    # country (CountryRegistry, default US): the viewbox is derived from the
+    # country's bbox and the single-state workarounds are off — the whole-country
+    # index has admin_level-4 boundaries, so the state disambiguates rather than
+    # nullifies (FR-003/FR-004, research R3).
+    #
+    # GEOCODER_REGION_STATE is an explicit single-region DEV override (an extract
+    # lacking the country's state boundaries): it keeps the legacy strip-and-fall-
+    # back behavior so a state-only dev stack still geocodes correctly.
     def self.build
-      new(base_url: ENV.fetch("GEOCODER_URL", "http://geocoder:8080"),
-          viewbox: ENV["GEOCODER_VIEWBOX"].presence,
-          region_state: ENV["GEOCODER_REGION_STATE"].presence)
+      base_url = ENV.fetch("GEOCODER_URL", "http://geocoder:8080")
+
+      # CountryRegistry.single_state? is the single source of the mode decision
+      # (shared with Geocoding::MapFraming) so geocoding and map framing always agree.
+      if CountryRegistry.single_state?
+        new(base_url: base_url, viewbox: ENV["GEOCODER_VIEWBOX"].presence,
+            region_state: ENV["GEOCODER_REGION_STATE"])
+      else
+        country = CountryRegistry.resolve
+        new(base_url: base_url, viewbox: country.viewbox, country_spanning: true)
+      end
     end
 
-    # region_state is the full name of the single state this deployment's OSM
-    # extract covers (e.g. "Iowa"). It is stripped from queries alongside the
-    # USPS abbreviations — see #normalize_query for why.
-    def initialize(base_url:, viewbox: nil, region_state: nil, **opts)
+    # `country_spanning` marks an index that covers a whole country (admin_level-4
+    # boundaries present): the state token is kept (it disambiguates) and labels
+    # use the result's real addr["state"].
+    #
+    # `region_state` is the legacy single-region dev path — the full name of the
+    # single state a dev extract covers (e.g. "Iowa"); it is stripped from queries
+    # and used as the label fallback (see #normalize_query / #humanized_label).
+    def initialize(base_url:, viewbox: nil, region_state: nil, country_spanning: false, **opts)
       super(base_url: base_url, **opts)
       @viewbox = viewbox
       @region_state = region_state&.strip
+      @country_spanning = country_spanning
     end
 
     # Forward search / autocomplete.
@@ -84,7 +104,12 @@ module Geocoding
     # configured region's state name is removed, and never the first component
     # (the street) — so a city sharing a state's name, e.g. "Washington, IA",
     # keeps "Washington" and only loses "IA".
+    #
+    # Disabled for a country-spanning index (FR-004): with whole-country data the
+    # state boundary EXISTS, so the token disambiguates same-named cities across
+    # states instead of nullifying the query — stripping it would be the bug.
     def normalize_query(text)
+      return text if @country_spanning
       return text unless text.is_a?(String) && text.include?(",")
 
       parts = text.split(",").map(&:strip)
@@ -132,12 +157,14 @@ module Geocoding
           place["name"].presence || addr["road"]
         end
 
-      # The single-state extract usually omits `state` from address details — it
-      # has no state-level boundary (the same gap #normalize_query works around) —
-      # so fall back to the configured region state, otherwise every label would
-      # be missing "IA".
-      region = [ state_abbr(addr["state"].presence || @region_state), addr["postcode"] ]
-                 .compact.join(" ").presence
+      # A whole-country index carries the real `state` in address details, so the
+      # label uses it directly (FR-004). The single-region dev extract usually
+      # omits `state` (no state-level boundary — the gap #normalize_query works
+      # around), so there we fall back to the configured region state, otherwise
+      # every label would be missing "IA".
+      state = addr["state"].presence
+      state ||= @region_state unless @country_spanning
+      region = [ state_abbr(state), addr["postcode"] ].compact.join(" ").presence
       parts = [ lead, city_of(addr), region ].compact.reject(&:blank?).uniq
 
       parts.join(", ").presence || place["display_name"].to_s

@@ -41,6 +41,10 @@ jobs:
     env:
       REGION: ${{ github.event.inputs.region || 'iowa' }}
       REGION_URL: ${{ github.event.inputs.region_url || 'https://download.geofabrik.de/north-america/us/iowa-latest.osm.pbf' }}
+      # CI publishes the build ARTIFACTS only (extract + routing + tiles +
+      # manifest); it does not bring up services or run TIGER/seed/camera import
+      # (those are the operator's one-command full provisioning via build-geo.sh).
+      GEO_ARTIFACTS_ONLY: "1"
     steps:
       - uses: actions/checkout@v6
 

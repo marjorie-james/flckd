@@ -52,10 +52,11 @@ env:
     ROUTING_URL: http://flckd-backend-routing:8002
     # Nominatim serves on 8080 (same engine/port as dev) — no dev/prod drift.
     GEOCODER_URL: http://flckd-backend-geocoder:8080
-    # Single-state OSM extract has no state (admin_level 4) boundary, so a typed
-    # "..., Iowa" filters out house-number matches. The backend strips this state
-    # name (and any USPS abbreviation) from queries before they reach Nominatim.
-    GEOCODER_REGION_STATE: Iowa
+    # The configured country (CountryRegistry, default us): drives the geocoder
+    # viewbox (from the country bbox) and disables the single-state query
+    # workarounds, since the whole-country index disambiguates by state. Must
+    # match COUNTRY in infra/.region for this deployment.
+    GEOCODER_COUNTRY: us
     TILES_URL: http://flckd-backend-tiles:8080
     # Run Solid Queue inside Puma off (we run a dedicated job host above).
     SOLID_QUEUE_IN_PUMA: false

@@ -141,11 +141,30 @@ RSpec.describe "OpenAPI contract", type: :request do
     expect_conforms("/cameras", "get")
   end
 
-  it "GET /coverage conforms" do
-    create(:coverage_area)
+  it "GET /coverage conforms (covered + per-region data_freshness_at)" do
+    create(:coverage_area, data_freshness_at: Time.current)
     get "/api/v1/coverage", params: { lat: 39.74, lng: -104.99 }
     expect(response).to have_http_status(:ok)
     expect_conforms("/coverage", "get")
+    # The presence-accurate fields the contract now documents (FR-008).
+    expect(response.parsed_body).to include("covered", "data_freshness_at")
+  end
+
+  it "GET /coverage/bounds conforms (country extent from the registry)" do
+    # Pin country scope (framing reads GEOCODER_REGION_STATE/VIEWBOX, which compose
+    # interpolates from the developer's infra/.env).
+    keys = %w[GEOCODER_COUNTRY GEOCODER_REGION_STATE GEOCODER_VIEWBOX]
+    orig = ENV.to_hash.slice(*keys)
+    ENV["GEOCODER_COUNTRY"] = "us"
+    ENV.delete("GEOCODER_REGION_STATE")
+    ENV.delete("GEOCODER_VIEWBOX")
+
+    get "/api/v1/coverage/bounds"
+    expect(response).to have_http_status(:ok)
+    expect_conforms("/coverage/bounds", "get")
+    expect(response.parsed_body["bounds"]).to eq(Geocoding::CountryRegistry.resolve.bounds)
+  ensure
+    keys.each { |k| orig.key?(k) ? ENV[k] = orig[k] : ENV.delete(k) }
   end
 
   it "GET /meta/locales conforms" do
