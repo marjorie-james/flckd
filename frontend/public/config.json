@@ -1,0 +1,5 @@
+{
+  "_comment": "Runtime deploy config, read once at page load (see src/config.ts). Edit this file on the static host to re-point the app WITHOUT rebuilding the bundle. Empty string = same-origin (the default co-located deploy). apiBase must always be OUR backend (anonymity); tilesBase may be a CDN. Serve this file with a short/zero cache TTL so failovers take effect immediately.",
+  "apiBase": "",
+  "tilesBase": ""
+}
