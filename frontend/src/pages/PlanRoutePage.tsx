@@ -104,6 +104,16 @@ export function PlanRoutePage() {
           </div>
         </div>
       </main>
+
+      <footer className="app-footer">
+        <a
+          href="https://github.com/marjorie-james/flckd"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {t("app.getApp")}
+        </a>
+      </footer>
     </div>
   );
 }

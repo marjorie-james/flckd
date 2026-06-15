@@ -1,6 +1,7 @@
 {
   "app": {
-    "title": "Planificador de rutas que evita cámaras"
+    "title": "Planificador de rutas que evita cámaras",
+    "getApp": "Get flckd"
   },
   "form": {
     "origin": "Inicio",
