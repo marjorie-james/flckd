@@ -13,19 +13,15 @@ self-hosted vector tiles) so user route data stays on our own infrastructure.
 
 ## TL;DR — get it running
 
-A deployment covers an entire **country, defaulting to the United States** — and a
-whole-US build is **heavy**: budget **16 GB+ RAM**, **~25 GB free disk** (~10+ GB OSM
-extract + ~1.8 GB TIGER bundle + Postgres/Nominatim volumes), and a **multi-hour,
-mostly-unattended** build (the Nominatim geocoder import is the long pole — *hours*).
-Run it on a larger/self-hosted machine, **not** a laptop or a standard CI runner.
+**Start with a single US state.** It's the fast, laptop-friendly path: a few hundred MB,
+**~25–30 min**, and it runs comfortably on **≥ 6 GB RAM / ~10 GB free disk**. The setup
+wizard defaults to one (**Iowa**), so you can just accept the default and go. Scaling up
+to a whole country (the production scope) is a heavier, larger-machine job —
+see [Whole-country / whole-US deployments](#whole-country--whole-us-deployments) below.
 
-> **Just kicking the tires?** Build a single **US state** instead (`--region IA`, the
-> default at the prompt): a few hundred MB, **~25–30 min**, and it runs fine on a laptop
-> with **≥ 6 GB RAM / ~10 GB disk**. See [Quick start](#quick-start-local) below.
-
-You only need **[Docker Desktop](https://docs.docker.com/get-docker/)** (sized per the
-target above), **git**, and **curl**. Everything else runs in containers — no Ruby,
-Node, or Postgres to install.
+You only need **[Docker Desktop](https://docs.docker.com/get-docker/)** (give it
+≥ 6 GB memory and ~10 GB free disk for a state build), **git**, and **curl**. Everything
+else runs in containers — no Ruby, Node, or Postgres to install.
 
 1. **Get the code:**
 
@@ -34,9 +30,9 @@ Node, or Postgres to install.
    cd flckd
    ```
 
-2. **Run the one-time setup wizard** (downloads map data and starts everything). Run it
-   from the repo root. At its prompt enter **`US`** for the whole country (*hours*) or a
-   **2-letter state** for a fast dev build (it defaults to **`IA`**):
+2. **Run the one-time setup wizard** (downloads map data and starts everything; for a
+   state it takes ~25–30 min, mostly unattended). Run it from the repo root and accept
+   the default state (or type another **2-letter state** at the prompt):
 
    | OS | Command |
    |---|---|
@@ -56,6 +52,31 @@ docker compose -f infra/docker-compose.yml up -d
 ```
 
 That's it. The rest of this README covers the details.
+
+## Whole-country / whole-US deployments
+
+A single state is ideal for local dev and trying things out, but flckd's **production
+scope is a whole country, defaulting to the United States** — the configured country
+drives the OSM extract, routing graph, vector tiles, geocoder + whole-US TIGER house
+numbers, camera gathering, and map framing. A whole-US build is **substantially
+heavier** than a state and belongs on a **larger/self-hosted machine, not a laptop or a
+standard CI runner**.
+
+**Requirements for a whole-US build:**
+
+| Resource | Single state (dev) | **Whole US (production)** |
+|---|---|---|
+| Memory (Docker) | ≥ 6 GB | **16 GB+** (Nominatim/Planetiler OOM below ~6 GB) |
+| Free disk | ~10 GB | **~25 GB** (~10+ GB OSM extract + ~1.8 GB TIGER bundle + Postgres/Nominatim volumes) |
+| Build time | ~25–30 min | **hours** — the Nominatim OSM import is the long pole |
+| Machine | a laptop is fine | larger/self-hosted box; fast NVMe (the import saturates disk IOPS before CPU) |
+
+Provision it from the same wizard (`./setup.sh`, then enter **`US`** at the prompt) or
+non-interactively with `COUNTRY=us infra/scripts/build-geo.sh`. Tuning knobs for the
+heavy stages — `NOMINATIM_SHM`, `PLANETILER_XMX`, `GEO_GEOCODER_TIMEOUT` — and the full
+resource envelope are documented in
+[docs/runbooks/geo-stack.md](docs/runbooks/geo-stack.md). Only **US** is provisioned and
+validated at launch; an un-provisioned country fails fast with an actionable error.
 
 ## Stack
 
@@ -96,19 +117,21 @@ Everything runs in Docker — you do **not** need to install Ruby, Node, pnpm, o
 PostgreSQL on your machine. The versions in the Stack table above are
 informational (they're what the containers use). All you need on the host is:
 
-- **[Docker Desktop](https://docs.docker.com/get-docker/)** (Compose v2), sized for your
-  target. The first-run geo build runs Nominatim, Planetiler, Valhalla, and Postgres at
-  once; below ~6 GB one of them gets OOM-killed mid-import. Raise it in *Docker Desktop →
-  Settings → Resources → Memory*.
+- **[Docker Desktop](https://docs.docker.com/get-docker/)** (Compose v2), configured
+  with **≥ 6 GB of memory** and **~10 GB of free disk** for a single-state build. The
+  first-run geo build runs Nominatim, Planetiler, Valhalla, and Postgres at once; below
+  ~6 GB one of them gets OOM-killed mid-import. Raise it in *Docker Desktop → Settings →
+  Resources → Memory*.
 
   | Target | Memory | Free disk | Build time |
   |---|---|---|---|
-  | **Whole US** (default) | **16 GB+** | **~25 GB** (~10+ GB OSM + ~1.8 GB TIGER + volumes) | **hours** (Nominatim import is the long pole) |
-  | **Single state** (dev override) | ≥ 6 GB | ~10 GB | ~25–30 min |
+  | **Single state** (recommended start) | ≥ 6 GB | ~10 GB | ~25–30 min |
+  | **Whole US** (production scope) | **16 GB+** | **~25 GB** (~10+ GB OSM + ~1.8 GB TIGER + volumes) | **hours** (Nominatim import is the long pole) |
 
-  A whole-US build belongs on a larger/self-hosted machine, not a laptop or a standard
-  CI runner. See [docs/runbooks/geo-stack.md](docs/runbooks/geo-stack.md) for the full
-  resource envelope and tuning knobs (`NOMINATIM_SHM`, `PLANETILER_XMX`, `GEO_GEOCODER_TIMEOUT`).
+  A whole-US build belongs on a larger/self-hosted machine — see
+  [Whole-country / whole-US deployments](#whole-country--whole-us-deployments) and
+  [docs/runbooks/geo-stack.md](docs/runbooks/geo-stack.md) for the full resource envelope
+  and tuning knobs (`NOMINATIM_SHM`, `PLANETILER_XMX`, `GEO_GEOCODER_TIMEOUT`).
 - **git** and **curl** (both ship with macOS; on Linux install via your package manager).
 - **Windows:** run everything inside **WSL2** (the setup script is bash).
 
@@ -118,26 +141,27 @@ Local dev is **Docker-only** for the backend (host Ruby native extensions are
 broken). Run from the repo root.
 
 **First time?** The setup wizard handles everything end-to-end — prerequisites,
-country/region selection, geo build, database, sample camera data, services, and
-house-number geocoding. Most of the time is the Nominatim OSM import running in the
-background — **hours for the whole US**, **~25–30 min for a single state**:
+region selection, geo build, database, sample camera data, services, and house-number
+geocoding (**~25–30 min for a single state**; most of that is the Nominatim OSM import
+running in the background):
 
 ```bash
 ./setup.sh
 ```
 
-At the prompt, enter **`US`** for the whole country (the supported default — heavy;
-see [Prerequisites](#prerequisites)) or a **2-letter state** for a fast dev build
-(defaults to **`IA`**). (`./setup.sh` is a thin wrapper around `infra/scripts/setup.sh`
-— either works, and both accept the same flags, e.g. `-v` for verbose, `--region US`
-for the whole country, or `--region CA` to skip the prompt.) It's safe to re-run: if a
-step fails (e.g. the geocoder import times out), fix the cause and run it again —
-completed work is reused.
+At the prompt, accept the default state (**`IA`**) or type another **2-letter state**.
+(`./setup.sh` is a thin wrapper around `infra/scripts/setup.sh` — either works, and both
+accept the same flags, e.g. `-v` for verbose or `--region CA` to skip the prompt.) To
+build the whole country instead, enter **`US`** at the prompt or pass `--region US` —
+that's the heavier production path; see
+[Whole-country / whole-US deployments](#whole-country--whole-us-deployments). It's safe
+to re-run: if a step fails (e.g. the geocoder import times out), fix the cause and run it
+again — completed work is reused.
 
 The wizard writes `infra/.region` and `infra/.env` (both gitignored), runs
 `infra/scripts/build-geo.sh`, then automatically prepares the database, imports fixture
 cameras, starts all services, waits for the geocoder, and loads TIGER/Line address data
-(the whole-US bundle for `US`, just that state otherwise). When it finishes, the app is
+(just the selected state, or the whole-US bundle for `US`). When it finishes, the app is
 ready at the URLs it prints.
 
 **Day-to-day** (after the first run — bringing services back up):
@@ -197,6 +221,13 @@ its users.
 **Data** is separate: the camera dataset is derived from OpenStreetMap and is
 licensed under [ODbL-1.0](https://opendatacommons.org/licenses/odbl/1-0/), not
 AGPL. See [docs/adr/0002-pbf-derived-camera-source.md](docs/adr/0002-pbf-derived-camera-source.md).
+
+## Contributing
+
+Contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) (setup, the
+project non-negotiables, and how contributions are licensed), and please follow the
+[Code of Conduct](CODE_OF_CONDUCT.md). For security or privacy/anonymity issues, **do not
+open a public issue** — see [SECURITY.md](SECURITY.md).
 
 ## Docs
 
