@@ -6,6 +6,7 @@ import { decodePolyline } from "../lib/polyline";
 import type { Coordinate, RegionBounds, Route } from "../types/api";
 import { prefersReducedMotion } from "../utils/reducedMotion";
 import { CameraLayer } from "./CameraLayer";
+import { tilesBase } from "../config";
 import baseStyle from "../../public/map-style.json";
 
 // Self-hosted vector tiles only — no third-party tile/CDN requests (FR-012a).
@@ -22,16 +23,21 @@ import baseStyle from "../../public/map-style.json";
 // Layers come from public/map-style.json (single source of truth). Only the
 // three runtime fields that need absolute URLs — glyphs, tiles, and projection
 // — are patched here.
-function buildStyle(origin: string): StyleSpecification {
+//
+// glyphs and tiles can live on different origins: fonts are served by the
+// frontend static host (page origin), while tiles come from tilesBase() — the
+// same origin by default, but optionally a separate tiles CDN (tiles carry no
+// user data; see config.ts).
+function buildStyle(glyphOrigin: string, tilesOrigin: string): StyleSpecification {
   return {
     ...baseStyle,
     projection: { type: "mercator" },
-    glyphs: origin + "/fonts/{fontstack}/{range}.pbf",
+    glyphs: glyphOrigin + "/fonts/{fontstack}/{range}.pbf",
     sources: {
       ...baseStyle.sources,
       openmaptiles: {
         ...baseStyle.sources.openmaptiles,
-        tiles: [origin + "/tiles/{z}/{x}/{y}.mvt"],
+        tiles: [tilesOrigin + "/tiles/{z}/{x}/{y}.mvt"],
       },
     },
   } as unknown as StyleSpecification;
@@ -99,7 +105,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const style = buildStyle(window.location.origin);
+    const style = buildStyle(window.location.origin, tilesBase());
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
       style,
