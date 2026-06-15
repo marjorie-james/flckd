@@ -32,10 +32,11 @@ jobs:
           version: 11.5.2
       - uses: actions/setup-node@v6
         with:
-          # Pinned to 22.13+: pnpm 11.5.2 (above) requires Node >= 22.13, and the
-          # bare "22" range was resolving to a cached 22.12 on the runner, failing
-          # `pnpm install` before any check ran.
-          node-version: "22.13"
+          # Pinned to the 22.22 LTS minor to match .tool-versions (22.22.3): pnpm
+          # 11.5.2 (above) requires Node >= 22.13, and the bare "22" range was
+          # resolving to a cached 22.12 on the runner, failing `pnpm install`
+          # before any check ran.
+          node-version: "22.22"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
