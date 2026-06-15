@@ -579,8 +579,8 @@ body {
 
 .directions { counter-reset: step; }
 
-/* ─── Handoff warning ─── */
-.handoff-warning {
+/* ─── GPX export warning ─── */
+.export-warning {
   border: 1px solid var(--amber-ring);
   background: var(--amber-bg);
   border-radius: var(--r);
@@ -592,24 +592,26 @@ body {
   color: var(--amber);
 }
 
-.handoff-warning p { margin: 0; font-weight: 500; }
+.export-warning p { margin: 0; }
+.export-warning .export-risk { font-weight: 500; }
+.export-warning .export-howto { color: var(--text-muted); }
 
-.handoff-warning a {
-  display: block;
+.export-warning .export-confirm {
   padding: 9px 12px;
   background: var(--raised);
   border: 1px solid var(--border-hi);
   border-radius: var(--r-sm);
   color: var(--text);
-  text-decoration: none;
   font-size: 13px;
   font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
   transition: border-color 0.15s;
 }
 
-.handoff-warning a:hover { border-color: var(--accent); }
+.export-warning .export-confirm:hover { border-color: var(--accent); }
 
-.handoff-warning button {
+.export-warning button {
   padding: 8px;
   background: none;
   border: 1px solid var(--border);
@@ -621,10 +623,10 @@ body {
   transition: color 0.15s, border-color 0.15s;
 }
 
-.handoff-warning button:hover { color: var(--text); border-color: var(--border-hi); }
+.export-warning button:hover { color: var(--text); border-color: var(--border-hi); }
 
-/* open-in-maps trigger button */
-.open-in-maps-btn {
+/* GPX export trigger button */
+.export-gpx-btn {
   padding: 9px 14px;
   background: var(--raised);
   border: 1px solid var(--border-hi);
@@ -637,7 +639,7 @@ body {
   align-self: flex-start;
 }
 
-.open-in-maps-btn:hover { color: var(--text); border-color: var(--accent); }
+.export-gpx-btn:hover { color: var(--text); border-color: var(--accent); }
 
 /* ─── Coverage warning ─── */
 .coverage-warning {

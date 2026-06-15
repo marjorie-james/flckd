@@ -18,11 +18,10 @@ function route(overrides: Partial<Route> = {}): Route {
     ...overrides,
   };
 }
-const coord = { lat: 41.6, lng: -93.6 };
 
 describe("RouteResult camera status", () => {
   it("does not show '0 cameras avoided' or 'avoids all' when no cameras were near the route", () => {
-    render(<RouteResult route={route({ cameras_avoided_count: 0 })} origin={coord} destination={coord} />);
+    render(<RouteResult route={route({ cameras_avoided_count: 0 })} />);
     // The reported contradiction must be gone:
     expect(screen.queryByText(/0 cameras avoided/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/avoids all known cameras/i)).not.toBeInTheDocument();
@@ -30,7 +29,7 @@ describe("RouteResult camera status", () => {
   });
 
   it("shows 'avoids all known cameras' and the count when cameras were actually avoided", () => {
-    render(<RouteResult route={route({ cameras_avoided_count: 3 })} origin={coord} destination={coord} />);
+    render(<RouteResult route={route({ cameras_avoided_count: 3 })} />);
     expect(screen.getByText(/avoids all known cameras/i)).toBeInTheDocument();
     expect(screen.getByText(/3 cameras avoided/i)).toBeInTheDocument();
   });
@@ -43,8 +42,6 @@ describe("RouteResult camera status", () => {
           cameras_avoided_count: 3,
           remaining_cameras: [{ osm_way_id: 42 }],
         })}
-        origin={coord}
-        destination={coord}
       />,
     );
     expect(screen.queryByText(/cameras avoided/i)).not.toBeInTheDocument();
@@ -71,8 +68,6 @@ describe("RouteResult comparison trade-off (009)", () => {
     render(
       <RouteResult
         route={route({ duration_s: 600 })}
-        origin={coord}
-        destination={coord}
         showComparison
         onToggleComparison={onToggle}
       />,
@@ -88,23 +83,13 @@ describe("RouteResult comparison trade-off (009)", () => {
   });
 
   it("indicates how many cameras the fastest route would pass (US3 / FR-007)", () => {
-    render(
-      <RouteResult
-        route={route({ fastest_comparison: fc({ cameras_passed_count: 2 }) })}
-        origin={coord}
-        destination={coord}
-      />,
-    );
+    render(<RouteResult route={route({ fastest_comparison: fc({ cameras_passed_count: 2 }) })} />);
     expect(screen.getByText(/fastest route passes 2 cameras/i)).toBeInTheDocument();
   });
 
   it("shows no added-time/-distance rows or toggle when avoidance is free (US2 / FR-006)", () => {
     render(
-      <RouteResult
-        route={route({ fastest_comparison: fc({ added_duration_s: 0, added_distance_m: 0 }) })}
-        origin={coord}
-        destination={coord}
-      />,
+      <RouteResult route={route({ fastest_comparison: fc({ added_duration_s: 0, added_distance_m: 0 }) })} />,
     );
     expect(screen.queryByText(/vs fastest/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /fastest route/i })).not.toBeInTheDocument();

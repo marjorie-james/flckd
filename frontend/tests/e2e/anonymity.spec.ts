@@ -2,7 +2,8 @@ import { test, expect } from "@playwright/test";
 import { mockApi, planRoute } from "./helpers";
 
 // T046 (US2): the full flow makes ZERO third-party network requests, and the
-// open-in-maps handoff warns the user before any external navigation.
+// GPX export builds the route file locally (no transmission) after warning the
+// user that the file itself holds their route.
 
 test("makes no third-party requests during the full route flow", async ({ page, baseURL }) => {
   const allowedHost = new URL(baseURL!).host;
@@ -73,27 +74,30 @@ test("recentering on a selected starting address makes no third-party requests",
   expect(offending, `Unexpected third-party requests:\n${offending.join("\n")}`).toEqual([]);
 });
 
-test("warns before handing off to an external maps provider", async ({ page }) => {
+test("exports the route as a local GPX file after warning about the file risk", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   await planRoute(page);
 
   // The warning is not shown until the user opts in.
-  const handoff = page.locator(".route-result");
-  await expect(handoff.locator('[role="alertdialog"]')).toHaveCount(0);
+  const result = page.locator(".route-result");
+  await expect(result.locator('[role="alertdialog"]')).toHaveCount(0);
 
-  await handoff.getByRole("button", { name: /open in maps/i }).click();
+  await result.getByRole("button", { name: /export route \(gpx\)/i }).click();
 
-  // Now the explicit pre-handoff warning appears BEFORE any external link.
+  // The explicit warning appears BEFORE the file is created: it must state the
+  // file holds the route AND how to use it.
   const dialog = page.locator('[role="alertdialog"]');
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("shares this route's locations");
+  await expect(dialog).toContainText("contains your exact route");
+  await expect(dialog).toContainText("track-following navigation app");
 
-  // External links exist but target a new tab — the user has not left the app.
-  await expect(dialog.getByRole("link", { name: "Apple Maps" })).toHaveAttribute("target", "_blank");
-  await expect(dialog.getByRole("link", { name: "Google Maps" })).toHaveAttribute(
-    "href",
-    /google\.com\/maps/
-  );
+  // Downloading produces a LOCAL .gpx file; the user never leaves the app and
+  // (per the request listener in the test above) nothing is sent to a third party.
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    dialog.getByRole("button", { name: /download \.gpx/i }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("flckd-route.gpx");
   expect(page.url()).toMatch(/localhost:4173/);
 });
