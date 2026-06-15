@@ -1,0 +1,7 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security or privacy/anonymity vulnerability
+    url: https://github.com/marjorie-james/flckd/security/advisories/new
+    about: >-
+      Do NOT open a public issue for security or privacy/anonymity issues.
+      Report privately — see SECURITY.md.

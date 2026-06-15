@@ -254,7 +254,7 @@ curl -s "http://localhost:8002/status"
 curl -s http://localhost:3000/api/v1/routes -H 'Content-Type: application/json' \
   -d '{"route":{"origin":{"lat":41.5868,"lng":-93.6250},
        "destination":{"lat":41.6611,"lng":-91.5302},
-       "aggressiveness":"completely_avoid","locale":"en"}}'
+       "locale":"en"}}'
 
 # Tiles (Protomaps PMTiles via go-pmtiles): metadata + a sample vector tile.
 # The path key is the filename WITHOUT .pmtiles, i.e. /tiles/...

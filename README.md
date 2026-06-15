@@ -190,7 +190,7 @@ Smoke-test a route:
 curl -s http://localhost:3000/api/v1/routes -H 'Content-Type: application/json' \
   -d '{"route":{"origin":{"lat":41.5868,"lng":-93.6250},
        "destination":{"lat":41.6611,"lng":-91.5302},
-       "aggressiveness":"completely_avoid","locale":"en"}}'
+       "locale":"en"}}'
 ```
 
 Health check: `curl http://localhost:3000/api/v1/health` (returns 503
