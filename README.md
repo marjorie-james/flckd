@@ -67,9 +67,15 @@ standard CI runner**.
 | Resource | Single state (dev) | **Whole US (production)** |
 |---|---|---|
 | Memory (Docker) | ≥ 6 GB | **16 GB+** (Nominatim/Planetiler OOM below ~6 GB) |
-| Free disk | ~10 GB | **~25 GB** (~10+ GB OSM extract + ~1.8 GB TIGER bundle + Postgres/Nominatim volumes) |
+| Free disk | ~10 GB | **~350–400 GB** — the Nominatim Postgres volume alone reaches ~250–350 GB during the whole-US import, on top of the ~10+ GB OSM extract, ~1.8 GB TIGER bundle, routing graph, and tiles |
 | Build time | ~25–30 min | **hours** — the Nominatim OSM import is the long pole |
 | Machine | a laptop is fine | larger/self-hosted box; fast NVMe (the import saturates disk IOPS before CPU) |
+
+> **Disk is the most common failure.** The whole-US Nominatim import grows well past the
+> raw extract size — budget **~400 GB free** and watch it; if the host disk fills, the
+> import is killed mid-run and leaves a corrupt volume you must delete before retrying
+> (`docker volume rm infra_nominatim_data`). On macOS, point Docker's disk image at a
+> drive with that much headroom (*Docker Desktop → Settings → Resources → Advanced*).
 
 Provision it from the same wizard (`./setup.sh`, then enter **`US`** at the prompt) or
 non-interactively with `COUNTRY=us infra/scripts/build-geo.sh`. Tuning knobs for the
@@ -126,7 +132,7 @@ informational (they're what the containers use). All you need on the host is:
   | Target | Memory | Free disk | Build time |
   |---|---|---|---|
   | **Single state** (recommended start) | ≥ 6 GB | ~10 GB | ~25–30 min |
-  | **Whole US** (production scope) | **16 GB+** | **~25 GB** (~10+ GB OSM + ~1.8 GB TIGER + volumes) | **hours** (Nominatim import is the long pole) |
+  | **Whole US** (production scope) | **16 GB+** | **~350–400 GB** (Nominatim Postgres volume alone reaches ~250–350 GB during import) | **hours** (Nominatim import is the long pole) |
 
   A whole-US build belongs on a larger/self-hosted machine — see
   [Whole-country / whole-US deployments](#whole-country--whole-us-deployments) and

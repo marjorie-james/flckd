@@ -21,8 +21,11 @@ geocoder index + whole-US TIGER house numbers, camera gathering, map framing, an
 [`scripts/country-registry.sh`](scripts/country-registry.sh). Only **US** is populated and validated at
 launch; an unknown / un-provisioned country **fails fast** with an actionable error (FR-009).
 
-> **Resource note:** a whole-US build is **far heavier** than a state — ~10+ GB of OSM plus the whole-US
-> TIGER bundle (~1.8 GB), **16 GB+ RAM**, ~25 GB disk, and a multi-hour Nominatim import. Run country
+> **Resource note:** a whole-US build is **far heavier** than a state — **16 GB+ RAM** and
+> **~350–400 GB of free disk** (the Nominatim Postgres volume alone reaches ~250–350 GB during the
+> import, on top of the ~10+ GB OSM extract and ~1.8 GB TIGER bundle), and a multi-hour Nominatim
+> import. If the host disk fills, the import dies and leaves a corrupt volume you must delete
+> (`docker volume rm infra_nominatim_data`) before retrying. Run country
 > builds on a larger/self-hosted machine, **not** a laptop or a standard CI runner. See
 > [docs/runbooks/geo-stack.md](../docs/runbooks/geo-stack.md).
 
