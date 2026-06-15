@@ -62,4 +62,16 @@ RSpec.describe "GET /api/v1/cameras", type: :request do
     get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,200" } # max_lat = 200
     expect(response).to have_http_status(:bad_request)
   end
+
+  it "400s on a bbox component that parses to infinity (1e400)" do
+    # Float("1e400") yields Float::INFINITY without raising; only the range check
+    # rejects it, so an infinite envelope never reaches PostGIS.
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,1e400,39.8" }
+    expect(response).to have_http_status(:bad_request)
+  end
+
+  it "400s on a bbox component with surrounding junk (Float is strict, unlike to_f)" do
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9foo,39.8" }
+    expect(response).to have_http_status(:bad_request)
+  end
 end

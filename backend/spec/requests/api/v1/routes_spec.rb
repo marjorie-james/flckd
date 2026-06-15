@@ -97,6 +97,25 @@ RSpec.describe "POST /api/v1/routes", type: :request do
     expect(response).to have_http_status(:bad_request)
   end
 
+  it "400s on a JSON number that parses to infinity (1e400) instead of routing it" do
+    # JSON.parse coerces a huge exponent to Float::INFINITY, which passes Float()
+    # without raising — only the explicit range check rejects it. Guards that path.
+    expect(Routing::RoutePlanner).not_to receive(:new)
+    post "/api/v1/routes",
+         params: %({"route":{"origin":{"lat":1e400,"lng":-104.99},"destination":{"lat":39.7,"lng":-104.8}}}),
+         headers: { "CONTENT_TYPE" => "application/json" }
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body["code"]).to eq("bad_request")
+  end
+
+  it "accepts coordinates exactly on the range boundary (lat 90, lng 180)" do
+    stub_planner_with(result_struct)
+    post "/api/v1/routes",
+         params: { route: { origin: { lat: 90.0, lng: 180.0 }, destination: { lat: -90.0, lng: -180.0 } } },
+         as: :json
+    expect(response).to have_http_status(:ok)
+  end
+
   it "responds with a structured error code when the routing service is down" do
     planner = instance_double(Routing::RoutePlanner)
     allow(Routing::RoutePlanner).to receive(:new).and_return(planner)
@@ -104,7 +123,7 @@ RSpec.describe "POST /api/v1/routes", type: :request do
 
     post "/api/v1/routes", params: params, as: :json
 
-    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response).to have_http_status(:unprocessable_content)
     expect(response.parsed_body["code"]).to eq("no_route")
   end
 end

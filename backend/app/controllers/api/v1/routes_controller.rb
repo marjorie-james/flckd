@@ -19,7 +19,7 @@ module Api
         # scope has unwound and would render in the default locale.
         render_bad_request(e)
       rescue Geo::HttpClient::ServiceError
-        render_error(code: "no_route", status: :unprocessable_entity)
+        render_error(code: "no_route", status: :unprocessable_content)
       end
 
       private
