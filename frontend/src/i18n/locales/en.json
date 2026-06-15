@@ -47,13 +47,13 @@
     "hideComparison": "Hide fastest route",
     "remainingItem": "Monitored road #{{id}}",
     "distance": "{{km}} km",
-    "openInMaps": "Open in Maps",
+    "exportGpx": "Export route (GPX)",
     "directions": "Directions"
   },
-  "handoff": {
-    "warning": "Opening an external map shares this route's locations with that provider. Continue?",
-    "apple": "Apple Maps",
-    "google": "Google Maps",
+  "gpx": {
+    "warning": "This file contains your exact route — the coordinates of your start, destination, and every turn between them. It's created on your device and sent nowhere, but once you save it, protecting it is up to you: if the file is shared, synced to cloud storage, or opened by an app that phones home, your locations could be exposed. flckd can't protect the file after you save it.",
+    "howto": "Open the .gpx in a track-following navigation app (such as OsmAnd) or a GPS device to follow flckd's camera-avoided route exactly — the app follows this track instead of calculating its own.",
+    "download": "Download .gpx",
     "cancel": "Cancel"
   },
   "errors": {
