@@ -17,6 +17,13 @@ export function PlanRoutePage() {
   const [endpoints, setEndpoints] = useState<{ origin: Coordinate; destination: Coordinate } | null>(
     null
   );
+  // The confirmed address labels for the current trip, captured at plan time so
+  // the printable directions sheet can show "From … / To …" (the Route response
+  // has no human-readable endpoints). Stored alongside the endpoints so a later
+  // edit of the input fields can't desync the printed trip (FR-012).
+  const [tripLabels, setTripLabels] = useState<{ origin: string; destination: string } | null>(
+    null
+  );
   // The confirmed starting location, lifted here so MapView can recenter on it
   // the moment the user selects an address (feature 007).
   const [origin, setOrigin] = useState<Coordinate | null>(null);
@@ -39,9 +46,14 @@ export function PlanRoutePage() {
   // whatever region this deployment covers (no hardcoded launch state).
   const coverage = useCoverageBounds();
 
-  const handlePlan = (nextOrigin: Coordinate, destination: Coordinate) => {
+  const handlePlan = (
+    nextOrigin: Coordinate,
+    destination: Coordinate,
+    labels: { origin: string; destination: string },
+  ) => {
     setShowComparison(true);
     setEndpoints({ origin: nextOrigin, destination });
+    setTripLabels(labels);
   };
 
   const errorMessage = plan.error
@@ -94,6 +106,8 @@ export function PlanRoutePage() {
                 <CameraSummary route={route} />
                 <RouteResult
                   route={route}
+                  originLabel={tripLabels?.origin ?? ""}
+                  destinationLabel={tripLabels?.destination ?? ""}
                   showComparison={showComparison}
                   onToggleComparison={() => setShowComparison((v) => !v)}
                 />

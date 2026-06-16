@@ -91,9 +91,12 @@ describe("RoutePanel", () => {
     expect(plan).toBeEnabled();
     fireEvent.click(plan);
 
+    // The confirmed address labels ride along with the coordinates (013) so the
+    // printable directions sheet can show the trip's origin/destination.
     expect(onPlan).toHaveBeenCalledWith(
       { lat: 41.5868, lng: -93.625 },
       { lat: 41.6612, lng: -91.5299 },
+      { origin: "Des Moines, IA", destination: "Iowa City, IA" },
     );
   });
 });

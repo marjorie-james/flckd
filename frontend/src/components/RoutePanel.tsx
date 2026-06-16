@@ -7,7 +7,15 @@ import { AddressAutocomplete } from "./AddressAutocomplete";
 import type { Coordinate, GeocodeResult } from "../types/api";
 
 interface Props {
-  onPlan: (origin: Coordinate, destination: Coordinate) => void;
+  // The confirmed address labels travel alongside the coordinates so the page can
+  // show them on the printable directions sheet (the Route response carries no
+  // human-readable origin/destination). Captured at plan time so later edits to
+  // the inputs can't desync the printed trip.
+  onPlan: (
+    origin: Coordinate,
+    destination: Coordinate,
+    labels: { origin: string; destination: string },
+  ) => void;
   planning: boolean;
   // Announced whenever the starting location is set (suggestion pick or "use my
   // location") or cleared — lets the parent recenter the map (feature 007).
@@ -76,7 +84,8 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
       className="route-panel"
       onSubmit={(e) => {
         e.preventDefault();
-        if (origin && destination) onPlan(origin, destination);
+        if (origin && destination)
+          onPlan(origin, destination, { origin: originText, destination: destText });
       }}
     >
       <AddressAutocomplete

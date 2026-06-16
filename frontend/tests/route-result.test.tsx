@@ -52,6 +52,42 @@ describe("RouteResult camera status", () => {
   });
 });
 
+describe("RouteResult print control (013)", () => {
+  it("mounts the print control at the top of the directions section", () => {
+    const { container } = render(
+      <RouteResult
+        route={route({ maneuvers: [{ type: "start", localized_text: "Go", distance_m: 1 }] })}
+      />,
+    );
+    const header = container.querySelector(".directions-header");
+    expect(header).not.toBeNull();
+    const btn = screen.getByRole("button", { name: /print directions/i });
+    expect(header).toContainElement(btn);
+    // The control sits before the on-screen <ol class="directions">.
+    const ol = container.querySelector("ol.directions")!;
+    expect(header!.compareDocumentPosition(ol) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("forwards the confirmed origin/destination labels into the print sheet (label lift)", () => {
+    const { container } = render(
+      <RouteResult route={route()} originLabel="123 Main St" destinationLabel="456 Oak Ave" />,
+    );
+    const sheet = container.querySelector(".printable-directions")!;
+    expect(sheet).toHaveTextContent(/From:\s*123 Main St/i);
+    expect(sheet).toHaveTextContent(/To:\s*456 Oak Ave/i);
+  });
+
+  it("updates the printed labels after a re-plan, never showing the stale trip (FR-012)", () => {
+    const { container, rerender } = render(
+      <RouteResult route={route()} originLabel="Old origin" destinationLabel="Old dest" />,
+    );
+    rerender(<RouteResult route={route()} originLabel="New origin" destinationLabel="New dest" />);
+    const sheet = container.querySelector(".printable-directions")!;
+    expect(sheet).toHaveTextContent("New origin");
+    expect(sheet.textContent ?? "").not.toMatch(/Old origin|Old dest/);
+  });
+});
+
 describe("RouteResult comparison trade-off (009)", () => {
   const fc = (overrides = {}) => ({
     distance_m: 5000,
