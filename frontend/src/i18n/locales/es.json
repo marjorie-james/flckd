@@ -56,6 +56,13 @@
     "download": "Descargar .gpx",
     "cancel": "Cancelar"
   },
+  "print": {
+    "action": "Imprimir indicaciones",
+    "heading": "Indicaciones de conducción",
+    "from": "Desde",
+    "to": "Hasta",
+    "privacyNotice": "Esta hoja muestra tu ruta completa: tu inicio, tu destino y cada giro. Se creó en tu dispositivo y no se envió a ningún sitio, pero el papel contiene tus ubicaciones: guárdalo con cuidado y deséchalo de forma responsable cuando termines."
+  },
   "errors": {
     "no_route": "No encontramos una ruta para conducir. Prueba otras ubicaciones.",
     "bad_request": "Introduce un inicio y un destino.",

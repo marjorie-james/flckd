@@ -1,10 +1,17 @@
 import { useTranslation } from "react-i18next";
 import type { Route } from "../types/api";
 import { routeStatus } from "../utils/routeStatus";
+import { routeTotals } from "../utils/routeTotals";
 import { RouteExport } from "./RouteExport";
+import { PrintableDirections } from "./PrintableDirections";
 
 interface Props {
   route: Route;
+  // The confirmed origin/destination address labels for this trip, shown on the
+  // printable directions sheet. Optional with empty defaults so existing call
+  // sites/tests that don't wire the print sheet still render.
+  originLabel?: string;
+  destinationLabel?: string;
   // Whether the comparison (fastest) route is currently drawn on the map. The
   // show/hide toggle below flips it. Optional with a sensible default so existing
   // call sites/tests render without wiring the comparison.
@@ -17,13 +24,18 @@ interface Props {
 // fastest-route trade-off (added time + distance and what the fastest route
 // would expose), a show/hide control for the comparison line, localized
 // directions, and a faithful GPX export of the camera-avoided route.
-export function RouteResult({ route, showComparison = true, onToggleComparison }: Props) {
+export function RouteResult({
+  route,
+  originLabel = "",
+  destinationLabel = "",
+  showComparison = true,
+  onToggleComparison,
+}: Props) {
   const { t } = useTranslation();
   const fc = route.fastest_comparison;
   const addedMin = Math.round(fc.added_duration_s / 60);
   const addedKm = (fc.added_distance_m / 1000).toFixed(1);
-  const travelMin = Math.round(route.duration_s / 60);
-  const km = (route.distance_m / 1000).toFixed(1);
+  const { travelMin, km } = routeTotals(route);
   // The comparison is only meaningful when avoidance costs extra time; when it's
   // free we show a single route and no positive trade-off figures (FR-006).
   const hasCost = fc.added_duration_s > 0;
@@ -73,7 +85,14 @@ export function RouteResult({ route, showComparison = true, onToggleComparison }
         </p>
       )}
 
-      <h3>{t("result.directions")}</h3>
+      <div className="directions-header">
+        <h3>{t("result.directions")}</h3>
+        <PrintableDirections
+          route={route}
+          originLabel={originLabel}
+          destinationLabel={destinationLabel}
+        />
+      </div>
       <ol className="directions">
         {route.maneuvers.map((m, i) => (
           <li key={i}>{m.localized_text}</li>

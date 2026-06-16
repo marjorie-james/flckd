@@ -749,3 +749,131 @@ body {
   overflow: hidden;
   clip: rect(0 0 0 0);
 }
+
+/* ─── Printable directions ─── */
+/* Header row holding the "Directions" title and the icon-only print control. */
+.directions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Icon-only print trigger — mirrors the .geo-btn affordance (transparent square
+   that lights up on hover). The accessible name is provided via aria-label. */
+.print-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.print-btn:hover,
+.print-btn:focus-visible {
+  color: var(--accent-hi);
+  background: var(--accent-muted);
+}
+
+/* The print sheet exists only when printing. */
+.printable-directions {
+  display: none;
+}
+
+@media print {
+  /* Hide all on-screen chrome and the camera-aware UI; the printed sheet is a
+     clean driving aid (no map, no controls, no camera/coverage notices). */
+  .app-header,
+  .app-footer,
+  .map-container,
+  .route-panel,
+  .route-notice,
+  .camera-summary,
+  .route-result .status,
+  .route-result .stats,
+  .comparison-toggle,
+  .coverage-warning,
+  .export-gpx-btn,
+  .export-warning,
+  .route-result h3,
+  .directions,
+  .print-btn {
+    display: none !important;
+  }
+
+  /* Force a clean white page regardless of the dark on-screen theme. */
+  html,
+  body,
+  .plan-page,
+  .layout-body,
+  .content-pane,
+  .result-section,
+  .route-result {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+
+  /* The header is a flex row on screen; with its h3 and print button hidden, the
+     print sheet would otherwise be the lone flex item and shrink to its content
+     width. Reset to block so the sheet uses the full page width. */
+  .directions-header {
+    display: block;
+  }
+
+  /* Large, high-contrast, glanceable layout. */
+  .printable-directions {
+    display: block;
+    color: #000;
+    background: #fff;
+    font-size: 14pt;
+  }
+
+  .printable-directions .print-heading {
+    font-size: 20pt;
+    margin: 0 0 12pt;
+  }
+
+  .printable-directions .print-trip {
+    display: flex;
+    flex-direction: column;
+    gap: 2pt;
+    font-size: 13pt;
+    margin: 0 0 6pt;
+  }
+
+  .printable-directions .print-totals {
+    font-size: 12pt;
+    margin: 0 0 16pt;
+  }
+
+  .printable-directions .print-steps {
+    list-style: decimal;
+    padding-left: 1.6em;
+    margin: 0 0 16pt;
+  }
+
+  /* Each step large and well-spaced; never split a step across a page break. */
+  .printable-directions .print-steps li {
+    font-size: 14pt;
+    line-height: 1.5;
+    margin-bottom: 10pt;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .printable-directions .print-notice {
+    font-size: 10pt;
+    margin: 16pt 0 0;
+    padding-top: 8pt;
+    border-top: 1px solid #000;
+  }
+}
