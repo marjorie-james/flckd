@@ -78,6 +78,7 @@ env:
     WEB_CONCURRENCY: 2
   secret:
     - RAILS_MASTER_KEY
+    - SECRET_KEY_BASE
     - DATABASE_PASSWORD
 
 # Persist gem-free; logs go to the platform. Limit retained logs (anonymity:

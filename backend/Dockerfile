@@ -51,11 +51,20 @@ FROM base
 # Run and own only the runtime files as a non-root user for security
 RUN groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
-USER 1000:1000
 
 # Copy built artifacts: gems, application
 COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --chown=rails:rails --from=build /rails /rails
+
+# Ensure the writable runtime dirs exist and are owned by the rails user. /rails
+# was created by WORKDIR as root, and tmp/ + log/ are gitignored with no tracked
+# .keep files, so they are absent from the build context. Without this the rails
+# user can't create /rails/tmp at boot (Errno::EACCES) and the server never
+# becomes healthy. Run as root, before dropping to the unprivileged user.
+RUN mkdir -p /rails/tmp/pids /rails/log /rails/storage && \
+    chown -R rails:rails /rails/tmp /rails/log /rails/storage
+
+USER 1000:1000
 
 # Entrypoint prepares the database.
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
