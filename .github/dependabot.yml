@@ -1,11 +1,19 @@
 # Keep dependencies patched. Weekly PRs, grouped to reduce noise; security
 # updates always come through regardless of schedule.
+#
+# `cooldown` holds back version-update PRs until a release has aged past the
+# given number of days — a supply-chain guard so we don't pull a version that
+# was published moments ago (and might be yanked/flagged as compromised).
+# Note: cooldown does NOT delay Dependabot security updates (CVE fixes) — those
+# still come through immediately.
 version: 2
 updates:
   - package-ecosystem: bundler
     directory: /backend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       backend-deps:
         patterns: ["*"]
@@ -15,6 +23,8 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       frontend-deps:
         patterns: ["*"]
@@ -24,8 +34,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: docker
     directory: /backend
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
