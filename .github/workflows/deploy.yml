@@ -1,9 +1,9 @@
 name: Deploy
 
-# Manual-dispatch deploy via Kamal 2. It is NOT wired to auto-deploy on push:
-# the geo accessories (Valhalla/Nominatim/tiles) need prebuilt data on the hosts
-# and the infra must be provisioned first. Turn on the `push` trigger once the
-# hosts and secrets below are configured and a staging run has passed.
+# Manual-dispatch deploy via Kamal 2. By design this NEVER auto-deploys on
+# merge/push to main — production deploys are deliberate, gated by a typed
+# confirmation and the `production` environment. Do NOT add a `push` trigger here:
+# a merge to main must not ship to prod on its own.
 #
 # Required GitHub config before this can run:
 #   Secrets: KAMAL_REGISTRY_PASSWORD, RAILS_MASTER_KEY, DATABASE_PASSWORD,
