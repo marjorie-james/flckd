@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Run Kamal 2 from its official Docker image.
+#
+# Why: this project's host Ruby toolchain isn't used for app tooling, so rather
+# than `gem install kamal` we run Kamal's published image. It needs four things
+# from the host, all wired below:
+#   - the repo (build context + config)        -> bind /workdir
+#   - the Docker daemon (build & push image)    -> bind /var/run/docker.sock
+#   - the SSH agent (reach deploy@<host>)       -> Docker Desktop ssh-auth socket
+#   - known_hosts (host-key verification)       -> bind ~/.ssh/known_hosts (ro)
+#
+# Deploy secrets are loaded from .kamal/secrets.env (gitignored) and forwarded
+# into the container; .kamal/secrets references them as $VARs.
+#
+# Usage (from anywhere): backend/bin/kamal-docker <kamal subcommand> [args]
+#   e.g.  backend/bin/kamal-docker config
+#         backend/bin/kamal-docker setup
+#         backend/bin/kamal-docker deploy
+set -euo pipefail
+
+# Resolve paths (this script lives in backend/bin/).
+BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$BACKEND_DIR/.." && pwd)"   # Kamal reads git history for the image version
+cd "$BACKEND_DIR"
+
+# Load real secret values into the environment (.kamal/secrets reads these).
+# Report a clear error instead of a cryptic `set -e` abort if the file fails to
+# load (e.g. a future `$(cat …)` line referencing a missing file).
+if [ -f .kamal/secrets.env ]; then
+  set -a
+  . .kamal/secrets.env || { echo "kamal-docker: failed to load .kamal/secrets.env" >&2; exit 1; }
+  set +a
+fi
+
+# Kamal 2.11.0, pinned by digest (the registry publishes :latest, not :2.11.0).
+KAMAL_IMAGE="ghcr.io/basecamp/kamal@sha256:b0fb3d6e581da6a24d530b07a7daa6f5cf9046b3e51098a992f4f715c7f37270"
+
+# Allocate a TTY only when attached to one, so background / CI / piped runs
+# (e.g. `kamal-docker setup` in the background) don't abort with
+# "the input device is not a TTY". (Plain string — macOS ships bash 3.2.)
+TTY_FLAG=""
+if [ -t 0 ] && [ -t 1 ]; then TTY_FLAG="-t"; fi
+
+# Ensure known_hosts is a FILE before bind-mounting it: a missing path would be
+# bind-mounted as an empty directory, silently breaking SSH host-key verification.
+mkdir -p "$HOME/.ssh" && touch "$HOME/.ssh/known_hosts"
+
+# SSH agent socket to forward into the container. Defaults to Docker Desktop's
+# magic path; on a Linux daemon / colima / OrbStack, run with
+# KAMAL_SSH_AUTH_SOCK="$SSH_AUTH_SOCK" to forward the host's own agent instead.
+SSH_AUTH_SOURCE="${KAMAL_SSH_AUTH_SOCK:-/run/host-services/ssh-auth.sock}"
+
+exec docker run --rm -i $TTY_FLAG \
+  -v "$REPO_ROOT:/workdir" -w /workdir/backend \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$SSH_AUTH_SOURCE:/ssh-agent" -e SSH_AUTH_SOCK=/ssh-agent \
+  -v "$HOME/.ssh/known_hosts:/root/.ssh/known_hosts:ro" \
+  -e KAMAL_REGISTRY_USERNAME -e KAMAL_REGISTRY_PASSWORD \
+  -e DATABASE_PASSWORD -e NOMINATIM_PASSWORD \
+  "$KAMAL_IMAGE" "$@"

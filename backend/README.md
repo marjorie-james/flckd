@@ -100,9 +100,12 @@ for map rendering.
 
 ## Deployment
 
-Kamal 2 config in [`config/deploy.yml`](config/deploy.yml) (production image: [`Dockerfile`](Dockerfile),
-Thruster on port 80). The geo services deploy as Kamal **accessories** on the same private network —
-our infrastructure, never third parties. Populate `<PLACEHOLDER>` hosts and `.kamal/secrets`, then:
+Kamal 2 config lives in `config/deploy.yml` (production image: [`Dockerfile`](Dockerfile),
+Thruster on port 80). That file is **gitignored**; copy the tracked template
+[`config/deploy.example.yml`](config/deploy.example.yml) to `config/deploy.yml` and edit your real
+values there (`cp config/deploy.example.yml config/deploy.yml`). The geo services deploy as Kamal
+**accessories** on the same private network — our infrastructure, never third parties. Populate
+`<PLACEHOLDER>` hosts and `.kamal/secrets`, then:
 
 ```bash
 kamal setup    # first deploy

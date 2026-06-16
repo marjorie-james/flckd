@@ -45,7 +45,14 @@ Point every `<…_HOST>` placeholder at the **same** machine. With everything
 co-located, the accessory ports already bind to `127.0.0.1` (see `deploy.yml`),
 so they're only reachable over the private network — good.
 
-Replace the placeholders in [`backend/config/deploy.yml`](../../backend/config/deploy.yml):
+First copy the tracked template to your real (gitignored) config — edit `deploy.yml`,
+never the `.example` (Kamal reads `config/deploy.yml` by default):
+
+```bash
+cp backend/config/deploy.example.yml backend/config/deploy.yml
+```
+
+Then replace the placeholders in [`backend/config/deploy.yml`](../../backend/config/deploy.yml):
 
 | Placeholder | Single-host value |
 |---|---|

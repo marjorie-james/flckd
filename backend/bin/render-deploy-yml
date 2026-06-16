@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Render config/deploy.yml from the tracked template config/deploy.example.yml,
+# substituting deployment-specific values from the environment.
+#
+# Why: config/deploy.yml is gitignored (host IPs / API domain / registry path
+# must never be committed), so it is ABSENT in a fresh CI checkout. The deploy
+# workflows (.github/workflows/deploy.yml, deploy-geo.yml) call this to rebuild
+# it at runtime from GitHub Actions *variables* — real config lives there, not in
+# git. Locally you don't need this: you copy the template and edit deploy.yml by
+# hand (see docs/runbooks/provisioning.md). Shared by both workflows so the
+# placeholder mapping has a single source of truth.
+set -euo pipefail
+
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # -> backend/
+
+# Required deployment values (clear error if any is unset/empty).
+: "${REGISTRY_HOST:?set the REGISTRY_HOST GitHub Actions variable}"
+: "${REGISTRY_NAMESPACE:?set the REGISTRY_NAMESPACE GitHub Actions variable}"
+: "${API_DOMAIN:?set the API_DOMAIN GitHub Actions variable}"
+: "${WEB_HOST:?set the WEB_HOST GitHub Actions variable}"
+: "${JOB_HOST:?set the JOB_HOST GitHub Actions variable}"
+: "${DB_HOST:?set the DB_HOST GitHub Actions variable}"
+: "${ROUTING_HOST:?set the ROUTING_HOST GitHub Actions variable}"
+: "${GEOCODER_HOST:?set the GEOCODER_HOST GitHub Actions variable}"
+: "${TILES_HOST:?set the TILES_HOST GitHub Actions variable}"
+
+sed \
+  -e "s|<REGISTRY_HOST>|${REGISTRY_HOST}|g" \
+  -e "s|<REGISTRY_NAMESPACE>|${REGISTRY_NAMESPACE}|g" \
+  -e "s|<WEB_HOST_1>|${WEB_HOST}|g" \
+  -e "s|<JOB_HOST_1>|${JOB_HOST}|g" \
+  -e "s|<API_DOMAIN>|${API_DOMAIN}|g" \
+  -e "s|<DB_HOST>|${DB_HOST}|g" \
+  -e "s|<ROUTING_HOST>|${ROUTING_HOST}|g" \
+  -e "s|<GEOCODER_HOST>|${GEOCODER_HOST}|g" \
+  -e "s|<TILES_HOST>|${TILES_HOST}|g" \
+  config/deploy.example.yml > config/deploy.yml
+
+# Fail loudly if any placeholder survived (typo, or a new <PLACEHOLDER> was added
+# to the template without a mapping here) — better than deploying a broken config.
+if grep -nE '<[A-Z_]+>' config/deploy.yml; then
+  echo "render-deploy-yml: unresolved placeholder(s) above — add a mapping" >&2
+  rm -f config/deploy.yml
+  exit 1
+fi
+
+echo "Rendered config/deploy.yml from config/deploy.example.yml."

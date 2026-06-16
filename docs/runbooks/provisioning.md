@@ -49,7 +49,14 @@ ssh-keygen -t ed25519 -f kamal_deploy -C flckd-deploy   # add kamal_deploy.pub t
 
 ## 4. Fill the deploy config
 
-- Edit `backend/config/deploy.yml`: replace every `<PLACEHOLDER>` —
+- Copy the tracked template to your real (gitignored) config, then edit *that*:
+  ```bash
+  cp backend/config/deploy.example.yml backend/config/deploy.yml
+  ```
+  `deploy.yml` is gitignored so your host IPs / API domain / registry path never
+  get committed; `deploy.example.yml` stays the tracked template. Kamal reads
+  `config/deploy.yml` by default.
+- In `backend/config/deploy.yml`, replace every `<PLACEHOLDER>` —
   `<REGISTRY_HOST>`, `<WEB_HOST_1>`, `<JOB_HOST_1>`, `<API_DOMAIN>`, `<DB_HOST>`,
   `<ROUTING_HOST>`, `<GEOCODER_HOST>`, `<TILES_HOST>`.
 - Create `backend/.kamal/secrets` from the template and fill it (it's gitignored;
@@ -79,11 +86,23 @@ The workflows run deploys from CI, so the same secrets/vars live in GitHub.
 
 **Variables**:
 
+`config/deploy.yml` is gitignored (no real hosts in git), so CI rebuilds it from
+the tracked template `config/deploy.example.yml` via `backend/bin/render-deploy-yml`,
+filling these variables in. Set them all (a single co-located box uses the same
+`user@addr` for every `*_HOST`):
+
 | Variable | Used by | Value |
 |----------|---------|-------|
-| `API_DOMAIN` | app deploy smoke test | e.g. `api.flckd.example` |
-| `ROUTING_HOST` / `TILES_HOST` / `GEOCODER_HOST` | geo deploy | `user@addr` of each geo host |
+| `REGISTRY_HOST` | render | registry host, e.g. `ghcr.io` |
+| `REGISTRY_NAMESPACE` | render | image namespace, e.g. your GitHub user/org |
+| `API_DOMAIN` | render + app deploy smoke test | e.g. `api.flckd.example` |
+| `WEB_HOST` / `JOB_HOST` / `DB_HOST` | render | `user@addr` of each role's host |
+| `ROUTING_HOST` / `TILES_HOST` / `GEOCODER_HOST` | render + geo deploy | `user@addr` of each geo host |
 | `ROUTING_DATA_PATH` / `TILES_DATA_PATH` / `GEOCODER_IMPORT_PATH` | geo deploy | on-host dir backing each accessory volume — see step 7 |
+
+`render-deploy-yml` fails the deploy if any variable is unset or any `<PLACEHOLDER>`
+survives, so a missing value is caught before Kamal runs. (Local deploys don't use
+this — you copy the template and edit `config/deploy.yml` by hand; see step 4.)
 
 Also set the GitHub **environment** named `production` (both deploy workflows use
 it) and, optionally, add required reviewers there as a deploy gate.

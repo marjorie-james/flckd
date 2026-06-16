@@ -1,18 +1,33 @@
 # Kamal 2 deployment for the Camera-Avoiding Route Planner backend.
 #
+# THIS IS THE TRACKED TEMPLATE. Do not deploy from it directly and do not put
+# real hosts/domains in it. Instead:
+#
+#     cp config/deploy.example.yml config/deploy.yml
+#
+# then edit config/deploy.yml with your real values. deploy.yml is gitignored so
+# your environment-specific config (host IPs, API domain, registry path) is never
+# committed. When this template changes upstream, re-copy it and re-apply your
+# edits (or diff the two). Kamal reads config/deploy.yml by default.
+#
 # Anonymity model (Constitution / FR-012a): the routing, geocoding, and tile
 # services are deployed here as Kamal *accessories* on the SAME private network
 # as the app — they are our own infrastructure, never third parties. No user
 # origin/destination/route ever leaves this boundary. The app reaches each
 # accessory by its service name over the private Docker network.
 #
-# Fill in the <PLACEHOLDER> values (or supply them via .kamal/secrets) before a
-# real deploy. Run with: `kamal setup` (first time) then `kamal deploy`.
+# Fill in the bracketed placeholder values (or supply them via .kamal/secrets)
+# before a real deploy. Run with: `kamal setup` (first time) then `kamal deploy`.
 
 service: flckd-backend
 
-# Container image. Push to your own registry — see `registry:` below.
-image: <REGISTRY_HOST>/flckd-backend
+# Connect to all hosts as the non-root deploy user (Docker access, key-only SSH).
+ssh:
+  user: deploy
+
+# Container image repository, WITHOUT the registry host — registry.server (below)
+# is prepended automatically. e.g. for GHCR use just `<github-user>/flckd-backend`.
+image: <REGISTRY_NAMESPACE>/flckd-backend
 
 servers:
   # HTTP app servers (Puma behind Thruster on port 80; see Dockerfile).
@@ -111,7 +126,10 @@ accessories:
   geocoder:                      # Nominatim — forward/reverse geocoding (matches dev)
     image: mediagis/nominatim:4.4@sha256:b772911424d31f8c36b337fe4b8d4ef3b93d4bf09f96407905a1e9d475d42632
     host: <GEOCODER_HOST>
-    port: "127.0.0.1:8080:8080"
+    # Host port 8081 (container stays 8080) so a co-located single-box deploy
+    # doesn't collide with the tiles accessory's 127.0.0.1:8080. The app reaches
+    # the geocoder by container name (GEOCODER_URL=…-geocoder:8080), not this port.
+    port: "127.0.0.1:8081:8080"
     env:
       clear:
         PBF_PATH: /nominatim/import/extract.osm.pbf

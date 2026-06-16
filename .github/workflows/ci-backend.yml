@@ -87,25 +87,42 @@ jobs:
         # COVERAGE=1 enforces the SimpleCov line floor (spec/spec_helper.rb).
         run: COVERAGE=1 bundle exec rspec
 
+  # Production image smoke: build the Kamal/production Dockerfile (no push) so a
+  # build-breaking change is caught in PR CI rather than at `kamal deploy` time.
+  # (A stale `bootsnap precompile` step once shipped to main precisely because
+  # nothing built this image in CI.) amd64 is native on the runner, so it's fast.
+  backend-image:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build production image (no push)
+        run: docker build -f backend/Dockerfile -t flckd-backend:ci backend
+
   # Required branch-protection context. Always runs (a few seconds) and passes
-  # unless the real job failed — so unrelated PRs satisfy the check without
-  # running the heavy job, and a real failure still blocks the merge.
+  # unless a real job failed — so unrelated PRs satisfy the check without
+  # running the heavy jobs, and a real failure still blocks the merge.
   backend:
-    needs: [changes, backend-tests]
+    needs: [changes, backend-tests, backend-image]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Gate on backend-tests result
+      - name: Gate on backend job results
         run: |
           changes='${{ needs.changes.result }}'
-          result='${{ needs.backend-tests.result }}'
-          echo "changes=${changes} backend-tests=${result}"
+          tests='${{ needs.backend-tests.result }}'
+          image='${{ needs.backend-image.result }}'
+          echo "changes=${changes} backend-tests=${tests} backend-image=${image}"
           # Fail closed if the path detector itself broke.
           if [ "${changes}" != "success" ]; then
             echo "path detection did not succeed"; exit 1
           fi
-          if [ "${result}" = "failure" ] || [ "${result}" = "cancelled" ]; then
-            exit 1
-          fi
+          for result in "${tests}" "${image}"; do
+            if [ "${result}" = "failure" ] || [ "${result}" = "cancelled" ]; then
+              exit 1
+            fi
+          done
           exit 0

@@ -67,6 +67,21 @@ jobs:
             infra/data/extract.osm.pbf \
             "${{ vars.GEOCODER_HOST }}:${{ vars.GEOCODER_IMPORT_PATH }}/"
 
+      - name: Render deploy.yml from template
+        # config/deploy.yml is gitignored, so rebuild it from the tracked template
+        # (Kamal accessory commands read the accessory definitions from it).
+        working-directory: backend
+        env:
+          REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
+          REGISTRY_NAMESPACE: ${{ vars.REGISTRY_NAMESPACE }}
+          API_DOMAIN: ${{ vars.API_DOMAIN }}
+          WEB_HOST: ${{ vars.WEB_HOST }}
+          JOB_HOST: ${{ vars.JOB_HOST }}
+          DB_HOST: ${{ vars.DB_HOST }}
+          ROUTING_HOST: ${{ vars.ROUTING_HOST }}
+          GEOCODER_HOST: ${{ vars.GEOCODER_HOST }}
+          TILES_HOST: ${{ vars.TILES_HOST }}
+        run: bin/render-deploy-yml
       - name: Reboot the geo accessories (Kamal)
         working-directory: backend
         run: |

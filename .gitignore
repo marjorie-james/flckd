@@ -38,6 +38,10 @@ backend/.kamal/secrets
 backend/.kamal/secrets.*
 !backend/.kamal/secrets.example
 
+# Kamal real deploy config — never commit (the .example template is tracked).
+# Copy config/deploy.example.yml to config/deploy.yml and edit your real values there.
+backend/config/deploy.yml
+
 # Rails master key and any per-environment credential keys — never commit
 backend/config/master.key
 backend/config/credentials/*.key
