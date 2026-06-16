@@ -88,9 +88,12 @@ accessory_dir() {  # <container> <container-path>
   sshx "docker inspect $1 --format '{{range .Mounts}}{{if eq .Destination \"$2\"}}{{.Source}}{{end}}{{end}}'" 2>/dev/null
 }
 
-ROUTING_DIR="$(accessory_dir flckd-backend-routing /data)"
-TILES_DIR="$(accessory_dir flckd-backend-tiles /data)"
-GEOCODER_DIR="$(accessory_dir flckd-backend-geocoder /nominatim/import)"
+# `|| true`: docker inspect exits non-zero when a container is absent, and a bare
+# `VAR="$(cmd)"` under `set -e` would abort here instead of letting the per-step
+# `[ -n "${DIR}" ]` guards skip the missing accessory gracefully.
+ROUTING_DIR="$(accessory_dir flckd-backend-routing /data || true)"
+TILES_DIR="$(accessory_dir flckd-backend-tiles /data || true)"
+GEOCODER_DIR="$(accessory_dir flckd-backend-geocoder /nominatim/import || true)"
 echo "    routing  data dir: ${ROUTING_DIR:-<accessory not found>}"
 echo "    tiles    data dir: ${TILES_DIR:-<accessory not found>}"
 echo "    geocoder import  : ${GEOCODER_DIR:-<accessory not found>}"
@@ -100,6 +103,7 @@ echo "    geocoder import  : ${GEOCODER_DIR:-<accessory not found>}"
 # relative/bare src as a NAMED VOLUME (empty), not a host bind mount, so resolve
 # the deploy user's $HOME on the host and anchor the dir there.
 HOST_HOME="$(sshx 'echo "$HOME"')"
+: "${HOST_HOME:?provision-geo-host: could not resolve the remote \$HOME — refusing to use a root-relative build dir}"
 BUILD_DIR="${GEO_BUILD_DIR:-${HOST_HOME%/}/geo-build}"
 
 # ── 0. Get the OSM extract onto the host (cached) ─────────────────────────────
@@ -159,6 +163,7 @@ if [ -n "${TILES_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -s '${TILE
     docker run --rm -v '${TILES_DIR}:/data' -v '${BUILD_DIR}:/src' ${PLANETILER_IMAGE} \
       --osm-path=/src/extract.osm.pbf --output=/data/tiles.pmtiles \
       --download --download-dir=/src/sources --tmpdir=/src/tmp --force; \
+    docker run --rm -v '${BUILD_DIR}:/src' --entrypoint sh ${PLANETILER_IMAGE} -c 'rm -rf /src/tmp /src/sources' || true; \
     docker restart flckd-backend-tiles >/dev/null"
   echo "    tiles built."
 else

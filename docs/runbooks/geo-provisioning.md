@@ -154,9 +154,14 @@ owned), so a full wipe needs a root helper container on the host:
 
 ```bash
 ssh deploy@<host> '
-  docker ps -aq --filter name=flckd-backend | xargs -r docker rm -f
-  docker rm -f kamal-proxy; docker network rm kamal
-  docker volume ls -q | grep -iE "flckd|kamal" | xargs -r docker volume rm
-  docker run --rm -v /home/deploy:/work alpine sh -c "rm -rf /work/flckd-backend-* /work/.kamal /work/geo-build"
+  # All flckd containers (backend accessories AND the flckd-caddy edge) + the proxy.
+  # Caddy must go before the network rm, or "network has active endpoints" fails.
+  docker ps -aq --filter name=flckd- | xargs -r docker rm -f
+  docker rm -f kamal-proxy 2>/dev/null
+  docker network rm kamal 2>/dev/null
+  # Anchored so we only remove OUR volumes, not any volume containing "kamal".
+  docker volume ls -q | grep -E "^(flckd-|kamal-proxy-)" | xargs -r docker volume rm
+  # $HOME (not a hardcoded /home/deploy) and flckd-* covers backend + frontend + caddy dirs.
+  docker run --rm -v "$HOME:/work" alpine sh -c "rm -rf /work/flckd-* /work/.kamal /work/geo-build"
 '
 ```

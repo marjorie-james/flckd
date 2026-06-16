@@ -62,11 +62,18 @@ fi
 
 # ── 2. Stream dist + Caddyfile to the host ───────────────────────────────────
 HOST_HOME="$(sshx 'echo "$HOME"')"
+: "${HOST_HOME:?deploy-frontend: could not resolve the remote \$HOME — refusing to use a root-relative path}"
 DIST_DIR="${HOST_HOME%/}/flckd-frontend/dist"
 CADDY_DIR="${HOST_HOME%/}/flckd-caddy"
 echo "==> [2/3] Streaming dist/ (${DIST_DIR}) and Caddyfile…"
-sshx "rm -rf '${DIST_DIR}' && mkdir -p '${DIST_DIR}' '${CADDY_DIR}'"
-tar -C "${DIST}" -czf - . | sshx "tar -C '${DIST_DIR}' -xzf -"
+sshx "mkdir -p '${DIST_DIR}' '${CADDY_DIR}'"
+# Extract into a staging dir first so a failed transfer never empties the live
+# dist; then swap by CONTENTS (not by replacing the directory). A running Caddy
+# bind-mounts ${DIST_DIR}, so replacing the directory inode would leave it serving
+# the old files until restart — clearing + copying into the same inode is seen live.
+sshx "rm -rf '${DIST_DIR}.new' && mkdir -p '${DIST_DIR}.new'"
+tar -C "${DIST}" -czf - . | sshx "tar -C '${DIST_DIR}.new' -xzf -"
+sshx "find '${DIST_DIR}' -mindepth 1 -delete && cp -a '${DIST_DIR}.new/.' '${DIST_DIR}/' && rm -rf '${DIST_DIR}.new'"
 tar -C "$(dirname "${CADDYFILE}")" -czf - "$(basename "${CADDYFILE}")" | sshx "tar -C '${CADDY_DIR}' -xzf -"
 
 # ── 3. Boot or reload Caddy ──────────────────────────────────────────────────

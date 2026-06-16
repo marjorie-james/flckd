@@ -11,6 +11,9 @@ name: Deploy geo artifacts
 #              ROUTING_DATA_PATH, TILES_DATA_PATH, GEOCODER_IMPORT_PATH
 #                (the on-host dirs backing the Kamal accessory `directories:` —
 #                 must match backend/config/deploy.yml)
+#              Plus the full bin/render-deploy-yml set (it rebuilds deploy.yml so
+#              the `kamal accessory` step below reads the real hosts): REGISTRY_HOST,
+#              REGISTRY_NAMESPACE, API_DOMAIN, WEB_HOST, JOB_HOST, DB_HOST.
 
 on:
   workflow_dispatch:

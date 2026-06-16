@@ -17,9 +17,11 @@
 #   FLCKD_DOMAIN  apex domain, e.g. flckd.com
 #   ACME_EMAIL    Let's Encrypt contact address
 #   API_HOST      Host header kamal-proxy routes the backend on (deploy.yml proxy.host)
-
 {
 	email {$ACME_EMAIL}
+	# Anonymity (FR-012a): intentionally NO `log` directive — Caddy writes no
+	# per-request access logs by default, so client IPs are never persisted at the
+	# edge. Do not add access logging without first stripping the client IP.
 }
 
 # Canonical host: redirect www → apex.
@@ -49,10 +51,20 @@ www.{$FLCKD_DOMAIN} {
 	# map-style.json. SPA fallback to index.html for client-side routes.
 	handle {
 		root * /srv/dist
+
+		# Fingerprinted bundles (assets/index-<hash>.js) are immutable — cache hard.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+
+		# index.html must revalidate so a new deploy's asset hashes are picked up.
+		@html path / /index.html
+		header @html Cache-Control "no-cache"
+
 		# config.json is the runtime failover lever (see frontend/src/config.ts) —
 		# never let it be cached, so a re-point takes effect on the next load.
 		@configjson path /config.json
 		header @configjson Cache-Control "no-store"
+
 		try_files {path} /index.html
 		file_server
 	}
