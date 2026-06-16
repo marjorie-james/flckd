@@ -1,17 +1,38 @@
 import { useTranslation } from "react-i18next";
-import { SUPPORTED_LOCALES } from "../i18n";
+import { SUPPORTED_LOCALES, resolveEnvironmentLocale, isSupportedCode } from "../i18n";
+import { getStoredLocale, setStoredLocale, clearStoredLocale } from "../i18n/localePreference";
 
-// Runtime language switch. Changing the language re-renders all text; in-progress
-// route input is preserved because it lives in component state, not the URL.
+// Sentinel option value: "derive automatically from the environment".
+const AUTOMATIC = "auto";
+
+// Runtime language switch. Picking a language remembers it on-device and applies
+// it immediately (FR-006/007); "Automatic" forgets the choice and re-derives from
+// the environment (FR-008). In-progress route input is preserved because it lives
+// in component state, not the URL.
 export function LanguageSwitcher() {
   const { i18n, t } = useTranslation();
+
+  // Reflect whether an explicit choice is remembered: if so the select shows that
+  // language; otherwise it shows "Automatic" (the language is environment-derived).
+  const stored = getStoredLocale();
+  const value = isSupportedCode(stored) ? stored : AUTOMATIC;
+
+  const onChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const choice = event.target.value;
+    if (choice === AUTOMATIC) {
+      clearStoredLocale();
+      void i18n.changeLanguage(resolveEnvironmentLocale());
+    } else {
+      setStoredLocale(choice);
+      void i18n.changeLanguage(choice);
+    }
+  };
+
   return (
     <label className="language-switcher">
       <span className="visually-hidden">{t("language")}</span>
-      <select
-        value={i18n.language.slice(0, 2)}
-        onChange={(e) => void i18n.changeLanguage(e.target.value)}
-      >
+      <select value={value} onChange={onChange}>
+        <option value={AUTOMATIC}>{t("languageAuto")}</option>
         {SUPPORTED_LOCALES.map((l) => (
           <option key={l.code} value={l.code}>
             {l.name}

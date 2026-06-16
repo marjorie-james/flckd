@@ -44,5 +44,14 @@ module Backend
     # PostGIS spatial columns can't be represented in the Ruby schema.rb dumper,
     # so use the SQL schema format (db/structure.sql) for dump/load and tests.
     config.active_record.schema_format = :sql
+
+    # The app ships UI/error translations only for these locales (config/locales/
+    # {en,es}.yml). Restrict the available set so it is the authoritative catalog:
+    # rails-i18n otherwise registers ~100 locales as "available", which would let
+    # locale negotiation pick a language we don't translate (rendering raw
+    # fallbacks) and would make GET /api/v1/meta/locales list every rails-i18n
+    # locale. Keep this in sync with the frontend SUPPORTED_LOCALES (research D8).
+    config.i18n.available_locales = %i[en es]
+    config.i18n.default_locale = :en
   end
 end

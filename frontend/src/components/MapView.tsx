@@ -8,6 +8,7 @@ import { prefersReducedMotion } from "../utils/reducedMotion";
 import { CameraLayer } from "./CameraLayer";
 import { tilesBase } from "../config";
 import baseStyle from "../../public/map-style.json";
+import i18n from "../i18n";
 
 // Self-hosted vector tiles only — no third-party tile/CDN requests (FR-012a).
 //
@@ -28,7 +29,23 @@ import baseStyle from "../../public/map-style.json";
 // frontend static host (page origin), while tiles come from tilesBase() — the
 // same origin by default, but optionally a separate tiles CDN (tiles carry no
 // user data; see config.ts).
-function buildStyle(glyphOrigin: string, tilesOrigin: string): StyleSpecification {
+// Symbol layers whose labels follow the selected interface language (US3). The
+// label field prefers the selected language, then English, then the local name —
+// so a missing localized name never renders blank (FR-010).
+const LABEL_LAYERS = ["road-labels", "place-labels"];
+
+function labelTextField(lng: string): unknown {
+  return ["coalesce", ["get", `name:${lng}`], ["get", "name:en"], ["get", "name"]];
+}
+
+function buildStyle(glyphOrigin: string, tilesOrigin: string, lng: string): StyleSpecification {
+  const expr = labelTextField(lng);
+  const layers = (baseStyle.layers as Array<{ id: string; layout?: Record<string, unknown> }>).map(
+    (layer) =>
+      LABEL_LAYERS.includes(layer.id)
+        ? { ...layer, layout: { ...layer.layout, "text-field": expr } }
+        : layer,
+  );
   return {
     ...baseStyle,
     projection: { type: "mercator" },
@@ -40,6 +57,7 @@ function buildStyle(glyphOrigin: string, tilesOrigin: string): StyleSpecificatio
         tiles: [tilesOrigin + "/tiles/{z}/{x}/{y}.mvt"],
       },
     },
+    layers,
   } as unknown as StyleSpecification;
 }
 
@@ -105,7 +123,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const style = buildStyle(window.location.origin, tilesBase());
+    const style = buildStyle(window.location.origin, tilesBase(), i18n.language);
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
       style,
@@ -127,6 +145,31 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       if (w.__flckdMap) delete w.__flckdMap;
     };
   }, []);
+
+  // Map labels follow the selected interface language (US3). On a runtime switch
+  // rewrite the label layers' text-field in place, so labels update without a
+  // reload (FR-010). The strings are bundled, so this is a cheap layout-property
+  // update, well within the switch performance budget.
+  useEffect(() => {
+    if (!map) return;
+    const applyLabelLanguage = (lng: string) => {
+      const expr = labelTextField(lng);
+      for (const id of LABEL_LAYERS) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "text-field", expr);
+      }
+    };
+    const onLanguageChanged = (lng: string) => {
+      // If a switch happens before the style loads, apply the language that is
+      // current when "load" fires (not the captured one) — so a rapid en→es→en
+      // switch can't leave a stale intermediate label language.
+      if (map.isStyleLoaded()) applyLabelLanguage(lng);
+      else map.once("load", () => applyLabelLanguage(i18n.language));
+    };
+    i18n.on("languageChanged", onLanguageChanged);
+    return () => {
+      i18n.off("languageChanged", onLanguageChanged);
+    };
+  }, [map]);
 
   // Frame the map on the covered region once its bounds load from the backend
   // (/coverage/bounds). This is what centers the region in the viewport on page

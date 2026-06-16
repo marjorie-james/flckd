@@ -41,5 +41,17 @@ RSpec.describe Routing::ManeuverLocalizer do
       expect(described_class.localize(nil)).to eq([])
       expect(described_class.localize([])).to eq([])
     end
+
+    # A client may send route[locale]=fr; under enforce_available_locales that
+    # would raise I18n::InvalidLocale and 500 the route. The localizer must
+    # degrade to the default locale instead of crashing.
+    it "falls back to the default locale for an unsupported locale instead of raising" do
+      I18n.backend.store_translations(:en, maneuvers: { localizer_spec_unsupported: "Turn here" })
+      maneuvers = [ { type: "localizer_spec_unsupported", instruction: "Keep left.", distance_m: 0, shape_index: 0 } ]
+
+      out = nil
+      expect { out = described_class.localize(maneuvers, locale: "fr") }.not_to raise_error
+      expect(out.first[:localized_text]).to eq("Turn here")
+    end
   end
 end

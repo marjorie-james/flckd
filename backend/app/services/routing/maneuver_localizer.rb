@@ -19,8 +19,18 @@ module Routing
     # Internal helper for #localize — not part of the module's public contract.
     def localized_text(maneuver, locale)
       key = "maneuvers.#{maneuver[:type]}"
-      I18n.t(key, locale: locale, default: maneuver[:instruction] || maneuver[:type].to_s)
+      # An unsupported locale (e.g. a client sending route[locale]=fr) would raise
+      # I18n::InvalidLocale under enforce_available_locales and 500 the whole route
+      # response. Treat it like a missing translation and fall back to the default
+      # locale instead of crashing.
+      safe_locale = available?(locale) ? locale : I18n.default_locale
+      I18n.t(key, locale: safe_locale, default: maneuver[:instruction] || maneuver[:type].to_s)
     end
     private_class_method :localized_text
+
+    def available?(locale)
+      I18n.available_locales.map(&:to_s).include?(locale.to_s)
+    end
+    private_class_method :available?
   end
 end

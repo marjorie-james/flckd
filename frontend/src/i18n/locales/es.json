@@ -74,5 +74,6 @@
     "locationTimeout": "Se agotó el tiempo para obtener tu ubicación. Inténtalo de nuevo o introduce tu dirección de inicio.",
     "locationUnsupported": "Este navegador no puede compartir tu ubicación. Introduce tu dirección de inicio."
   },
-  "language": "Idioma"
+  "language": "Idioma",
+  "languageAuto": "Automático"
 }

@@ -3,6 +3,7 @@
 // the API is hosted separately (e.g. a standby spine). Vite proxies /api -> :3000
 // in dev.
 import { apiBase } from "../config";
+import i18n from "../i18n";
 
 // Built per call (not at module load) so it reflects config.json fetched at boot.
 // apiBase() is "" in the common same-origin case → a relative "/api/v1" request.
@@ -18,8 +19,11 @@ export class ApiError extends Error {
   }
 }
 
-function navigatorLang(): string {
-  return (typeof navigator !== "undefined" && navigator.language) || "en";
+// The effective selected locale — the resolved result including any explicit
+// override, not the raw browser signal — so the server localizes its responses
+// to exactly what the visitor sees (FR-016).
+function currentLocale(): string {
+  return i18n.language || "en";
 }
 
 async function handle<T>(res: Response): Promise<T> {
@@ -36,14 +40,14 @@ export function apiGet<T>(path: string, params?: Record<string, string | number>
     ? "?" + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
     : "";
   return fetch(`${base()}${path}${qs}`, {
-    headers: { "Accept-Language": navigatorLang() },
+    headers: { "Accept-Language": currentLocale() },
   }).then((r) => handle<T>(r));
 }
 
 export function apiPost<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   return fetch(`${base()}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Accept-Language": navigatorLang() },
+    headers: { "Content-Type": "application/json", "Accept-Language": currentLocale() },
     body: JSON.stringify(body),
     signal,
   }).then((r) => handle<T>(r));
