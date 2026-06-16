@@ -1,5 +1,15 @@
 <!-- SPECKIT START -->
-**Active feature**: [`011-country-camera-mapping`](specs/011-country-camera-mapping/plan.md)
+**Active feature**: [`012-preferred-language-detection`](specs/012-preferred-language-detection/plan.md)
+([spec](specs/012-preferred-language-detection/spec.md)) — derive the UI language automatically from the
+visitor's **full environment language signals** (ordered `navigator.languages` / `Accept-Language` q-weights),
+matched against the offered locales (en, es) with base-language regional fallback, **resolved synchronously
+before first paint (no flash)**. An explicit choice wins, persists on-device (`localStorage`, graceful when
+blocked), and the **effective** selected locale — override included — is sent to the backend so server text
+matches; map labels follow the selected language at runtime. Locale-agnostic mechanism; catalog unchanged.
+Key changes: new `resolveLocale` + `localePreference` (frontend), new `Api::V1::LocaleNegotiator` (backend),
+`Accept-Language` carries the effective locale, map-style label `text-field` selects `name:<lng>`.
+
+Prior feature: [`011-country-camera-mapping`](specs/011-country-camera-mapping/plan.md)
 ([spec](specs/011-country-camera-mapping/spec.md)) — lift a deployment's scope from a single US
 state to an entire **country, defaulting to the US**: one operator-chosen country drives the OSM
 extract, routing graph, tiles, geocoder + whole-US TIGER, camera gathering, map framing, and

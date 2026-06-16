@@ -67,5 +67,6 @@
     "locationTimeout": "Getting your location timed out. Try again or enter your start address.",
     "locationUnsupported": "This browser can't share your location. Enter your start address instead."
   },
-  "language": "Language"
+  "language": "Language",
+  "languageAuto": "Automatic"
 }
