@@ -311,7 +311,13 @@ the graph has drifted (see [Staleness detection](#staleness-detection)). Build i
 locally the same way:
 
 ```bash
-REGION=iowa infra/scripts/build-geo.sh      # full build + manifest
+# Same scope as the workflow: REGION_URL picks the extract; GEO_ARTIFACTS_ONLY builds
+# routing + tiles + manifest without bringing up services or running TIGER/seed/cameras.
+# (REGION is only the release-tag label in the workflow — build-geo.sh scopes by COUNTRY
+# (default us) / REGION_URL, never REGION.)
+GEO_ARTIFACTS_ONLY=1 \
+  REGION_URL=https://download.geofabrik.de/north-america/us/iowa-latest.osm.pbf \
+  infra/scripts/build-geo.sh                # routing + tiles + manifest (artifacts only)
 infra/scripts/geo-manifest.sh verify        # re-check artifacts vs the manifest
 ```
 
