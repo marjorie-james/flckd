@@ -1,0 +1,59 @@
+# flckd — single-origin public edge (Caddy).
+#
+# Serves the static frontend bundle AND reverse-proxies /api and /tiles to the
+# backend services, so the whole app is ONE origin: no CORS, nothing cross-site
+# (strongest anonymity posture — a user's route never leaves our box, FR-012a).
+#
+# Caddy runs on the `kamal` Docker network and reaches the backend by container
+# name, so nothing but Caddy needs a host port:
+#   - kamal-proxy:80           the backend app. Kamal-proxy switches app versions
+#                              for zero-downtime deploys; it speaks HTTP here
+#                              because Caddy terminates TLS. It routes by Host, so
+#                              we send the host it expects (deploy.yml proxy.host).
+#   - flckd-backend-tiles:8080 self-hosted vector tiles (go-pmtiles). Our archive
+#                              is tiles.pmtiles, so it serves /tiles/{z}/{x}/{y}.mvt.
+#
+# Env (provided by infra/scripts/deploy-frontend.sh from backend/.kamal/frontend.env):
+#   FLCKD_DOMAIN  apex domain, e.g. flckd.com
+#   ACME_EMAIL    Let's Encrypt contact address
+#   API_HOST      Host header kamal-proxy routes the backend on (deploy.yml proxy.host)
+
+{
+	email {$ACME_EMAIL}
+}
+
+# Canonical host: redirect www → apex.
+www.{$FLCKD_DOMAIN} {
+	redir https://{$FLCKD_DOMAIN}{uri} permanent
+}
+
+{$FLCKD_DOMAIN} {
+	encode zstd gzip
+
+	# Backend API (same-origin /api/*). Preserve the path; rewrite the Host to the
+	# one kamal-proxy routes on so it forwards to the current app container.
+	@api path /api/*
+	handle @api {
+		reverse_proxy kamal-proxy:80 {
+			header_up Host {$API_HOST}
+		}
+	}
+
+	# Self-hosted vector tiles (same-origin /tiles/{z}/{x}/{y}.mvt).
+	@tiles path /tiles/*
+	handle @tiles {
+		reverse_proxy flckd-backend-tiles:8080
+	}
+
+	# Static SPA: index.html, /assets, /fonts (vendored glyphs), config.json,
+	# map-style.json. SPA fallback to index.html for client-side routes.
+	handle {
+		root * /srv/dist
+		# config.json is the runtime failover lever (see frontend/src/config.ts) —
+		# never let it be cached, so a re-point takes effect on the next load.
+		@configjson path /config.json
+		header @configjson Cache-Control "no-store"
+		try_files {path} /index.html
+		file_server
+	}
+}

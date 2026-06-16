@@ -47,6 +47,10 @@ backend/config/deploy.yml
 backend/.kamal/geo.env
 !backend/.kamal/geo.env.example
 
+# Frontend / Caddy edge config (real domain + ACME email) — gitignored; .example tracked.
+backend/.kamal/frontend.env
+!backend/.kamal/frontend.env.example
+
 # Rails master key and any per-environment credential keys — never commit
 backend/config/master.key
 backend/config/credentials/*.key
