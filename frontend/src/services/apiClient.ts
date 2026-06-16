@@ -1,6 +1,12 @@
-// Thin fetch wrapper for the flckd API. Talks only to our own backend
-// (same-origin in prod; Vite proxies /api -> :3000 in dev), never a third party.
-const BASE = "/api/v1";
+// Thin fetch wrapper for the flckd API. Talks only to our own backend (never a
+// third party): same-origin by default, or the apiBase from runtime config when
+// the API is hosted separately (e.g. a standby spine). Vite proxies /api -> :3000
+// in dev.
+import { apiBase } from "../config";
+
+// Built per call (not at module load) so it reflects config.json fetched at boot.
+// apiBase() is "" in the common same-origin case → a relative "/api/v1" request.
+const base = (): string => `${apiBase()}/api/v1`;
 
 export class ApiError extends Error {
   code: string;
@@ -29,13 +35,13 @@ export function apiGet<T>(path: string, params?: Record<string, string | number>
   const qs = params
     ? "?" + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
     : "";
-  return fetch(`${BASE}${path}${qs}`, {
+  return fetch(`${base()}${path}${qs}`, {
     headers: { "Accept-Language": navigatorLang() },
   }).then((r) => handle<T>(r));
 }
 
 export function apiPost<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  return fetch(`${BASE}${path}`, {
+  return fetch(`${base()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept-Language": navigatorLang() },
     body: JSON.stringify(body),

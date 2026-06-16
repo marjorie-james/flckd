@@ -1,12 +1,10 @@
 import { useTranslation } from "react-i18next";
-import type { Coordinate, Route } from "../types/api";
+import type { Route } from "../types/api";
 import { routeStatus } from "../utils/routeStatus";
-import { ExternalMapsHandoff } from "./ExternalMapsHandoff";
+import { RouteExport } from "./RouteExport";
 
 interface Props {
   route: Route;
-  origin: Coordinate;
-  destination: Coordinate;
   // Whether the comparison (fastest) route is currently drawn on the map. The
   // show/hide toggle below flips it. Optional with a sensible default so existing
   // call sites/tests render without wiring the comparison.
@@ -18,8 +16,8 @@ interface Props {
 // travel time and distance, avoided and remaining camera counts, the
 // fastest-route trade-off (added time + distance and what the fastest route
 // would expose), a show/hide control for the comparison line, localized
-// directions, and the user-initiated external-maps handoff.
-export function RouteResult({ route, origin, destination, showComparison = true, onToggleComparison }: Props) {
+// directions, and a faithful GPX export of the camera-avoided route.
+export function RouteResult({ route, showComparison = true, onToggleComparison }: Props) {
   const { t } = useTranslation();
   const fc = route.fastest_comparison;
   const addedMin = Math.round(fc.added_duration_s / 60);
@@ -82,7 +80,7 @@ export function RouteResult({ route, origin, destination, showComparison = true,
         ))}
       </ol>
 
-      <ExternalMapsHandoff origin={origin} destination={destination} />
+      <RouteExport route={route} />
     </section>
   );
 }

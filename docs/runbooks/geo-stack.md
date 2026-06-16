@@ -209,9 +209,18 @@ scheduled workflow's runner-sizing note below matches).
 | OSM extract (`us-latest.osm.pbf`)       | ~10+ GB download on disk                 |
 | Valhalla routing graph                  | several GB; RAM-hungry build             |
 | Vector tiles (Planetiler, JVM)          | several GB; needs multi-GB heap          |
-| Nominatim OSM import (geocoder)         | the long pole — **hours**; large Postgres volume |
+| Nominatim OSM import (geocoder)         | the long pole — **hours**; **Postgres volume ~250–350 GB** (grows well past the raw extract during osm2pgsql load + indexing) |
 | Whole-US TIGER bundle + import          | ~1.8 GB bundle; all ~3,200 counties; **hours** |
+| **Total free disk to budget**           | **~350–400 GB** (Nominatim volume dominates; the rest is extract + routing + tiles + TIGER) |
 | Working RAM (concurrent services)       | **16 GB+ recommended** (Nominatim/Planetiler OOM below ~6 GB) |
+
+> **Disk is the most common failure mode.** The Nominatim volume (`infra_nominatim_data`)
+> is by far the largest artifact and keeps growing through the import. If the host disk
+> fills mid-import, the geocoder container is killed and leaves a **corrupt half-import**
+> — you must delete the volume (`docker volume rm infra_nominatim_data`) before retrying;
+> resuming on top of it does not work. On macOS, raising Docker's disk slider isn't enough
+> if the host drive backing `Docker.raw` is full — relocate the disk image to a drive with
+> ~400 GB free (*Docker Desktop → Settings → Resources → Advanced*).
 
 By contrast a single-state **dev override** extract builds in minutes at a few
 hundred MB. The dominant cost is **build-time provisioning** (above), not
