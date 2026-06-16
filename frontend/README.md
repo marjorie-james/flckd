@@ -2,7 +2,9 @@
 
 Mobile-first, multi-lingual single-page app for the Camera-Avoiding Route Planner. Renders the map
 with **MapLibre GL JS** against **self-hosted vector tiles only** (no API keys, no third-party tiles)
-and talks to the Rails API under `/api/v1`. Localized from day one (i18next) and account-less by design.
+and talks to the Rails API under `/api/v1`. Localized from day one (i18next) — the UI language is
+auto-detected from the visitor's environment before first paint, with an explicit choice remembered
+on-device — and account-less by design.
 
 Key UI: **always-maximal camera avoidance** (no slider — the planner always prefers a route past *no*
 camera, auto-falling back to the fewest-cameras route, never erroring), a prominent **`RouteNotice`**
@@ -74,11 +76,11 @@ E2E specs live under `tests/e2e/` and stub the API via `page.route` (no live geo
 ```
 src/
 ├── components/   # MapView, RoutePanel, AddressAutocomplete, RouteResult, RouteNotice,
-│                 # CameraLayer, CameraSummary, LanguageSwitcher, ExternalMapsHandoff
+│                 # CameraLayer, CameraSummary, LanguageSwitcher, RouteExport
 ├── pages/        # PlanRoutePage
 ├── services/     # apiClient, routeApi, geocodeApi, cameraApi, coverageApi (TanStack Query)
 ├── hooks/        # useGeolocation, useDebounce
-├── i18n/         # i18next config + locales
+├── i18n/         # i18next config + locales; resolveLocale (env matcher) + localePreference (stored choice)
 └── types/        # api.ts (curated) + openapi.d.ts (generated)
 ```
 
@@ -86,4 +88,6 @@ src/
 
 - Language preference is stored **client-side only** and is non-identifying.
 - No third-party assets/fonts/scripts/tiles — everything is same-origin (CSP-aligned).
-- "Open in Apple/Google Maps" is the only outbound handoff, and it **warns before leaving** the app.
+- A route is never transmitted off-device — the only way to take one with you is a fully client-side
+  **GPX export** (`RouteExport` builds the file in the browser; nothing is sent to any third party),
+  gated behind a warning that the saved file itself holds your route.

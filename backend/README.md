@@ -89,7 +89,7 @@ recoverable `auto_retired` flag — revived if the source reports it again), dis
 Versioned under `/api/v1` — contract in
 [`specs/002-flock-route-avoidance/contracts/openapi.yaml`](../specs/002-flock-route-avoidance/contracts/openapi.yaml).
 Endpoints: `POST /routes`, `GET /geocode/search`, `POST /geocode/reverse`, `GET /cameras`,
-`GET /coverage`, `GET /meta/locales`, `GET /health`.
+`GET /coverage`, `GET /coverage/bounds`, `GET /meta/locales`, `GET /health`.
 
 `POST /routes` always avoids cameras maximally: it returns a fully camera-free route when one exists and
 otherwise **automatically** returns the fewest-cameras route (`is_fully_clean: false`) — it never errors for
