@@ -120,9 +120,14 @@ accessories:
     image: ghcr.io/valhalla/valhalla:latest@sha256:a18ece289efc24a08818f2de9d07d49d0454b83aa574352ff1832e31b104d8a6
     host: <ROUTING_HOST>
     port: "127.0.0.1:8002:8002"
-    cmd: valhalla_service /data/valhalla.json 1
+    # Generate a default valhalla.json on first boot if the graph volume is still
+    # empty, so the service starts (fail-soft, no tiles yet) instead of crash-
+    # looping on an unparseable empty config. Once the graph is provisioned
+    # (build-routing-graph.sh / deploy-geo) its own valhalla.json is present and
+    # this guard is a no-op.
+    cmd: 'sh -c "if [ ! -s /data/valhalla.json ]; then valhalla_build_config --mjolnir-tile-extract /data/valhalla_tiles.tar > /data/valhalla.json; fi; exec valhalla_service /data/valhalla.json 1"'
     directories:
-      - routing-data:/data       # prebuilt US graph (see infra/scripts/build-routing-graph.sh)
+      - routing-data:/data       # prebuilt graph (see infra/scripts/build-routing-graph.sh)
 
   geocoder:                      # Nominatim — forward/reverse geocoding (matches dev)
     image: mediagis/nominatim:4.4@sha256:b772911424d31f8c36b337fe4b8d4ef3b93d4bf09f96407905a1e9d475d42632
