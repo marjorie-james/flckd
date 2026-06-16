@@ -12,15 +12,19 @@ module Api
 
       private
 
+      # Sets the request locale (FR-011). Precedence: an explicit, valid ?locale=
+      # override (highest), else the language negotiated from the Accept-Language
+      # header — which the frontend sets to the visitor's *effective* selected
+      # locale, override included (FR-016) — else the default.
       def switch_locale(&action)
-        locale = params[:locale].presence || locale_from_header || I18n.default_locale
-        locale = I18n.default_locale unless I18n.available_locales.map(&:to_s).include?(locale.to_s)
+        locale = explicit_locale || Api::V1::LocaleNegotiator.call(request.headers["Accept-Language"])
         I18n.with_locale(locale, &action)
       end
 
-      def locale_from_header
-        header = request.headers["Accept-Language"]
-        header&.scan(/[a-z]{2}/i)&.first&.downcase
+      # The ?locale= query override, only when it names an available locale.
+      def explicit_locale
+        requested = params[:locale].to_s
+        requested.to_sym if I18n.available_locales.map(&:to_s).include?(requested)
       end
 
       # Renders { code, message, details? } — code is a stable machine string,
