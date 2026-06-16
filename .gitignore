@@ -42,6 +42,11 @@ backend/.kamal/secrets.*
 # Copy config/deploy.example.yml to config/deploy.yml and edit your real values there.
 backend/config/deploy.yml
 
+# Deploy-time geo scope (state/US to provision on the hosts) — gitignored so the
+# deploy scope stays independent of the local dev scope. The .example is tracked.
+backend/.kamal/geo.env
+!backend/.kamal/geo.env.example
+
 # Rails master key and any per-environment credential keys — never commit
 backend/config/master.key
 backend/config/credentials/*.key

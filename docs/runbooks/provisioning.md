@@ -121,8 +121,36 @@ kamal app exec 'bin/rails db:prepare'
 ```
 
 The routing/tiles accessories are now up but **empty** — they have no graph/tiles
-yet, so routing will fail soft until step (d). The geocoder begins importing its
-OSM extract on first boot once the extract is in place.
+yet. Routing **fails soft** (the accessory generates a default `valhalla.json` and
+stays up instead of crash-looping) until the substrate is provisioned. The
+geocoder begins importing its OSM extract on first boot once the extract is in
+place.
+
+There are two ways to fill the substrate:
+
+**Automated (single co-located box).** If you deploy with the `bin/kamal-docker`
+wrapper, it runs `infra/scripts/provision-geo-host.sh` after a successful
+`setup`/`deploy`. The script downloads the extract locally (Geofabrik throttles
+datacenter IPs, so it does *not* rely on the host reaching Geofabrik), streams it
+to the host, builds the routing graph + vector tiles **on the host** (native
+amd64) straight into the accessory dirs, places the geocoder extract, and reboots
+each accessory. It is **idempotent** — a no-op once the artifacts exist — so it is
+safe on every deploy. Skip it with `GEO_PROVISION=skip`; run it standalone with
+`infra/scripts/provision-geo-host.sh [user@host]`. See
+[geo-provisioning.md](geo-provisioning.md) for the full rationale (why we build on
+the host, download locally, etc.) and caveats.
+
+The **deploy scope is independent of your local dev scope** (`infra/.region`): set
+it in `backend/.kamal/geo.env` (gitignored; copy `geo.env.example`) or per
+invocation, so you can develop against one state and deploy a different state or
+the whole US:
+
+```bash
+GEO_REGION_URL=https://download.geofabrik.de/north-america/us/iowa-latest.osm.pbf bin/kamal-docker deploy
+GEO_COUNTRY=us bin/kamal-docker setup        # whole-US substrate
+```
+
+**Release-based (multi-host / CI).** Build a versioned substrate and roll it out:
 
 ```bash
 # (c) Build the geo substrate (produces a geo-<region>-<date>-<run> Release):

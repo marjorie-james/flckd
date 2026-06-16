@@ -70,7 +70,8 @@ mkdir -p "$HOME/.ssh" && touch "$HOME/.ssh/known_hosts"
 # KAMAL_SSH_AUTH_SOCK="$SSH_AUTH_SOCK" to forward the host's own agent instead.
 SSH_AUTH_SOURCE="${KAMAL_SSH_AUTH_SOCK:-/run/host-services/ssh-auth.sock}"
 
-exec docker run --rm -i $TTY_FLAG \
+STATUS=0
+docker run --rm -i $TTY_FLAG \
   -v "$REPO_ROOT:/workdir" -w /workdir/backend \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$SSH_AUTH_SOURCE:/ssh-agent" -e SSH_AUTH_SOCK=/ssh-agent \
@@ -78,4 +79,24 @@ exec docker run --rm -i $TTY_FLAG \
   -e KAMAL_REGISTRY_USERNAME -e KAMAL_REGISTRY_PASSWORD \
   -e SECRET_KEY_BASE \
   -e DATABASE_PASSWORD -e NOMINATIM_PASSWORD \
-  "$KAMAL_IMAGE" "$@"
+  "$KAMAL_IMAGE" "$@" || STATUS=$?
+
+# After a successful `setup`/`deploy`, ensure the self-hosted geo substrate
+# (routing graph + vector tiles + geocoder OSM import) is provisioned on the host.
+# This runs HERE, on the host machine — not as a Kamal hook — because the Kamal
+# image has no bash/curl, and the build needs to drive Docker on the geo host over
+# SSH. It is IDEMPOTENT: a no-op once the artifacts exist, so it adds only a few
+# SSH checks to a routine deploy. The deploy scope is read from .kamal/geo.env /
+# GEO_REGION_URL / GEO_COUNTRY (see infra/scripts/provision-geo-host.sh), kept
+# independent of the local dev scope. Skip with GEO_PROVISION=skip.
+SUBCMD="${1:-}"
+if [ "$STATUS" -eq 0 ] && [ "${GEO_PROVISION:-}" != "skip" ] \
+   && { [ "$SUBCMD" = "setup" ] || [ "$SUBCMD" = "deploy" ]; }; then
+  echo "kamal-docker: ensuring geo substrate is provisioned (GEO_PROVISION=skip to bypass)…" >&2
+  "$REPO_ROOT/infra/scripts/provision-geo-host.sh" || {
+    echo "kamal-docker: geo provisioning did not complete — the app $SUBCMD itself succeeded." >&2
+    echo "kamal-docker: re-run it later with: infra/scripts/provision-geo-host.sh" >&2
+  }
+fi
+
+exit "$STATUS"
