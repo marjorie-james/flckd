@@ -6,6 +6,10 @@
   --input-bg:    #0a0e18;
   --border:      #1c2540;
   --border-hi:   #2a3a5c;
+  /* Boundary of interactive controls (text inputs, the language select, the
+     suggestion popover): ≥3:1 against the dark field fills, per WCAG 1.4.11
+     Non-text Contrast. Decorative dividers keep the subtler --border. */
+  --border-interactive: #5f6d92;
 
   --text:        #c8d6ed;
   --text-muted:  #7a96b8;
@@ -44,7 +48,7 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--text);
   background: var(--bg);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -88,7 +92,7 @@ body {
 }
 
 .app-header h1 {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text);
   margin: 0;
@@ -122,11 +126,17 @@ body {
 }
 
 .app-footer a {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--text-muted);
   text-decoration: none;
   letter-spacing: -0.01em;
+  /* Standalone link (not inline in a sentence), so it needs its own ≥24px target
+     rather than relying on the inline exception (WCAG 2.5.8). */
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 4px;
 }
 
 .app-footer a:hover {
@@ -143,9 +153,9 @@ body {
 .language-switcher select {
   appearance: none;
   background: var(--raised);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-interactive);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 4px 8px;
   border-radius: var(--r-sm);
   cursor: pointer;
@@ -153,9 +163,12 @@ body {
   font-family: inherit;
 }
 
+/* Same as the inputs: a visible focus ring (the accent-glow ring was ~1.2:1,
+   and the accent border change only ~2.7:1 against --raised — both under the 3:1
+   minimum). accent-hi gives ~5:1. (WCAG 1.4.11 / 2.4.11.) */
 .language-switcher select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-glow);
+  border-color: var(--accent-hi);
+  box-shadow: 0 0 0 2px var(--accent-hi);
 }
 
 /* ─── Map ─── */
@@ -214,7 +227,7 @@ body {
 }
 
 .route-panel label {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -230,11 +243,11 @@ body {
 .route-panel input[inputmode="search"] {
   width: 100%;
   padding: 10px 40px 10px 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-family: inherit;
   color: var(--text);
   background: var(--input-bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-interactive);
   border-radius: var(--r);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -244,9 +257,13 @@ body {
   color: var(--placeholder);
 }
 
+/* The focus ring must be visible: the previous accent-glow (accent @20%) ring was
+   ~1.2:1 against the dark field — below the 3:1 minimum (WCAG 1.4.11 / 2.4.11
+   Focus Appearance). A solid 2px accent-hi ring is ~5.5:1 and meets the indicator
+   area requirement. */
 .route-panel input[inputmode="search"]:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  border-color: var(--accent-hi);
+  box-shadow: 0 0 0 2px var(--accent-hi);
 }
 
 /* geo / location pin icon button inside input */
@@ -278,7 +295,7 @@ body {
   left: 0;
   right: 0;
   background: var(--raised);
-  border: 1px solid var(--border-hi);
+  border: 1px solid var(--border-interactive);
   border-radius: var(--r);
   box-shadow: var(--shadow);
   z-index: 200;
@@ -294,7 +311,7 @@ body {
   background: none;
   border: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-family: inherit;
   cursor: pointer;
   border-radius: var(--r-sm);
@@ -303,19 +320,28 @@ body {
 }
 
 .suggestions li button:hover,
-.suggestions li button:focus,
-/* Keyboard navigation keeps focus on the input (combobox pattern), so the
-   highlighted option is conveyed via aria-selected, not :focus. */
-.suggestions li button[aria-selected="true"] {
+.suggestions li button:focus {
   background: var(--accent-muted);
   outline: none;
+}
+
+/* Keyboard navigation keeps focus on the input (combobox pattern), so the active
+   option is conveyed only via aria-selected — focus never lands on it. The
+   accent-muted fill alone is ~1.1:1 against the dropdown (effectively invisible),
+   so add an accent-hi outline (~5.5:1) to meet the 3:1 non-text-contrast bar for
+   the highlight (WCAG 1.4.11) — otherwise sighted keyboard users can't see which
+   suggestion they're about to select. */
+.suggestions li button[aria-selected="true"] {
+  background: var(--accent-muted);
+  outline: 2px solid var(--accent-hi);
+  outline-offset: -2px;
 }
 
 /* Non-interactive status row inside the listbox: searching / no matches / error.
    Distinct from the selectable option buttons above. */
 .suggestion-status {
   padding: 9px 11px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -327,7 +353,7 @@ body {
 /* Inline field-level error (e.g. geolocation denied/unavailable). */
 .field-error {
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--red);
 }
 
@@ -345,7 +371,7 @@ body {
 
 .preference legend,
 .avoidance-control legend {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -360,7 +386,7 @@ body {
 /* ─── Plan button ─── */
 .route-panel button[type="submit"] {
   padding: 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   font-family: inherit;
   color: #fff;
@@ -399,7 +425,7 @@ body {
   padding: 10px 16px;
   background: var(--raised);
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
@@ -407,7 +433,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--green);
   background: var(--green-bg);
@@ -418,11 +444,11 @@ body {
 
 .camera-summary .exposed {
   color: var(--amber);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .camera-summary details {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .camera-summary summary { cursor: pointer; color: var(--amber); }
@@ -445,7 +471,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -485,7 +511,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .stats li {
@@ -511,7 +537,7 @@ body {
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-family: inherit;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -534,7 +560,7 @@ body {
 }
 
 .route-result h3 {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -549,7 +575,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .directions li {
@@ -564,7 +590,7 @@ body {
 
 .directions li::before {
   content: counter(step);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   color: var(--text-muted);
   min-width: 14px;
@@ -588,7 +614,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--amber);
 }
 
@@ -602,7 +628,7 @@ body {
   border: 1px solid var(--border-hi);
   border-radius: var(--r-sm);
   color: var(--text);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -617,7 +643,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-family: inherit;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -632,7 +658,7 @@ body {
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-family: inherit;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -643,7 +669,7 @@ body {
 
 /* ─── Coverage warning ─── */
 .coverage-warning {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--amber);
   margin: 0;
 }
@@ -652,7 +678,7 @@ body {
 .error {
   padding: 12px 16px;
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--red);
   background: var(--red-bg);
   border-top: 1px solid var(--red-ring);
@@ -670,7 +696,7 @@ body {
   border-radius: var(--r);
   box-shadow: var(--shadow);
   padding: 12px 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .camera-popup-shell.maplibregl-popup-anchor-top .maplibregl-popup-tip,
 .camera-popup-shell.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
@@ -690,7 +716,11 @@ body {
 }
 .camera-popup-shell .maplibregl-popup-close-button {
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 1.125rem;
+  /* MapLibre's default close button is content-sized (~22px tall); enforce the
+     24×24 minimum touch target (WCAG 2.5.8). */
+  min-width: 24px;
+  min-height: 24px;
   padding: 2px 8px;
 }
 .camera-popup-shell .maplibregl-popup-close-button:hover {
@@ -723,7 +753,7 @@ body {
   gap: 8px;
   margin: 0;
   padding: 12px 16px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.5;
   color: var(--amber);

@@ -17,6 +17,11 @@ interface Props {
   loading?: boolean;
   // The geocode request failed (shows an error row instead of a dead input).
   error?: boolean;
+  // Id of an external element (e.g. a field-level geolocation error) that also
+  // describes this input, merged into aria-describedby so AT conveys it on focus.
+  describedById?: string;
+  // Whether the field is required (sets aria-required so AT conveys it).
+  required?: boolean;
   // Optional trailing control inside the input (e.g. "use my location").
   trailing?: ReactNode;
 }
@@ -26,7 +31,7 @@ interface Props {
 // Escape dismisses the list. Focus stays on the input; the active option is
 // conveyed via aria-activedescendant (the combobox pattern), and a polite live
 // region announces how many suggestions are available.
-export function AddressAutocomplete({ id, label, value, onValueChange, suggestions, onSelect, open, loading = false, error = false, trailing }: Props) {
+export function AddressAutocomplete({ id, label, value, onValueChange, suggestions, onSelect, open, loading = false, error = false, describedById, required = false, trailing }: Props) {
   const { t } = useTranslation();
   const [active, setActive] = useState(-1);
   const [dismissed, setDismissed] = useState(false);
@@ -35,9 +40,16 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
   // stale index can't point past the new list. Done during render (React's
   // "adjust state when a prop changes" pattern) rather than in an effect.
   const [prevSuggestions, setPrevSuggestions] = useState(suggestions);
+  // Toggled on every suggestion-set change so the live region's text always
+  // differs from the last announcement — otherwise two different result sets that
+  // resolve to the same count string ("5 suggestions available") would not
+  // re-announce. The toggled character is a zero-width space: invisible, and not
+  // spoken by screen readers.
+  const [announceTick, setAnnounceTick] = useState(false);
   if (suggestions !== prevSuggestions) {
     setPrevSuggestions(suggestions);
     setActive(-1);
+    setAnnounceTick((t) => !t);
   }
 
   const hasOptions = suggestions.length > 0;
@@ -56,7 +68,15 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
 
   const expanded = open && !dismissed && (hasOptions || statusMessage !== null);
   const listId = `${id}-listbox`;
+  const statusId = `${id}-status`;
   const optionId = (i: number) => `${id}-opt-${i}`;
+
+  // Tie any active error to the input so a screen reader announces it on focus,
+  // not just as a transient live-region message (WCAG 3.3.1). On a failed search
+  // the status region holds the error text; an external describedById (e.g. a
+  // geolocation error) is merged in too. References are dropped when absent so no
+  // dangling id is left on the input.
+  const describedBy = [error ? statusId : null, describedById].filter(Boolean).join(" ") || undefined;
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!expanded) {
@@ -95,8 +115,18 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
     }
   };
 
+  // Dismiss an open list when focus leaves the field entirely, so it doesn't
+  // linger (aria-expanded stuck true) over the next control. Focus moving within
+  // the group — to the trailing button — keeps it; option clicks preventDefault
+  // their mousedown so focus never leaves the input during selection.
+  const onBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setDismissed(true);
+    }
+  };
+
   return (
-    <div className="input-group">
+    <div className="input-group" onBlur={onBlur}>
       <label htmlFor={id}>{label}</label>
       <div className="input-wrap">
         <input
@@ -110,6 +140,8 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
           // Both the listbox and its options exist only while expanded, so these
           // references must clear when collapsed (a dangling id is invalid ARIA).
           aria-activedescendant={expanded && active >= 0 ? optionId(active) : undefined}
+          aria-describedby={describedBy}
+          aria-required={required || undefined}
           value={value}
           // Typing after an Escape dismissal re-opens the list.
           onChange={(e) => { setDismissed(false); onValueChange(e.target.value); }}
@@ -134,6 +166,9 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
                     id={optionId(i)}
                     aria-selected={i === active}
                     tabIndex={-1}
+                    // Keep focus on the input (combobox pattern) so the group's
+                    // blur-dismiss doesn't fire before the click selects.
+                    onMouseDown={(e) => e.preventDefault()}
                     onMouseMove={() => setActive(i)}
                     onClick={() => onSelect(r)}
                   >
@@ -150,10 +185,10 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
         </ul>
       )}
 
-      <span className="visually-hidden" role="status" aria-live="polite">
-        {hasOptions
+      <span id={statusId} className="visually-hidden" role="status" aria-live="polite">
+        {(hasOptions
           ? t("form.suggestionsAvailable", { count: suggestions.length })
-          : statusMessage ?? ""}
+          : statusMessage ?? "") + (announceTick ? "\u200B" : "")}
       </span>
     </div>
   );

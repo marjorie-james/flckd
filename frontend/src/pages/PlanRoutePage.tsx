@@ -56,6 +56,21 @@ export function PlanRoutePage() {
   // A fetch is in flight (initial plan or a live re-plan with existing data).
   const busy = plan.isFetching;
 
+  // A concise, polite announcement of route state for screen readers. The full
+  // result block below is deliberately NOT a live region: announcing it wholesale
+  // makes the screen reader read every turn-by-turn step aloud and collides with
+  // the assertive RouteNotice/error alerts inside it. Instead this single status
+  // line says planning is underway, then summarizes the resolved route; the error
+  // and not-camera-free alerts announce themselves (role="alert").
+  const routeAnnouncement = busy
+    ? t("status.planning")
+    : route
+      ? t("status.routeReady", {
+          minutes: Math.round(route.duration_s / 60),
+          km: (route.distance_m / 1000).toFixed(1),
+        })
+      : "";
+
   return (
     <div className="plan-page">
       <header className="app-header">
@@ -84,9 +99,15 @@ export function PlanRoutePage() {
         <div className="content-pane">
           <RoutePanel onPlan={handlePlan} planning={busy} onOriginChange={setOrigin} />
 
-          {/* Polite live region so screen readers announce the planned route or an
-              error when it appears. */}
-          <div className="result-section" aria-live="polite">
+          {/* The only live region for route state: one concise, polite status
+              line. Screen readers announce planning / the route summary here
+              without re-reading the whole result block, and the assertive error
+              and not-camera-free alerts below announce themselves. */}
+          <div className="visually-hidden" role="status" aria-live="polite">
+            {routeAnnouncement}
+          </div>
+
+          <div className="result-section">
             {errorMessage && <p className="error" role="alert">{errorMessage}</p>}
             {route && endpoints && (
               <>

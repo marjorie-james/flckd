@@ -15,6 +15,10 @@
     "noMatches": "No matches found",
     "searchError": "Search unavailable — check your connection"
   },
+  "status": {
+    "planning": "Planning your route…",
+    "routeReady": "Route planned: {{minutes}} min, {{km}} km"
+  },
   "map": {
     "ariaLabel": "Map of your route and nearby cameras"
   },
