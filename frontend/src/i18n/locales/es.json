@@ -15,6 +15,10 @@
     "noMatches": "No se encontraron coincidencias",
     "searchError": "Búsqueda no disponible: revisa tu conexión"
   },
+  "status": {
+    "planning": "Planificando tu ruta…",
+    "routeReady": "Ruta planificada: {{minutes}} min, {{km}} km"
+  },
   "map": {
     "ariaLabel": "Mapa de tu ruta y las cámaras cercanas"
   },

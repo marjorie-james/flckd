@@ -22,6 +22,7 @@ export function RouteExport({ route }: Props) {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
   const warningId = useId();
+  const howtoId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasConfirming = useRef(false);
@@ -30,12 +31,40 @@ export function RouteExport({ route }: Props) {
   // restore it to the trigger on close.
   useEffect(() => {
     if (confirming) {
-      dialogRef.current?.querySelector<HTMLElement>("button")?.focus();
+      // Focus the dialog itself, NOT its first button. The first button is the
+      // destructive "Download", and pre-arming it means a keyboard user's
+      // reflexive Enter writes their exact route to disk without ever choosing to.
+      // Landing on the container also lets the screen reader read the dialog's
+      // name + description (the warning and how-to) before the user acts.
+      dialogRef.current?.focus();
     } else if (wasConfirming.current) {
       triggerRef.current?.focus();
     }
     wasConfirming.current = confirming;
   }, [confirming]);
+
+  // Keep keyboard focus inside the modal alertdialog: Tab/Shift+Tab cycle between
+  // the two buttons (and the container) instead of escaping to the page behind it.
+  // Escape cancels. Pairs with aria-modal="true" so AT also scopes to the dialog.
+  const onDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      setConfirming(false);
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
+    if (buttons.length === 0) return;
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || active === dialogRef.current)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
 
   // decodePolyline returns [lng, lat] pairs. Memoized so toggling the warning
   // open/closed doesn't re-decode the whole polyline each render. A route needs
@@ -75,11 +104,14 @@ export function RouteExport({ route }: Props) {
       ref={dialogRef}
       className="export-warning"
       role="alertdialog"
+      aria-modal="true"
       aria-labelledby={warningId}
-      onKeyDown={(e) => { if (e.key === "Escape") setConfirming(false); }}
+      aria-describedby={howtoId}
+      tabIndex={-1}
+      onKeyDown={onDialogKeyDown}
     >
       <p id={warningId} className="export-risk">{t("gpx.warning")}</p>
-      <p className="export-howto">{t("gpx.howto")}</p>
+      <p id={howtoId} className="export-howto">{t("gpx.howto")}</p>
       <button type="button" className="export-confirm" onClick={download}>
         {t("gpx.download")}
       </button>

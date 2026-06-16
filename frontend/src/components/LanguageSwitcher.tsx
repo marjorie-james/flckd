@@ -34,7 +34,10 @@ export function LanguageSwitcher() {
       <select value={value} onChange={onChange}>
         <option value={AUTOMATIC}>{t("languageAuto")}</option>
         {SUPPORTED_LOCALES.map((l) => (
-          <option key={l.code} value={l.code}>
+          // lang marks each native language name (e.g. "Español") in its own
+          // language so a screen reader pronounces it with the right phonetics
+          // regardless of the page language (WCAG 3.1.2 Language of Parts).
+          <option key={l.code} value={l.code} lang={l.code}>
             {l.name}
           </option>
         ))}

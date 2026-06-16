@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGeocodeSearch, MIN_QUERY_LENGTH } from "../services/geocodeApi";
 import { useGeolocation } from "../hooks/useGeolocation";
@@ -26,6 +26,10 @@ interface Props {
 // and a "use my location" shortcut.
 export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
   const { t, i18n } = useTranslation();
+  // Stable id so the geolocation error can be tied to the origin field via
+  // aria-describedby — announced when the field gains focus, not only as a
+  // one-shot alert when it appears (WCAG 3.3.1).
+  const geoErrorId = useId();
   const [originText, setOriginText] = useState("");
   const [destText, setDestText] = useState("");
   const [origin, setOrigin] = useState<Coordinate | null>(null);
@@ -90,6 +94,8 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
     >
       <AddressAutocomplete
         id="origin-input"
+        required
+        describedById={geoErrorMessage ? geoErrorId : undefined}
         label={t("form.origin")}
         value={originText}
         onValueChange={(v) => {
@@ -124,13 +130,14 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
       />
 
       {geoErrorMessage && (
-        <p className="field-error" role="alert">
+        <p id={geoErrorId} className="field-error" role="alert">
           {geoErrorMessage}
         </p>
       )}
 
       <AddressAutocomplete
         id="dest-input"
+        required
         label={t("form.destination")}
         value={destText}
         onValueChange={(v) => {
