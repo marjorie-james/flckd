@@ -5,8 +5,10 @@ routes *around* known ALPR / Flock automated license-plate-reader cameras by
 excluding the specific monitored road segment(s) — not a radius. Strict
 anonymity is non-negotiable: no accounts, no PII, no persistent identifiers; no
 third party ever receives a user's origin, destination, or route; logs never
-retain route coordinates or client IPs. The only outbound handoff is an explicit,
-user-initiated "open in Apple/Google Maps" (with a warning).
+retain route coordinates or client IPs. A route never leaves the app over the network:
+the only way to take one with you is a user-initiated, fully client-side GPX export — the
+file is built in your browser and saved to your own device (warned, because the file
+itself holds your route).
 
 The whole geo stack is **self-hosted** (Valhalla routing, Nominatim geocoding,
 self-hosted vector tiles) so user route data stays on our own infrastructure.

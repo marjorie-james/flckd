@@ -31,7 +31,7 @@ Data recovery (the `cameras` table) → [backups.md](backups.md).
 ## Geocoder (Nominatim) down
 
 - **Symptom:** address search (`/api/v1/geocode/*`) fails; routing by explicit coordinates still works.
-- **Confirm:** `curl -s http://localhost:8081/status` (host port 8081 → container 8080).
+- **Confirm:** `curl -s http://localhost:8081/status.php` (host port 8081 → container 8080).
 - **First remediation:** `docker compose -f infra/docker-compose.yml up -d geocoder`. If the import is incomplete/corrupt, re-import → [geo-stack.md](geo-stack.md). Degrades gracefully — not an outage on its own.
 
 ## Tiles missing / basemap blank

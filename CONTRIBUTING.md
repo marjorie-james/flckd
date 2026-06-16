@@ -26,8 +26,10 @@ Changes must not weaken these project invariants:
 
 - **Strict anonymity** — no third party ever receives a user's origin, destination, or
   route; no accounts, no PII, no persistent identifiers; logs must never retain route
-  coordinates or client IPs. The only outbound handoff is the explicit, user-initiated
-  "open in Apple/Google Maps" (with a warning).
+  coordinates or client IPs. There is no network transmission exception: a route leaves the
+  app only as a user-initiated, fully client-side GPX export (built in the browser, saved to
+  the user's own device — nothing is sent anywhere; the user is warned the file itself holds
+  their route).
 - **Self-hosted geo stack** — routing (Valhalla), geocoding (Nominatim), and vector
   tiles are self-hosted. Don't introduce a third-party geo/tile/font/script dependency
   that the browser or backend calls at request time.

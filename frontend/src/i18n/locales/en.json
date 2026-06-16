@@ -60,6 +60,13 @@
     "download": "Download .gpx",
     "cancel": "Cancel"
   },
+  "print": {
+    "action": "Print directions",
+    "heading": "Driving directions",
+    "from": "From",
+    "to": "To",
+    "privacyNotice": "This sheet shows your full route — your start, destination, and every turn. It was created on your device and sent nowhere, but the paper itself holds your locations: keep it safe and dispose of it thoughtfully once you're done."
+  },
   "errors": {
     "no_route": "We couldn't find a drivable route. Try different locations.",
     "bad_request": "Please enter both a start and a destination.",

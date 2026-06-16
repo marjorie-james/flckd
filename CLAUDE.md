@@ -1,5 +1,17 @@
 <!-- SPECKIT START -->
-**Active feature**: [`012-preferred-language-detection`](specs/012-preferred-language-detection/plan.md)
+**Active feature**: [`013-printable-directions`](specs/013-printable-directions/plan.md)
+([spec](specs/013-printable-directions/spec.md)) — add an icon-only **print control** at the top
+of the on-screen driving directions. Activating it opens the browser's native print dialog showing
+a dedicated, print-only view: heading, origin + destination labels, total time/distance, the full
+ordered turn-by-turn steps, and a brief "this page holds your route" privacy notice — large,
+high-contrast, cleanly paginated for reading while driving. Map, page chrome, and all controls are
+excluded; camera/coverage notices are deliberately omitted. Frontend-only and fully client-side
+(`window.print()` + `@media print`), no transmission (anonymity model intact). Main wiring change:
+**lift the geocoded origin/destination labels** from `RoutePanel` up to `PlanRoutePage` (the
+`Route` object has no address labels). Localized en + es; tests via Vitest with `window.print`
+stubbed.
+
+Prior feature: [`012-preferred-language-detection`](specs/012-preferred-language-detection/plan.md)
 ([spec](specs/012-preferred-language-detection/spec.md)) — derive the UI language automatically from the
 visitor's **full environment language signals** (ordered `navigator.languages` / `Accept-Language` q-weights),
 matched against the offered locales (en, es) with base-language regional fallback, **resolved synchronously
@@ -11,13 +23,9 @@ Key changes: new `resolveLocale` + `localePreference` (frontend), new `Api::V1::
 
 Prior feature: [`011-country-camera-mapping`](specs/011-country-camera-mapping/plan.md)
 ([spec](specs/011-country-camera-mapping/spec.md)) — lift a deployment's scope from a single US
-state to an entire **country, defaulting to the US**: one operator-chosen country drives the OSM
-extract, routing graph, tiles, geocoder + whole-US TIGER, camera gathering, map framing, and
-per-data-region coverage. Country-generic config; US is the sole validated/supported target at
-launch (un-provisioned country fails fast). Provisioning is in scope via a one-command path.
-Key changes: remove the single-state geocoder workarounds, add `Geocoding::CountryRegistry`,
-reinterpret `CoverageArea` as per-data-region (freshness set per region), generalize the infra
-scripts. Anonymity + segment-exclusion unchanged.
+state to an entire **country, defaulting to the US** (OSM extract, routing graph, tiles, geocoder +
+whole-US TIGER, camera gathering, map framing, per-data-region coverage; `Geocoding::CountryRegistry`,
+per-region `CoverageArea`). Anonymity + segment-exclusion unchanged.
 
 Prior feature: [`010-responsive-layout`](specs/010-responsive-layout/plan.md)
 ([spec](specs/010-responsive-layout/spec.md)) — full-width responsive layout (map-dominant

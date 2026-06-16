@@ -32,9 +32,11 @@ fix. We're glad to credit reporters who want it.
 
 - **Anonymity / privacy leaks** (highest priority): any path by which a user's
   origin/destination/route, client IP, or a persistent identifier reaches a third party,
-  a log, or another user. This includes the outbound "open in Apple/Google Maps" handoff
-  behaving in any way other than the explicit, warned, user-initiated action it is meant
-  to be.
+  a log, or another user. flckd has **no network transmission exception** — a route leaves
+  the app only as a user-initiated, fully client-side GPX file saved to the user's own
+  device. Any path that sends route data off-device, or that makes the GPX export behave
+  as anything other than the explicit, warned, local-only action it is meant to be, is in
+  scope.
 - Standard web vulnerabilities in the API or SPA (injection, SSRF, auth-bypass-style
   logic flaws, XSS, etc.).
 - Vulnerabilities in how the self-hosted geo services are wired together that could be
