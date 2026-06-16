@@ -69,8 +69,12 @@ The same engines run in dev (docker-compose) and prod (Kamal accessories) — no
 
 **Non-negotiables**:
 - Strict anonymity — no third party ever receives a user's origin/destination/route; no accounts/PII;
-  no persistent identifiers; logs must not retain route coordinates or client IPs. Only exception:
-  explicit user-initiated "open in Apple/Google Maps" handoff (with warning).
+  no persistent identifiers; logs must not retain route coordinates or client IPs. No transmission
+  exception: the only way a route leaves the app is a user-initiated, fully client-side GPX export
+  (the file is built in the browser and saved to the user's own device — nothing is sent anywhere —
+  and the user is warned that the file itself holds their route). The old "open in Apple/Google Maps"
+  handoff was removed: external apps recompute their own route (defeating camera avoidance) and the
+  handoff transmitted the endpoints to a third party.
 - Camera avoidance = exclude the specific monitored road segment(s) (snap-to-road), not a radius.
 - Tests are required for every behavioral change (Constitution Principle II); geo services are stubbed
   with recorded fixtures so tests stay deterministic.

@@ -94,8 +94,6 @@ export function PlanRoutePage() {
                 <CameraSummary route={route} />
                 <RouteResult
                   route={route}
-                  origin={endpoints.origin}
-                  destination={endpoints.destination}
                   showComparison={showComparison}
                   onToggleComparison={() => setShowComparison((v) => !v)}
                 />

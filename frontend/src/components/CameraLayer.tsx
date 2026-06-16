@@ -4,6 +4,7 @@ import maplibregl from "maplibre-gl";
 import { useCameras, type CameraPin } from "../services/cameraApi";
 import { useDebounce } from "../hooks/useDebounce";
 import { prefersReducedMotion } from "../utils/reducedMotion";
+import { escapeHtml } from "../lib/escapeHtml";
 
 // Renders the known cameras in the current viewport, clustered. Reference data
 // only — never user data. Self-contained: given the live map it computes its own
@@ -142,12 +143,7 @@ function registerConeImages(map: maplibregl.Map): void {
 }
 
 // camera_type is free-form text from upstream sources (e.g. OSM camera:type tags),
-// so it MUST be escaped before going into setHTML or it's a DOM-XSS vector.
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
-  );
-}
+// so it MUST be escaped (escapeHtml) before going into setHTML or it's a DOM-XSS vector.
 
 // Minimal shape of i18next's `t` — enough to localize the popup strings without
 // pulling in the full TFunction generics.

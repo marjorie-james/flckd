@@ -47,13 +47,13 @@
     "hideComparison": "Ocultar ruta más rápida",
     "remainingItem": "Vía vigilada n.º {{id}}",
     "distance": "{{km}} km",
-    "openInMaps": "Abrir en Mapas",
+    "exportGpx": "Exportar ruta (GPX)",
     "directions": "Indicaciones"
   },
-  "handoff": {
-    "warning": "Abrir un mapa externo comparte las ubicaciones de esta ruta con ese proveedor. ¿Continuar?",
-    "apple": "Apple Maps",
-    "google": "Google Maps",
+  "gpx": {
+    "warning": "Este archivo contiene tu ruta exacta: las coordenadas de tu inicio, tu destino y cada giro entre ambos. Se crea en tu dispositivo y no se envía a ningún sitio, pero una vez que lo guardas, protegerlo depende de ti: si el archivo se comparte, se sincroniza con la nube o lo abre una app que envía datos a sus servidores, tus ubicaciones podrían quedar expuestas. flckd no puede proteger el archivo después de que lo guardes.",
+    "howto": "Abre el .gpx en una app de navegación que siga rutas (como OsmAnd) o en un dispositivo GPS para seguir exactamente la ruta sin cámaras de flckd: la app sigue esta traza en lugar de calcular la suya.",
+    "download": "Descargar .gpx",
     "cancel": "Cancelar"
   },
   "errors": {
