@@ -1,0 +1,136 @@
+[
+  {
+    "place_id": 252618,
+    "display_name": "Larkmoor Drive, Birchwood Park, Fairhaven, Example County, 55501, United States",
+    "lat": "42.100000",
+    "lon": "-93.700000",
+    "category": "highway",
+    "type": "residential",
+    "importance": 0.2533433333333333,
+    "place_rank": 26,
+    "address": {
+      "road": "Larkmoor Drive",
+      "residential": "Birchwood Park",
+      "city": "Fairhaven",
+      "county": "Example County",
+      "postcode": "55501",
+      "country": "United States",
+      "country_code": "us"
+    }
+  },
+  {
+    "place_id": 263216,
+    "display_name": "Larkmoor Drive, Fairhaven, Sample Township, Example County, 55501, United States",
+    "lat": "42.101000",
+    "lon": "-93.710000",
+    "category": "highway",
+    "type": "residential",
+    "importance": 0.2533433333333333,
+    "place_rank": 26,
+    "address": {
+      "road": "Larkmoor Drive",
+      "city": "Fairhaven",
+      "municipality": "Sample Township",
+      "county": "Example County",
+      "postcode": "55501",
+      "country": "United States",
+      "country_code": "us"
+    }
+  },
+  {
+    "place_id": 265117,
+    "display_name": "Larkmoor Drive, Cedar Ridge, Fairhaven, Example County, 55502, United States",
+    "lat": "42.102000",
+    "lon": "-93.720000",
+    "category": "highway",
+    "type": "residential",
+    "importance": 0.2533433333333333,
+    "place_rank": 26,
+    "address": {
+      "road": "Larkmoor Drive",
+      "residential": "Cedar Ridge",
+      "city": "Fairhaven",
+      "county": "Example County",
+      "postcode": "55502",
+      "country": "United States",
+      "country_code": "us"
+    }
+  },
+  {
+    "place_id": 268192,
+    "display_name": "Larkmoor Drive, Maple Acres, Fairhaven, Example County, 55502, United States",
+    "lat": "42.103000",
+    "lon": "-93.730000",
+    "category": "highway",
+    "type": "residential",
+    "importance": 0.2533433333333333,
+    "place_rank": 26,
+    "address": {
+      "road": "Larkmoor Drive",
+      "residential": "Maple Acres",
+      "city": "Fairhaven",
+      "county": "Example County",
+      "postcode": "55502",
+      "country": "United States",
+      "country_code": "us"
+    }
+  },
+  {
+    "place_id": 270185,
+    "display_name": "Larkmoor Drive, Willow Park, Fairhaven, Example County, 55502, United States",
+    "lat": "42.104000",
+    "lon": "-93.740000",
+    "category": "highway",
+    "type": "residential",
+    "importance": 0.2533433333333333,
+    "place_rank": 26,
+    "address": {
+      "road": "Larkmoor Drive",
+      "residential": "Willow Park",
+      "city": "Fairhaven",
+      "county": "Example County",
+      "postcode": "55502",
+      "country": "United States",
+      "country_code": "us"
+    }
+  },
+  {
+    "place_id": 271068,
+    "display_name": "Larkmoor Drive, Stonegate Heights, Fairhaven, Example County, 55502, United States",
+    "lat": "42.105000",
+    "lon": "-93.750000",
+    "category": "highway",
+    "type": "residential",
+    "importance": 0.2533433333333333,
+    "place_rank": 26,
+    "address": {
+      "road": "Larkmoor Drive",
+      "residential": "Stonegate Heights",
+      "city": "Fairhaven",
+      "county": "Example County",
+      "postcode": "55502",
+      "country": "United States",
+      "country_code": "us"
+    }
+  },
+  {
+    "place_id": 236303,
+    "display_name": "Larkmoor Drive, Deer Run, Fairhaven, Sample Township, Other County, 55503, United States",
+    "lat": "42.106000",
+    "lon": "-93.760000",
+    "category": "highway",
+    "type": "residential",
+    "importance": 0.2533433333333333,
+    "place_rank": 26,
+    "address": {
+      "road": "Larkmoor Drive",
+      "residential": "Deer Run",
+      "city": "Fairhaven",
+      "municipality": "Sample Township",
+      "county": "Other County",
+      "postcode": "55503",
+      "country": "United States",
+      "country_code": "us"
+    }
+  }
+]
