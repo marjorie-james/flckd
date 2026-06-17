@@ -48,6 +48,14 @@ case "${cmd}" in
     [ "${PROV_EXTRACT_CACHED:-0}" = "1" ] && exit 0 || exit 1 ;;
   *"status.php"*)
     exit 1 ;;  # geocoder not ready (forces the place+reboot branch if reached)
+  *"flckd-backend-web-"*)
+    # Web-container resolution (step 4): echo a fake name iff PROV_WEB_PRESENT=1.
+    # The import's own `docker cp/exec` lines also match this and just succeed.
+    [ "${PROV_WEB_PRESENT:-0}" = "1" ] && echo "flckd-backend-web-test"
+    exit 0 ;;
+  *"grep -c"*"Feature"*)
+    # Surveillance-feature count for the empty-guard (step 4).
+    echo "${PROV_CAM_FEATURES:-5}"; exit 0 ;;
   *)
     exit 0 ;;
 esac
@@ -122,4 +130,40 @@ teardown() { rm -rf "${BATS_TEST_TMPDIR}"; }
   assert_success
   assert_output --partial "extract already on host for this region"
   refute_output --partial "downloading locally"
+}
+
+# ---------------------------------------------------------------------------
+# Step 4 — camera dataset (build the surveillance GeoJSON + import)
+# ---------------------------------------------------------------------------
+
+@test "camera step: skips gracefully when no web container is found" {
+  PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=0 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "web container not found — skipping camera import"
+}
+
+@test "camera step: CAMERAS=skip leaves the cameras table as-is" {
+  CAMERAS=skip PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "leaving the cameras table as-is"
+}
+
+@test "camera step: imports when a web container is present and features are found" {
+  PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 PROV_CAM_FEATURES=5 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "5 surveillance features"
+  assert_output --partial "importing into flckd-backend-web-test"
+  assert_output --partial "camera import complete"
+}
+
+@test "camera step: refuses an implausibly empty camera set (exit 1)" {
+  PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 PROV_CAM_FEATURES=0 run bash "${SCRIPT}"
+  assert_failure
+  assert_output --partial "refusing to import an"
+}
+
+@test "camera step: ALLOW_EMPTY=1 overrides the empty guard" {
+  ALLOW_EMPTY=1 PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 PROV_CAM_FEATURES=0 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "importing into flckd-backend-web-test"
 }
