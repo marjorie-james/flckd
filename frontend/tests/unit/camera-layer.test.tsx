@@ -43,7 +43,7 @@ const VERIFIED = { id: 1, location: { lat: 41.61, lng: -93.61 }, snapped_locatio
 const DISPUTED = { id: 2, location: { lat: 41.62, lng: -93.62 }, snapped_location: null, segment: null, facing_direction: null, camera_type: "flock", confidence: 0.3, verification_status: "disputed" };
 
 type SourceCfg = { cluster?: boolean; data: GeoJSON.FeatureCollection };
-type LayerCfg = { id: string; paint?: Record<string, unknown>; layout?: Record<string, unknown> };
+type LayerCfg = { id: string; paint?: Record<string, unknown>; layout?: Record<string, unknown>; minzoom?: number };
 
 function makeFakeMap(bounds = BOUNDS) {
   const handlers: Record<string, Array<(...a: unknown[]) => void>> = {};
@@ -157,6 +157,16 @@ describe("CameraLayer directionality + watched stretch", () => {
     // The cone is rotated to the bearing the camera faces.
     const cone = map.calls.addLayer.find((l) => l.id === "camera-cones")!;
     expect(JSON.stringify(cone.layout!["icon-rotate"])).toContain("facing_direction");
+  });
+
+  it("gates the watched-stretch lines to higher zoom so dense viewports stay light", () => {
+    // The segment lines are not clustered, so they must not draw at every zoom;
+    // a minzoom keeps a dense viewport down to just the clustered dots.
+    H.data = { cameras: [VERIFIED] };
+    const map = makeFakeMap();
+    render(<CameraLayer map={map as never} />);
+    const seg = map.calls.addLayer.find((l) => l.id === "camera-segment-lines")!;
+    expect(seg.minzoom).toBe(14);
   });
 });
 
