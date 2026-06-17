@@ -19,7 +19,19 @@ automatically after the app comes up. The script:
 1. downloads the OSM extract **on your machine** and streams it to the host,
 2. builds the routing graph (Valhalla) and vector tiles (Planetiler) **on the
    host**, straight into the accessory data dirs,
-3. places the extract for the geocoder and reboots it (Nominatim imports on boot).
+3. places the extract for the geocoder and reboots it (Nominatim imports on boot),
+4. filters surveillance nodes from the extract into a GeoJSON (osmium) and runs
+   `camera_data:import SOURCE=pbf` in the web container — so the **cameras table is
+   populated as part of setup** (otherwise the map shows no cameras / clustering
+   bubbles). Skip with `CAMERAS=skip`; the empty-set guard refuses to import an
+   implausibly empty result unless `ALLOW_EMPTY=1`.
+
+> **Daily freshness is a separate concern.** Step 4 populates cameras at setup and
+> the rows persist in the DB. The recurring `DataRefreshJob` (08:00 UTC) re-reads
+> `CAMERA_OSM_GEOJSON_PATH` inside the container; that file is not yet persisted
+> across deploys, so until it is, refresh the dataset by re-running
+> `infra/scripts/provision-geo-host.sh` (it re-imports from a freshly filtered
+> extract). Wiring a persistent, daily-rebuilt GeoJSON mount is a follow-up.
 
 It runs on **`setup` only** — a routine `deploy` is just the app image swap and
 never touches the geo data (building the graph/tiles and re-downloading the extract

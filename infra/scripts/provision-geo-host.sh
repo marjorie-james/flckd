@@ -129,7 +129,7 @@ BUILD_DIR="${GEO_BUILD_DIR:-${HOST_HOME%/}/geo-build}"
 # stream the file to the host. Geofabrik commonly throttles datacenter IPs to a
 # hang, so we do not rely on the host reaching it directly. Cached on the host
 # between runs; FORCE=1 re-fetches.
-echo "==> [0/3] Ensure OSM extract on host (${BUILD_DIR}/extract.osm.pbf)"
+echo "==> [0/4] Ensure OSM extract on host (${BUILD_DIR}/extract.osm.pbf)"
 sshx "mkdir -p '${BUILD_DIR}'"
 # Mirror fetch-extract.sh: a sibling URL marker records which region the cached
 # extract is for, so a deploy-scope change (different REGION_URL) forces a fresh
@@ -169,7 +169,7 @@ fi
 # mid-write leaves a non-empty-but-truncated tar that `test -s` would wrongly
 # accept, and writing the marker last lets a failed restart self-heal on re-run.
 # The marker lives in the (deploy-owned) data dir; valhalla_service ignores it.
-echo "==> [1/3] Routing graph (Valhalla)"
+echo "==> [1/4] Routing graph (Valhalla)"
 # The completion marker also encodes the region (REGION_URL) so a deploy-scope
 # change rebuilds rather than serving the previous region's graph: rebuild when
 # the marker is absent OR its stored URL differs from the resolved REGION_URL.
@@ -194,7 +194,7 @@ fi
 # ── 2. Vector tiles (Planetiler → PMTiles) ───────────────────────────────────
 # Scratch (downloads + tmp) goes under /src (the build dir), so the accessory dir
 # only ever receives the finished tiles.pmtiles.
-echo "==> [2/3] Vector tiles (Planetiler → PMTiles)"
+echo "==> [2/4] Vector tiles (Planetiler → PMTiles)"
 # Same completion-marker gate as routing: a half-written tiles.pmtiles from an
 # interrupted Planetiler run would pass `test -s` but be unusable. The marker also
 # encodes REGION_URL so a deploy-scope change rebuilds the tiles for the new region.
@@ -220,7 +220,7 @@ fi
 # the container stays up and status.php reports not-ready until the import
 # finishes. TIGER house numbers + Wikipedia importance are a follow-on
 # (build-geocoder.sh) once the import is healthy.
-echo "==> [3/3] Geocoder OSM import (Nominatim)"
+echo "==> [3/4] Geocoder OSM import (Nominatim)"
 # The import runs asynchronously on container boot; status.php reports ready only
 # once it has finished. Gate on READINESS, not just the extract's presence, so a
 # completed import is correctly skipped — and so a failed import isn't masked by
@@ -244,6 +244,54 @@ else
       cp -f /src/extract.osm.pbf /dst/extract.osm.pbf; \
     docker restart flckd-backend-geocoder >/dev/null"
   echo "    geocoder import kicked off (watch: docker logs -f flckd-backend-geocoder)."
+fi
+
+# ── 4. Camera dataset (PBF-derived ALPR substrate → cameras table) ────────────
+# The local dev setup.sh builds the camera GeoJSON (infra/scripts/build-cameras.sh)
+# and imports it; production setup must do the same, or the cameras table stays
+# empty and the map shows no cameras / clustering bubbles. We reuse the extract
+# step [0] already put on the host: filter man_made=surveillance nodes into a
+# GeoJSON with osmium (run from our own pinned image, built on the host from
+# infra/osmium/Dockerfile over stdin — no third-party image, FR-012a), copy it to
+# the running web container at CAMERA_OSM_GEOJSON_PATH, and run camera_data:import
+# SOURCE=pbf — which imports the nodes and snaps each to its monitored road segment
+# via Valhalla (already up). The DB rows persist across deploys; the import is
+# idempotent (add/update), so a re-run just refreshes. Skip with CAMERAS=skip.
+echo "==> [4/4] Camera dataset (PBF-derived surveillance nodes → import)"
+# Resolve the live web container (the one running the app image; never a
+# *_replaced_* drain container from an in-flight deploy).
+WEB_CONTAINER="$(sshx "docker ps --format '{{.Names}}' | grep '^flckd-backend-web-' | grep -v '_replaced_' | head -1" || true)"
+if [ "${CAMERAS:-}" = "skip" ]; then
+  echo "    CAMERAS=skip — leaving the cameras table as-is."
+elif [ -z "${WEB_CONTAINER}" ]; then
+  echo "    web container not found — skipping camera import (run app setup first,"
+  echo "    then re-run infra/scripts/provision-geo-host.sh)."
+else
+  echo "    building osmium image on host + filtering surveillance nodes…"
+  # Build our osmium image on the host from the Dockerfile over stdin (no context).
+  sshx "docker build -q -t flckd-osmium:bookworm -" < "${REPO}/infra/osmium/Dockerfile" >/dev/null
+  # Coarse man_made=surveillance filter → GeoJSON (the exact ALPR narrowing happens
+  # at import time in OsmExtractFile, matching the Overpass path).
+  sshx "set -e; \
+    docker run --rm -v '${BUILD_DIR}:/d' flckd-osmium:bookworm sh -c ' \
+      osmium tags-filter --overwrite -o /d/surveillance.osm.pbf /d/extract.osm.pbf n/man_made=surveillance && \
+      osmium export --overwrite -f geojson --add-unique-id=type_id -o /d/cameras.geojson /d/surveillance.osm.pbf && \
+      rm -f /d/surveillance.osm.pbf'"
+  CAM_FEATURES="$(sshx "grep -c '\"Feature\"' '${BUILD_DIR}/cameras.geojson' 2>/dev/null || echo 0")"
+  echo "    ${CAM_FEATURES} surveillance features in cameras.geojson"
+  # Fail closed on an implausibly empty export (a wrong/partial extract): importing
+  # zero would, on the daily refresh cadence, eventually auto-retire the whole set
+  # (FR-008/009). Override for a genuinely camera-free region with ALLOW_EMPTY=1.
+  if [ "${CAM_FEATURES:-0}" -lt "${MIN_CAMERA_FEATURES:-1}" ] && [ "${ALLOW_EMPTY:-0}" != "1" ]; then
+    echo "    error: ${CAM_FEATURES} features (< ${MIN_CAMERA_FEATURES:-1}) — refusing to import an" >&2
+    echo "    empty camera set. Check the extract; set ALLOW_EMPTY=1 to override." >&2
+    exit 1
+  fi
+  echo "    importing into ${WEB_CONTAINER} (CAMERA_OSM_GEOJSON_PATH; snaps via Valhalla)…"
+  sshx "set -e; \
+    docker cp '${BUILD_DIR}/cameras.geojson' '${WEB_CONTAINER}:/rails/storage/cameras.geojson'; \
+    docker exec -e SOURCE=pbf '${WEB_CONTAINER}' bin/rails camera_data:import"
+  echo "    camera import complete."
 fi
 
 echo "==> Geo provisioning done for ${REGION_LABEL} on ${TARGET_HOST}."
