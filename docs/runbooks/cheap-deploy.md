@@ -178,7 +178,8 @@ machine and redeploy) when any of these show up:
 - Web latency rises while a refresh/import job runs → move `job` or `routing` off.
 - Postgres I/O contends with Nominatim/tiles reads → give Postgres its own box.
 - You add regions beyond Iowa → the routing graph and Nominatim import grow fast;
-  re-check RAM/disk before expanding (full-US is a different sizing class).
+  re-check RAM/disk before expanding (full-US is a different sizing class — see
+  [vultr-whole-us.md](vultr-whole-us.md) for a whole-US single-host sizing sheet).
 
 Kamal makes the split mechanical: change the host, `kamal deploy`. Nothing in the
 app or anonymity model changes — the accessories just move to another node on the
