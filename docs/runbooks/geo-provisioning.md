@@ -108,6 +108,23 @@ GEO_COUNTRY=us bin/kamal-docker setup        # whole-US substrate
 > `config/deploy.yml`. Every US **state** is `GEOCODER_COUNTRY=us`, so a
 > single-state or whole-US deploy needs no change there.
 
+This scope configures the deployed **app**, not just the data it's built from.
+`bin/kamal-docker` resolves it (via `infra/scripts/deploy-scope-env.sh`) and writes
+`backend/.kamal/deploy-scope.env` (gitignored); `.kamal/secrets` reads that file and
+Kamal injects `GEOCODER_REGION_STATE` + `GEOCODER_VIEWBOX` (declared under `env.secret`
+in `deploy.yml` — already present in `deploy.example.yml`). So a **single-state deploy
+makes the app frame the map on — and geocode within — that state** (it never opens zoomed
+out to the whole US), while a whole-country deploy leaves both empty and frames the entire
+country. The state's bbox comes from the shared
+[`infra/scripts/state-registry.sh`](../../infra/scripts/state-registry.sh), matched from
+the `GEO_REGION_URL` slug — the same table the dev wizard uses, so dev and prod frame a
+given state identically.
+
+> The scope files (`geo.env`, `.region`) are **parsed, not sourced**, so an unquoted
+> multi-word `GEO_REGION_LABEL` won't break a deploy — but quote it anyway
+> (`GEO_REGION_LABEL="New York"`) so `provision-geo-host.sh`, which still sources the file
+> for its own build step, is happy too.
+
 ## Why the wrapper, not a Kamal hook
 
 A Kamal `post-deploy` hook runs **inside the Kamal image**, which has `ssh`/`awk`

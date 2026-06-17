@@ -254,3 +254,11 @@ That:
 Selecting `US` writes `GEOCODER_COUNTRY=us` instead, so the geocoder disambiguates by state and the map
 frames the **entire continental US**. Absent `infra/.env`, the backend defaults to whole-country US
 (FR-002). The single-state TIGER import is narrowed to just that state (not the whole-US bundle).
+
+**This is not dev-only — a single-state *production* deploy frames that state too.** The wizard above
+wires the framing for local docker-compose via `infra/.env`; in production the same framing comes from
+the deploy scope in `backend/.kamal/geo.env`. `bin/kamal-docker` resolves the state's bbox from the
+shared [`scripts/state-registry.sh`](scripts/state-registry.sh) and wires `GEOCODER_REGION_STATE` +
+`GEOCODER_VIEWBOX` into the deployed backend (`.kamal/deploy-scope.env` → `.kamal/secrets`), so a
+single-state deploy never opens zoomed out to the whole US. See
+[docs/runbooks/geo-provisioning.md](../docs/runbooks/geo-provisioning.md).
