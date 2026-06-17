@@ -101,6 +101,9 @@ services:
     environment:
       VITE_API_PROXY: http://backend:3000
       VITE_TILES_PROXY: http://tileserver:8080
+      # macOS bind mounts don't deliver fs events into the container, so Vite's
+      # watcher needs polling for HMR to pick up edits (see vite.config.ts).
+      VITE_USE_POLLING: "true"
     volumes:
       - ../frontend:/app
       # Keep node_modules in a named volume so the host stays clean and platform

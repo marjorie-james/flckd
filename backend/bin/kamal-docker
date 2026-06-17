@@ -113,18 +113,29 @@ docker run --rm -i $TTY_FLAG \
   -e DATABASE_PASSWORD -e NOMINATIM_PASSWORD \
   "$KAMAL_IMAGE" "$@" || STATUS=$?
 
-# After a successful `setup`/`deploy`, ensure the self-hosted geo substrate
-# (routing graph + vector tiles + geocoder OSM import) is provisioned on the host.
-# This runs HERE, on the host machine — not as a Kamal hook — because the Kamal
-# image has no bash/curl, and the build needs to drive Docker on the geo host over
-# SSH. It is IDEMPOTENT: a no-op once the artifacts exist, so it adds only a few
-# SSH checks to a routine deploy. The deploy scope is read from .kamal/geo.env /
-# GEO_REGION_URL / GEO_COUNTRY (see infra/scripts/provision-geo-host.sh), kept
-# independent of the local dev scope. Skip with GEO_PROVISION=skip.
+# After a successful `setup`, provision the self-hosted geo substrate (routing
+# graph + vector tiles + geocoder OSM import) on the host. This runs HERE, on the
+# host machine — not as a Kamal hook — because the Kamal image has no bash/curl,
+# and the build needs to drive Docker on the geo host over SSH.
+#
+# It runs on `setup` ONLY, never on a routine `deploy`. Building the graph/tiles
+# and (re)downloading the OSM extract is minutes of work; once provisioned, the
+# data is static and a code deploy must not touch it. provision-geo-host.sh is
+# itself idempotent (it no-ops on completion markers), but we don't even invoke it
+# on a deploy — a deploy is purely the app image swap.
+#
+# When the deploy SCOPE changes (a new state/country in .kamal/geo.env) the data
+# must be rebuilt outside the normal deploy: run `GEO_PROVISION=force kamal-docker
+# deploy`, or call infra/scripts/provision-geo-host.sh directly (FORCE=1 to rebuild
+# in place). The scope is read from .kamal/geo.env / GEO_REGION_URL / GEO_COUNTRY
+# (see provision-geo-host.sh), kept independent of the local dev scope.
+#
+# GEO_PROVISION: unset → provision on `setup` only; `force` → also provision on
+# this run (any subcommand); `skip` → never provision (even on `setup`).
 SUBCMD="${1:-}"
 if [ "$STATUS" -eq 0 ] && [ "${GEO_PROVISION:-}" != "skip" ] \
-   && { [ "$SUBCMD" = "setup" ] || [ "$SUBCMD" = "deploy" ]; }; then
-  echo "kamal-docker: ensuring geo substrate is provisioned (GEO_PROVISION=skip to bypass)…" >&2
+   && { [ "$SUBCMD" = "setup" ] || [ "${GEO_PROVISION:-}" = "force" ]; }; then
+  echo "kamal-docker: provisioning geo substrate (setup, or GEO_PROVISION=force)…" >&2
   "$REPO_ROOT/infra/scripts/provision-geo-host.sh" || {
     echo "kamal-docker: geo provisioning did not complete — the app $SUBCMD itself succeeded." >&2
     echo "kamal-docker: re-run it later with: infra/scripts/provision-geo-host.sh" >&2

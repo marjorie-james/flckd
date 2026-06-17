@@ -20,11 +20,14 @@ interface CamerasResponse {
   cameras: CameraPin[];
 }
 
-// bbox: "minLng,minLat,maxLng,maxLat"
-export function useCameras(bbox: string | null) {
+// bbox: "minLng,minLat,maxLng,maxLat". `zoom` is the current map zoom: when it's
+// below the backend's detail threshold the response omits the heavy per-camera
+// segment geometry (lighter payload zoomed out). Omitted (null) → full detail.
+export function useCameras(bbox: string | null, zoom: number | null = null) {
   return useQuery({
-    queryKey: ["cameras", bbox],
-    queryFn: ({ signal }) => apiGet<CamerasResponse>("/cameras", { bbox: bbox! }, signal),
+    queryKey: ["cameras", bbox, zoom],
+    queryFn: ({ signal }) =>
+      apiGet<CamerasResponse>("/cameras", { bbox: bbox!, ...(zoom != null ? { zoom } : {}) }, signal),
     enabled: Boolean(bbox),
     staleTime: 300_000,
   });

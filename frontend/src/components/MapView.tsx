@@ -120,6 +120,12 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
   // Whether the map has already been framed on the covered region (done once,
   // when the backend bounds first arrive).
   const framedRef = useRef(false);
+  // Whether the map is ready to be shown. The map boots at a neutral world view
+  // ([0,0] zoom 1) before the covered region's bounds arrive; revealing it then
+  // would flash the whole-world basemap for a frame. So we keep the canvas hidden
+  // (the page-coloured .map-container shows through) until it's been framed on the
+  // region — or, for a deployment with no coverage bounds, until the style loads.
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -188,6 +194,17 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
     const frame = () => {
       framedRef.current = true;
       map.fitBounds(regionBounds, { padding: 24, duration: 0 });
+      // Lock the camera to the covered region. The tiles only cover this region
+      // (a whole-country/state extract), so zooming further out just reveals the
+      // empty low-zoom basemap of the rest of the world, and panning past the
+      // edge leaves our data entirely. Cap the minimum zoom at the framed zoom
+      // and the pannable area at the framed bounds. Both are read back from the
+      // just-framed view — derived from the backend's regionBounds, never a
+      // hardcoded region — so this stays country/state-agnostic (feature 011).
+      map.setMinZoom(map.getZoom());
+      map.setMaxBounds(map.getBounds());
+      // Framed on the region — safe to reveal without flashing the world view.
+      setRevealed(true);
     };
     if (map.isStyleLoaded()) frame();
     else map.once("load", frame);
@@ -195,6 +212,21 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       map.off("load", frame);
     };
   }, [regionBounds]);
+
+  // Fallback reveal: a deployment that exposes no coverage bounds has nothing to
+  // frame, so the framing effect above never reveals the map. Show the neutral
+  // map once its style loads rather than leaving the pane hidden forever. Only
+  // active while regionBounds is absent — once bounds arrive, framing reveals it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || regionBounds || revealed) return;
+    const reveal = () => setRevealed(true);
+    if (map.isStyleLoaded()) reveal();
+    else map.once("load", reveal);
+    return () => {
+      map.off("load", reveal);
+    };
+  }, [regionBounds, revealed]);
 
   // Draw the planned (recommended) route as the primary line and, when avoidance
   // costs extra time and the comparison is enabled, the fastest non-avoiding
@@ -353,7 +385,20 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
   }, [origin]);
 
   return (
-    <div ref={containerRef} className="map-view" style={{ width: "100%", height: "100%" }}>
+    <div
+      ref={containerRef}
+      className="map-view"
+      // Hidden until framed (see `revealed`) so the neutral world view never
+      // flashes; a short fade in covers the swap. The map still initialises at
+      // full size while hidden (opacity doesn't affect layout), so framing is
+      // measured correctly.
+      style={{
+        width: "100%",
+        height: "100%",
+        opacity: revealed ? 1 : 0,
+        transition: "opacity 200ms ease-in",
+      }}
+    >
       {map && <CameraLayer map={map} />}
     </div>
   );

@@ -60,6 +60,16 @@ registry:
 builder:
   arch: amd64
 
+# Persistent camera-dataset GeoJSON, shared by the app roles (web + job) and kept
+# across deploys. infra/scripts/provision-geo-host.sh filters the OSM extract into
+# cameras.geojson in this volume at setup; the daily DataRefreshJob (job container)
+# re-reads it to keep the cameras table populated — so it survives a deploy instead
+# of vanishing with the replaced container. Read-only here (only the provisioning
+# writer container, mounting the same named volume rw, writes it).
+# CAMERA_OSM_GEOJSON_PATH (below) points the app at this path.
+volumes:
+  - "flckd-cameras:/rails/camera-data:ro"
+
 env:
   clear:
     # Bind the app to the private geo accessories by service name.
@@ -76,6 +86,9 @@ env:
     # Run Solid Queue inside Puma off (we run a dedicated job host above).
     SOLID_QUEUE_IN_PUMA: false
     WEB_CONCURRENCY: 2
+    # PBF-derived camera GeoJSON path (ADR 0002), on the persistent `volumes:` mount
+    # above so it survives deploys. DataRefreshJob (SOURCE=pbf) reads it.
+    CAMERA_OSM_GEOJSON_PATH: /rails/camera-data/cameras.geojson
   secret:
     - RAILS_MASTER_KEY
     - SECRET_KEY_BASE

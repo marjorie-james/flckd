@@ -16,6 +16,8 @@ const H = vi.hoisted(() => {
     disabled: [] as string[],
     construct: [] as unknown[],
     fitBounds: [] as unknown[],
+    setMinZoom: [] as number[],
+    setMaxBounds: [] as unknown[],
   };
   type Src = { data: unknown; setData: (d: unknown) => void };
   const state = { sources: {} as Record<string, Src>, reduced: false };
@@ -42,6 +44,12 @@ const H = vi.hoisted(() => {
     flyTo(o: unknown) { calls.flyTo.push(o); }
     jumpTo(o: unknown) { calls.jumpTo.push(o); }
     fitBounds(b: unknown, o: unknown) { calls.fitBounds.push([b, o]); }
+    // Camera read-backs used to derive the post-framing region lock. The framed
+    // values are stubbed; the test asserts the lock is applied, not the numbers.
+    getZoom() { return 5; }
+    getBounds() { return { _bounds: "framed" }; }
+    setMinZoom(z: number) { calls.setMinZoom.push(z); }
+    setMaxBounds(b: unknown) { calls.setMaxBounds.push(b); }
     once() {}
     off() {}
     remove() {}
@@ -72,15 +80,27 @@ describe("MapView origin recenter + marker", () => {
     H.calls.flyTo = []; H.calls.jumpTo = []; H.calls.setData = [];
     H.calls.addSource = []; H.calls.addLayer = []; H.calls.disabled = [];
     H.calls.construct = []; H.calls.fitBounds = [];
+    H.calls.setMinZoom = []; H.calls.setMaxBounds = [];
     H.state.sources = {};
     H.state.reduced = false;
   });
 
   it("frames the map on the covered region when its bounds load (page load)", () => {
-    render(<MapView route={null} origin={null} regionBounds={REGION} />);
+    const { container } = render(<MapView route={null} origin={null} regionBounds={REGION} />);
 
     expect(H.calls.fitBounds).toHaveLength(1);
     expect(H.calls.fitBounds[0]).toEqual([REGION, { padding: 24, duration: 0 }]);
+    // Once framed, the canvas is revealed (the style is already loaded in this fake).
+    expect((container.querySelector(".map-view") as HTMLElement).style.opacity).toBe("1");
+  });
+
+  it("locks the camera to the covered region so the user can't zoom/pan out to the world", () => {
+    render(<MapView route={null} origin={null} regionBounds={REGION} />);
+
+    // After framing, the min zoom is pinned to the framed zoom and the pannable
+    // area to the framed bounds — derived from the framed view, not hardcoded.
+    expect(H.calls.setMinZoom).toEqual([5]); // FakeMap.getZoom() after fitBounds
+    expect(H.calls.setMaxBounds).toEqual([{ _bounds: "framed" }]); // FakeMap.getBounds()
   });
 
   it("starts at a neutral view with no region hardcoded until bounds arrive", () => {
@@ -88,6 +108,8 @@ describe("MapView origin recenter + marker", () => {
 
     expect(H.calls.construct[0]).toMatchObject({ center: [0, 0], zoom: 1 });
     expect(H.calls.fitBounds).toHaveLength(0); // nothing to frame yet
+    expect(H.calls.setMinZoom).toHaveLength(0); // not locked until framed
+    expect(H.calls.setMaxBounds).toHaveLength(0);
   });
 
   it("flies to the origin at street level and drops a single marker (US1)", () => {

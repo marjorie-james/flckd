@@ -914,6 +914,13 @@ CREATE UNIQUE INDEX index_data_sources_on_name ON public.data_sources USING btre
 
 
 --
+-- Name: index_monitored_segments_on_camera_and_way; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_monitored_segments_on_camera_and_way ON public.monitored_segments USING btree (camera_id, osm_way_id);
+
+
+--
 -- Name: index_monitored_segments_on_camera_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1208,6 +1215,7 @@ ALTER TABLE ONLY public.solid_queue_scheduled_executions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260617000001'),
 ('20260613000001'),
 ('20260612000001'),
 ('20260602000001'),
