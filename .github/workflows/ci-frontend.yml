@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # pnpm must be set up BEFORE setup-node so its cache backend resolves.
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@v6.0.8
         with:
           version: 11.5.2
       - uses: actions/setup-node@v6
