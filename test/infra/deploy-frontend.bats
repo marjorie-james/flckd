@@ -71,3 +71,44 @@ _swap() {
   run bash -n "${BATS_TEST_DIRNAME}/../../infra/scripts/deploy-frontend.sh"
   assert_success
 }
+
+# ── Step 3: Caddy boot/reload decision ───────────────────────────────────────
+# The Caddyfile is bind-mounted read-only, so a running container can't be updated
+# in place (the old `docker cp` failed with "device or resource busy"). The fixed
+# step 3 instead compares the streamed host Caddyfile against what the running
+# container serves and picks: boot (no edge yet) / leave (unchanged) / recreate
+# (changed). This mirrors that decision in shape (same conditions as the script).
+_caddy_action() {  # <running yes|no> <host_sha> <cont_sha>
+  local running="$1" host_sha="$2" cont_sha="$3"
+  if [ "${running}" != "yes" ]; then
+    echo "boot"; return
+  fi
+  if [ -n "${cont_sha}" ] && [ "${host_sha}" = "${cont_sha}" ]; then
+    echo "leave"
+  else
+    echo "recreate"
+  fi
+}
+
+@test "caddy step: no running edge → boot" {
+  assert_equal "$(_caddy_action no aaa "")" "boot"
+}
+
+@test "caddy step: running + Caddyfile unchanged → leave (no docker cp, no restart)" {
+  assert_equal "$(_caddy_action yes aaa aaa)" "leave"
+}
+
+@test "caddy step: running + Caddyfile changed → recreate" {
+  assert_equal "$(_caddy_action yes bbb aaa)" "recreate"
+}
+
+@test "caddy step: running but container sha unreadable → recreate (safe fallback)" {
+  assert_equal "$(_caddy_action yes aaa "")" "recreate"
+}
+
+@test "deploy-frontend.sh no longer docker-cp's onto the bind-mounted Caddyfile" {
+  # Match an actual `docker cp` command, not the comment that explains the old bug
+  # (^[^#]* — "docker cp" appearing before any # on the line).
+  run grep -E "^[^#]*docker cp" "${BATS_TEST_DIRNAME}/../../infra/scripts/deploy-frontend.sh"
+  assert_failure
+}

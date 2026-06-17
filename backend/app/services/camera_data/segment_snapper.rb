@@ -3,10 +3,17 @@ module CameraData
   # records whose osm_way_id matches the routing graph. This is what makes
   # avoidance "monitored-segment" rather than radius-based.
   #
+  # A camera can monitor more than one segment: on a divided road its opposing
+  # carriageway is a *separate* OSM way the camera still sees, so it gets its own
+  # MonitoredSegment too — otherwise a route could drive past the camera on the
+  # other side and the planner would believe it avoided it. Creation is idempotent
+  # per (camera, osm_way_id), so re-running over already-snapped cameras only fills
+  # in the carriageways they are missing.
+  #
   # `road_lookup` is an object responding to:
-  #   nearest_road(lng:, lat:) -> { osm_way_id:, geometry_ewkt:, distance_m: } | nil
-  # In production this queries the OSM road table the routing graph is built
-  # from; in tests it is a simple stub.
+  #   nearby_roads(lng:, lat:) -> [ { osm_way_id:, geometry_ewkt:, distance_m: }, ... ]
+  # In production this queries the routing graph (Valhalla /locate); in tests it is
+  # a simple stub.
   class SegmentSnapper
     # Bounded concurrency for the per-camera road lookups. Each lookup is a Valhalla
     # /locate round-trip plus a spatial clip query, so a cold import (tens of
@@ -21,30 +28,33 @@ module CameraData
       @concurrency = [ concurrency, 1 ].max
     end
 
+    # Returns the segments created for this camera (possibly several), or nil when
+    # nothing was created (no road in range, or every carriageway already snapped).
     def snap(camera)
-      road = lookup(camera)
-      road && create_segment(camera, road)
+      create_segments(camera, safe_lookup(camera)).presence
     end
 
+    # Returns the flat list of segments created across all cameras (a camera may
+    # contribute more than one). A failed lookup simply contributes nothing.
     def snap_all(cameras)
       cameras = cameras.to_a
       return [] if cameras.empty?
       if @concurrency == 1 || cameras.one?
-        return cameras.filter_map { |c| road = safe_lookup(c); road && create_segment(c, road) }
+        return cameras.flat_map { |c| create_segments(c, safe_lookup(c)) }
       end
 
       # Fan out the network-bound lookups concurrently, then persist serially on the
       # caller's thread — writes stay single-threaded and the output order matches
       # the input (so a failed lookup simply drops its camera, as before).
       roads = lookup_concurrently(cameras)
-      cameras.zip(roads).filter_map { |camera, road| road && create_segment(camera, road) }
+      cameras.zip(roads).flat_map { |camera, camera_roads| create_segments(camera, camera_roads) }
     end
 
     private
 
     def lookup(camera)
       coords = camera.location
-      @road_lookup.nearest_road(lng: coords.x, lat: coords.y)
+      @road_lookup.nearby_roads(lng: coords.x, lat: coords.y)
     end
 
     # Per-camera lookup that never aborts the whole snap pass: one camera's failed
@@ -83,18 +93,44 @@ module CameraData
       results
     end
 
-    def create_segment(camera, road)
+    # Persists a MonitoredSegment for each carriageway the camera watches, skipping
+    # any OSM way it is already snapped to (idempotent per camera+way). `roads` is
+    # nearest-first; the closest is the road the camera sits on. nil/empty -> [].
+    def create_segments(camera, roads)
+      return [] if roads.blank?
+
+      existing = camera.monitored_segments.pluck(:osm_way_id).to_set
+      primary_way = roads.first[:osm_way_id]
+      roads.filter_map do |road|
+        next if existing.include?(road[:osm_way_id])
+
+        begin
+          create_segment(camera, road, direction: direction_for(camera, road[:osm_way_id] == primary_way))
+        rescue ActiveRecord::RecordNotUnique
+          # Another snap pass created this (camera, osm_way_id) between our read of
+          # `existing` and this insert (the unique index is the source of truth).
+          # It's already monitored — skip it rather than abort the pass.
+          nil
+        end
+      end
+    end
+
+    def create_segment(camera, road, direction:)
       camera.monitored_segments.create!(
         osm_way_id: road[:osm_way_id],
         geometry: road[:geometry_ewkt],
-        direction: direction_for(camera),
+        direction: direction,
         snap_distance_m: road[:distance_m] || 0.0
       )
     end
 
-    # If the camera's facing direction is known we could restrict to one travel
-    # direction; absent that, monitor both.
-    def direction_for(camera)
+    # The carriageway the camera physically sits on carries its facing direction (if
+    # known); an opposing/adjacent carriageway is monitored regardless of travel
+    # direction ("both") — the camera sees across it either way. `direction` is not
+    # consulted by routing today; it records what the segment represents.
+    def direction_for(camera, on_road)
+      return "both" unless on_road
+
       camera.facing_direction.present? ? "forward" : "both"
     end
   end

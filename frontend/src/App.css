@@ -1,27 +1,39 @@
-/* ─── Design tokens (dark-first) ─── */
+/* ─── Design tokens — "ink & signal" (dark-first) ───
+   flckd is a counter-surveillance route planner; the field is *ink* (neutral
+   near-black, the color of a redaction bar), the brand accent is hard light —
+   a cold near-white "beam" for primary action plus a desaturated steel-teal for
+   focus/scan/interactive states. Green/amber/red stay reserved for route status
+   (the load-bearing, WCAG-validated semantics). */
 :root {
-  --bg:          #080b12;
-  --panel:       #0f1420;
-  --raised:      #18202f;
-  --input-bg:    #0a0e18;
-  --border:      #1c2540;
-  --border-hi:   #2a3a5c;
+  --bg:          #0a0b0d;
+  --panel:       #0f1012;
+  --raised:      #17191d;
+  --input-bg:    #0c0d0f;
+  --border:      #232529;
+  --border-hi:   #30343a;
   /* Boundary of interactive controls (text inputs, the language select, the
      suggestion popover): ≥3:1 against the dark field fills, per WCAG 1.4.11
      Non-text Contrast. Decorative dividers keep the subtler --border. */
-  --border-interactive: #5f6d92;
+  --border-interactive: #6b7177;
 
-  --text:        #c8d6ed;
-  --text-muted:  #7a96b8;
-  --text-faint:  #273045;
+  --text:        #e6e9ec;
+  --text-muted:  #9aa3ad;
+  --text-faint:  #2a2e34;
   /* Meets WCAG AA (4.5:1) on the dark input/panel backgrounds. --text-faint is
      decorative only; --placeholder is for any text a user must read. */
-  --placeholder: #6b82a8;
+  --placeholder: #8b939d;
 
-  --accent:      #5254cc;
-  --accent-hi:   #818cf8;
-  --accent-glow: rgba(82, 84, 204, 0.2);
-  --accent-muted:rgba(82, 84, 204, 0.1);
+  /* Brand hue accent — steel-teal (sensor/scan/focus). Replaces the former
+     indigo. Used sparingly: focus rings, interactive hovers, the verdict glyph,
+     instrument numerals. --accent-hi clears the 3:1 focus-indicator bar. */
+  --accent:      #3f9aa0;
+  --accent-hi:   #6fc6cb;
+  --accent-glow: rgba(63, 154, 160, 0.22);
+  --accent-muted:rgba(63, 154, 160, 0.10);
+
+  /* Hard light — the near-white "beam": the wordmark and the primary action. */
+  --beam:        #e9eef0;
+  --beam-edge:   #c2cace;
 
   --green:       #34d399;
   --green-bg:    rgba(52, 211, 153, 0.08);
@@ -38,6 +50,12 @@
   --r-lg:  14px;
   --shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
   --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.4);
+
+  /* Plex Sans carries body/UI; Plex Mono carries the wordmark, the uppercase
+     instrument labels, and route data (times, distances, step numbers). Both are
+     self-hosted (see main.tsx). */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 /* ─── Reset ─── */
@@ -45,7 +63,7 @@
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   color: var(--text);
   background: var(--bg);
   font-size: 0.875rem;
@@ -86,34 +104,91 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 13px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   gap: 12px;
 }
 
-.app-header h1 {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text);
-  margin: 0;
-  letter-spacing: -0.01em;
+/* Right-side header cluster: the repo link sits to the left of the language
+   switcher, both pushed right by the header's space-between. */
+.header-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 12px;
 }
 
-.app-header h1::before {
+/* The repo link is also in the footer; on narrow screens drop the header copy so
+   the brand + language switcher don't crowd, and let the footer carry it. */
+@media (max-width: 560px) {
+  .header-repo-link {
+    display: none;
+  }
+
+  /* Show the full descriptive title on narrow screens rather than truncating it
+     to an ellipsis: step the size down and tighten the tracking so it fits, and
+     allow it to wrap instead of clip if a very narrow viewport still can't hold
+     one line. The wordmark stays the prominent brand mark above it. */
+  .app-title {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
+/* Brand cluster: the wordmark over its descriptive, localized heading. */
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* The wordmark — "flckd" is "flocked" with its vowels struck out, so the name is
+   already a redaction. Set in mono (the institutional/forensic voice) in hard
+   light, led by a small steel sensor dot. */
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  /* Scaled up so the brand fills the taller header (the language label now stacks
+     above its select). The sensor dot + title indent below scale to match. */
+  font-size: 1.375rem;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: var(--beam);
+}
+
+.wordmark::before {
   content: '';
-  display: block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+  background: var(--accent-hi);
+  box-shadow: 0 0 0 3px var(--accent-muted);
   flex-shrink: 0;
 }
 
-.app-header p { display: none; }
+/* The real page heading — kept as the localized descriptive title (the i18n
+   contract asserts its exact text). Styled as a quiet instrument caption. */
+.app-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-muted);
+  /* Indent to align under the wordmark text, past the sensor dot (9px) + its
+     gap (9px). */
+  padding-left: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ─── Footer ───
    Sits outside `.layout-body` (like the header), so it spans the full width at
@@ -125,12 +200,15 @@ body {
   border-top: 1px solid var(--border);
 }
 
-.app-footer a {
-  font-size: 0.75rem;
+.app-footer a,
+.header-repo-link {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   text-decoration: none;
-  letter-spacing: -0.01em;
   /* Standalone link (not inline in a sentence), so it needs its own ≥24px target
      rather than relying on the inline exception (WCAG 2.5.8). */
   display: inline-flex;
@@ -139,33 +217,55 @@ body {
   padding: 0 4px;
 }
 
-.app-footer a:hover {
+.app-footer a:hover,
+.header-repo-link:hover {
   color: var(--text);
 }
 
-.app-footer a:focus-visible {
-  outline: 2px solid var(--accent);
+.app-footer a:focus-visible,
+.header-repo-link:focus-visible {
+  outline: 2px solid var(--accent-hi);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
 
 /* ─── Language switcher ─── */
+.language-switcher {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Visible label, stacked above the select and matched to its mono/uppercase
+   treatment. */
+.language-switcher__label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .language-switcher select {
   appearance: none;
   background: var(--raised);
   border: 1px solid var(--border-interactive);
   color: var(--text-muted);
-  font-size: 0.75rem;
-  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 5px 9px;
   border-radius: var(--r-sm);
   cursor: pointer;
   outline: none;
-  font-family: inherit;
 }
 
-/* Same as the inputs: a visible focus ring (the accent-glow ring was ~1.2:1,
-   and the accent border change only ~2.7:1 against --raised — both under the 3:1
-   minimum). accent-hi gives ~5:1. (WCAG 1.4.11 / 2.4.11.) */
+/* Same as the inputs: a visible focus ring (a subtle border change alone falls
+   under the 3:1 minimum). accent-hi gives a clearly visible indicator.
+   (WCAG 1.4.11 / 2.4.11.) */
 .language-switcher select:focus {
   border-color: var(--accent-hi);
   box-shadow: 0 0 0 2px var(--accent-hi);
@@ -176,7 +276,15 @@ body {
   height: 46svh;
   min-height: 280px;
   flex-shrink: 0;
-  background: #080b12;
+  background: var(--bg);
+}
+
+/* Suspense placeholder while the lazy map chunk loads — fills the container so
+   the reserved map height never collapses or jumps. */
+.map-loading {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
 }
 
 /* ─── Responsive: two-pane desktop layout (≥900px) ───
@@ -217,6 +325,10 @@ body {
   gap: 10px;
   padding: 16px;
   border-bottom: 1px solid var(--border);
+  /* Height of the suggestion dropdown — ~4 rows tall; a longer result set scrolls
+     within it. The dropdown is an overlay (position: absolute), so it doesn't
+     affect layout. */
+  --suggest-h: 9rem;
 }
 
 .input-group {
@@ -226,11 +338,13 @@ body {
   gap: 5px;
 }
 
+/* Instrument labels — mono, uppercase, micro. */
 .route-panel label {
+  font-family: var(--font-mono);
   font-size: 0.625rem;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.09em;
   color: var(--text-muted);
 }
 
@@ -244,7 +358,7 @@ body {
   width: 100%;
   padding: 10px 40px 10px 12px;
   font-size: 0.875rem;
-  font-family: inherit;
+  font-family: var(--font-sans);
   color: var(--text);
   background: var(--input-bg);
   border: 1px solid var(--border-interactive);
@@ -257,10 +371,9 @@ body {
   color: var(--placeholder);
 }
 
-/* The focus ring must be visible: the previous accent-glow (accent @20%) ring was
-   ~1.2:1 against the dark field — below the 3:1 minimum (WCAG 1.4.11 / 2.4.11
-   Focus Appearance). A solid 2px accent-hi ring is ~5.5:1 and meets the indicator
-   area requirement. */
+/* The focus ring must be visible: a faint glow ring falls below the 3:1 minimum
+   (WCAG 1.4.11 / 2.4.11 Focus Appearance). A solid 2px accent-hi ring meets the
+   indicator-area requirement on the dark field. */
 .route-panel input[inputmode="search"]:focus {
   border-color: var(--accent-hi);
   box-shadow: 0 0 0 2px var(--accent-hi);
@@ -302,6 +415,10 @@ body {
   list-style: none;
   margin: 0;
   padding: 4px;
+  /* Bound the list to the reserved height so it stays a tidy dropdown and, for the
+     last field, never extends past the space reserved for it below. */
+  max-height: var(--suggest-h);
+  overflow-y: auto;
 }
 
 .suggestions li button {
@@ -312,7 +429,7 @@ body {
   border: none;
   color: var(--text);
   font-size: 0.8125rem;
-  font-family: inherit;
+  font-family: var(--font-sans);
   cursor: pointer;
   border-radius: var(--r-sm);
   transition: background 0.1s;
@@ -328,8 +445,8 @@ body {
 /* Keyboard navigation keeps focus on the input (combobox pattern), so the active
    option is conveyed only via aria-selected — focus never lands on it. The
    accent-muted fill alone is ~1.1:1 against the dropdown (effectively invisible),
-   so add an accent-hi outline (~5.5:1) to meet the 3:1 non-text-contrast bar for
-   the highlight (WCAG 1.4.11) — otherwise sighted keyboard users can't see which
+   so add an accent-hi outline to meet the 3:1 non-text-contrast bar for the
+   highlight (WCAG 1.4.11) — otherwise sighted keyboard users can't see which
    suggestion they're about to select. */
 .suggestions li button[aria-selected="true"] {
   background: var(--accent-muted);
@@ -371,10 +488,11 @@ body {
 
 .preference legend,
 .avoidance-control legend {
+  font-family: var(--font-mono);
   font-size: 0.625rem;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.09em;
   color: var(--text-muted);
   float: none;
   padding: 0;
@@ -383,24 +501,31 @@ body {
 }
 
 
-/* ─── Plan button ─── */
+/* ─── Plan button — the primary action is hard light: a near-white "beam" with
+   ink text, the one bright surface in the rail. ─── */
 .route-panel button[type="submit"] {
   padding: 12px;
   font-size: 0.875rem;
   font-weight: 600;
-  font-family: inherit;
-  color: #fff;
-  background: var(--accent);
+  font-family: var(--font-sans);
+  color: var(--bg);
+  background: var(--beam);
   border: none;
   border-radius: var(--r);
   cursor: pointer;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   transition: background 0.15s, box-shadow 0.15s;
   margin-top: 2px;
 }
 
 .route-panel button[type="submit"]:hover:not(:disabled) {
+  background: #fff;
   box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.route-panel button[type="submit"]:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
 }
 
 .route-panel button[type="submit"]:disabled {
@@ -433,8 +558,11 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--green);
   background: var(--green-bg);
   border: 1px solid var(--green-ring);
@@ -467,43 +595,63 @@ body {
   gap: 16px;
 }
 
+/* ─── The verdict stamp (signature) ───
+   The product's whole reason to exist is one verdict — did this route slip the
+   cameras? — so it leads the result as a full-width classification banner, not a
+   pill. A state-colored status LED (the same sensor-square motif as the wordmark)
+   and a colored left edge carry the state; the sentence stays in hard light so the
+   longer copy reads cleanly. The clean/already-clean states use `.status`; the
+   minimum-exposure state is the `.route-notice` banner below. */
 .status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  padding: 5px 12px;
-  border-radius: 100px;
-  align-self: flex-start;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  align-self: stretch;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--panel);
+  padding: 13px 15px 13px 13px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--r);
 }
 
+/* Status LED — a small rounded square with a faint halo, echoing the wordmark. */
 .status::before {
   content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
   flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 2px;
 }
 
 .status.clean {
   background: var(--green-bg);
-  color: var(--green);
-  border: 1px solid var(--green-ring);
+  border-color: var(--green-ring);
+  border-left-color: var(--green);
 }
 
-.status.clean::before { background: var(--green); }
+.status.clean::before {
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-bg);
+}
 
 .status.exposed {
   background: var(--amber-bg);
-  color: var(--amber);
-  border: 1px solid var(--amber-ring);
+  border-color: var(--amber-ring);
+  border-left-color: var(--amber);
 }
 
-.status.exposed::before { background: var(--amber); }
+.status.exposed::before {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-bg);
+}
 
+/* Route data — read as an instrument HUD: mono, uppercase, tight. */
 .stats {
   list-style: none;
   padding: 0;
@@ -511,15 +659,25 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
 }
 
 .stats li {
   background: var(--raised);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 4px 10px;
+  padding: 5px 9px;
   color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* The trip's own time and distance are the headline figures — brighten them. */
+.stats li:first-child,
+.stats li:nth-child(2) {
+  color: var(--text);
+  border-color: var(--border-hi);
 }
 
 /* The fastest route's camera exposure reads as a caution, matching .exposed. */
@@ -527,8 +685,8 @@ body {
   color: var(--amber);
 }
 
-/* Show/hide the fastest-route comparison line — secondary button, matches the
-   open-in-maps trigger. The dashed swatch mirrors the comparison line on the map. */
+/* Show/hide the fastest-route comparison line — secondary control. The dashed
+   swatch mirrors the comparison line drawn on the map. */
 .comparison-toggle {
   align-self: flex-start;
   margin-top: 8px;
@@ -537,8 +695,10 @@ body {
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   color: var(--text-muted);
-  font-size: 0.75rem;
-  font-family: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
@@ -560,14 +720,18 @@ body {
 }
 
 .route-result h3 {
-  font-size: 0.6875rem;
-  font-weight: 700;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.09em;
   color: var(--text-muted);
   margin: 0;
 }
 
+/* ─── Turn-by-turn directions ───
+   A genuine ordered sequence (the reader needs the order), so the steps are
+   numbered — mono, zero-padded, in steel, like a logged manifest. */
 .directions {
   list-style: none;
   padding: 0;
@@ -576,24 +740,28 @@ body {
   flex-direction: column;
   gap: 2px;
   font-size: 0.8125rem;
+  counter-reset: step;
 }
 
 .directions li {
-  padding: 8px 10px;
+  padding: 9px 10px;
   border-radius: var(--r-sm);
   color: var(--text);
   counter-increment: step;
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
+  line-height: 1.5;
 }
 
 .directions li::before {
-  content: counter(step);
+  content: counter(step, decimal-leading-zero);
+  font-family: var(--font-mono);
   font-size: 0.625rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  min-width: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent-hi);
+  min-width: 20px;
   text-align: right;
   flex-shrink: 0;
   padding-top: 1px;
@@ -602,8 +770,6 @@ body {
 .directions li:hover {
   background: var(--raised);
 }
-
-.directions { counter-reset: step; }
 
 /* ─── GPX export warning ─── */
 .export-warning {
@@ -630,7 +796,7 @@ body {
   color: var(--text);
   font-size: 0.8125rem;
   font-weight: 500;
-  font-family: inherit;
+  font-family: var(--font-sans);
   cursor: pointer;
   transition: border-color 0.15s;
 }
@@ -644,7 +810,7 @@ body {
   border-radius: var(--r-sm);
   color: var(--text-muted);
   font-size: 0.8125rem;
-  font-family: inherit;
+  font-family: var(--font-sans);
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
 }
@@ -658,8 +824,10 @@ body {
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   color: var(--text-muted);
-  font-size: 0.8125rem;
-  font-family: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
   align-self: flex-start;
@@ -742,33 +910,48 @@ body {
 .camera-popup__k { color: var(--text-muted); }
 .camera-popup__v { color: var(--text); }
 
-/* ─── Not-camera-free notice ─── */
-/* Shown when no fully camera-free route exists and the planner fell back to the
-   fewest-cameras route. Deliberately prominent — full-width banner in the amber
-   caution palette with a leading dot — so the user can't miss that the route still
-   passes within view of some cameras. */
+/* ─── Not-camera-free notice — the verdict stamp's minimum-exposure state ───
+   Shown when no fully camera-free route exists and the planner fell back to the
+   fewest-cameras route. Deliberately prominent — a full-bleed banner in the amber
+   caution palette with the field-of-view wedge — so the user can't miss that the
+   route still passes within view of some cameras. */
 .route-notice {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 12px;
   margin: 0;
-  padding: 12px 16px;
-  font-size: 0.8125rem;
+  padding: 13px 16px;
+  font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.5;
-  color: var(--amber);
+  color: var(--text);
   background: var(--amber-bg);
   border-top: 1px solid var(--amber-ring);
   border-bottom: 1px solid var(--amber-ring);
+  border-left: 3px solid var(--amber);
 }
 .route-notice::before {
   content: '';
   flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  margin-top: 5px;
-  border-radius: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 2px;
   background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-bg);
+}
+
+/* One orchestrated moment: the verdict lands when a route resolves. Guarded so
+   reduced-motion users get the result instantly with no movement. */
+@media (prefers-reduced-motion: no-preference) {
+  .status,
+  .route-notice {
+    animation: verdict-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  @keyframes verdict-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 }
 
 /* ─── Utility ─── */

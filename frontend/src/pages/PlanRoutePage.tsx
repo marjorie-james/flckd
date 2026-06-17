@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MapView } from "../components/MapView";
+// The map (MapLibre GL + its WebGL stack and the camera layer) is by far the
+// heaviest dependency in the bundle. Load it as a separate chunk so the header,
+// route form, and turn-by-turn directions can paint and become interactive while
+// it downloads — the route is fully usable as text without the map (FR-012a).
+// Named export → default for React.lazy.
+const MapView = lazy(() =>
+  import("../components/MapView").then((m) => ({ default: m.MapView }))
+);
 import { RoutePanel } from "../components/RoutePanel";
 import { RouteResult } from "../components/RouteResult";
 import { RouteNotice } from "../components/RouteNotice";
@@ -87,8 +94,25 @@ export function PlanRoutePage() {
   return (
     <div className="plan-page">
       <header className="app-header">
-        <h1>{t("app.title")}</h1>
-        <LanguageSwitcher />
+        {/* The wordmark is the brand mark and is decorative (aria-hidden): the
+            real, localized page heading is the <h1> beside it, so a screen reader
+            announces the descriptive title — not the redacted brand string — and
+            the h1 keeps exactly the catalog text the i18n contract asserts. */}
+        <div className="brand">
+          <span className="wordmark" aria-hidden="true">flckd</span>
+          <h1 className="app-title">{t("app.title")}</h1>
+        </div>
+        <div className="header-actions">
+          <a
+            className="header-repo-link"
+            href="https://github.com/marjorie-james/flckd"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t("app.getApp")}
+          </a>
+          <LanguageSwitcher />
+        </div>
       </header>
 
       {/* Two regions side by side on wide screens (map dominant + a scrollable
@@ -101,12 +125,16 @@ export function PlanRoutePage() {
             (not role="img") because MapLibre renders interactive controls inside —
             an image must not contain focusable descendants. */}
         <div className="map-container" role="region" aria-label={t("map.ariaLabel")}>
-          <MapView
-            route={route}
-            origin={origin}
-            showComparison={showComparison}
-            regionBounds={coverage.data?.bounds ?? null}
-          />
+          {/* The fallback fills the container so its reserved height never jumps
+              while the map chunk loads. */}
+          <Suspense fallback={<div className="map-loading" aria-hidden="true" />}>
+            <MapView
+              route={route}
+              origin={origin}
+              showComparison={showComparison}
+              regionBounds={coverage.data?.bounds ?? null}
+            />
+          </Suspense>
         </div>
 
         <div className="content-pane">

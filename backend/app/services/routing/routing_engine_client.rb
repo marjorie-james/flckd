@@ -42,6 +42,23 @@ module Routing
       { osm_way_id: info["way_id"], shape: info["shape"], distance_m: edge["distance"] || 0.0 }
     end
 
+    # Like #locate but returns every distinct drivable edge within `radius` metres
+    # of the point, sorted nearest-first. A single OSM way can surface as several
+    # directed edges (forward + reverse) sharing one way_id; callers dedupe. Used to
+    # find a camera's opposing/parallel carriageway — on a divided road that is a
+    # *separate* OSM way the camera still sees, so it must be monitored too.
+    #   [ { osm_way_id:, shape:, distance_m: }, ... ]
+    def locate_all(lat:, lng:, radius:)
+      body = post("/locate", { locations: [ { lat: lat, lon: lng, radius: radius } ], costing: "auto", verbose: true })
+      edges = Array(Array(body).first&.dig("edges"))
+      edges.filter_map { |e|
+        info = e["edge_info"]
+        next unless info && info["way_id"] && info["shape"]
+
+        { osm_way_id: info["way_id"], shape: info["shape"], distance_m: e["distance"] || 0.0 }
+      }.sort_by { |e| e[:distance_m] }
+    end
+
     # The routing engine's status hash, including `tileset_last_modified` (epoch
     # seconds). Used to detect a stale OSM substrate — the routing graph is built
     # from an OSM extract and is NOT rebuilt on the camera-refresh cadence.

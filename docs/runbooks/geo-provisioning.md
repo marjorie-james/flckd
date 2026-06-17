@@ -13,19 +13,48 @@ origin/destination/route ever leaves the box (FR-012a).
 
 ## TL;DR
 
-`backend/bin/kamal-docker setup` (or `deploy`) runs
-`infra/scripts/provision-geo-host.sh` automatically after the app comes up. The
-script:
+`backend/bin/kamal-docker setup` runs `infra/scripts/provision-geo-host.sh`
+automatically after the app comes up. The script:
 
 1. downloads the OSM extract **on your machine** and streams it to the host,
 2. builds the routing graph (Valhalla) and vector tiles (Planetiler) **on the
    host**, straight into the accessory data dirs,
-3. places the extract for the geocoder and reboots it (Nominatim imports on boot).
+3. places the extract for the geocoder and reboots it (Nominatim imports on boot),
+4. filters surveillance nodes from the extract into a GeoJSON (osmium) and runs
+   `camera_data:import SOURCE=pbf` in the web container — so the **cameras table is
+   populated as part of setup** (otherwise the map shows no cameras / clustering
+   bubbles). Skip with `CAMERAS=skip`; the empty-set guard refuses to import an
+   implausibly empty result unless `ALLOW_EMPTY=1`.
+5. imports **US Census TIGER house-number data** into the geocoder (the prod mirror
+   of `build-geocoder.sh`) — so specific street addresses ("7418 Beechwood Drive")
+   resolve, not just streets. US-only; waits for the geocoder OSM import to finish
+   first (`add-data` needs a complete DB), downloads the preprocessed bundle on the
+   host, keeps the in-scope counties, then activates TIGER lookups (search frontend +
+   SQL functions) and clears numeric tokens that shadow house numbers. Skip with
+   `TIGER=skip`; `FORCE=1` reimports.
 
-It is **idempotent** — a no-op once each stage has actually completed (it tracks
-build-completion markers + geocoder readiness, not just whether a file exists) —
-so it is safe to leave wired into every deploy. Skip it with `GEO_PROVISION=skip`.
-Run it standalone:
+> **Persistence vs. freshness.** Step 4 writes `cameras.geojson` into the persistent
+> `flckd-cameras` named volume (mounted read-only into the app roles at
+> `CAMERA_OSM_GEOJSON_PATH` via `deploy.yml` `volumes:`), so it **survives deploys** —
+> the recurring `DataRefreshJob` (08:00 UTC, job container) keeps re-reading it
+> instead of finding the file gone with the replaced container. What's *not* yet
+> automated is daily **freshness**: the host can't reliably fetch Geofabrik, so a
+> fresher extract has to come from the dev machine or CI. Until that's wired,
+> refresh the dataset by re-running `infra/scripts/provision-geo-host.sh` (it
+> re-filters the extract and re-publishes into the volume).
+
+It runs on **`setup` only** — a routine `deploy` is just the app image swap and
+never touches the geo data (building the graph/tiles and re-downloading the extract
+is minutes of work, and the data is static once built). The script is itself
+**idempotent** (it tracks build-completion markers + geocoder readiness, not just
+whether a file exists), but a deploy doesn't even invoke it.
+
+- `GEO_PROVISION=skip kamal-docker setup` — never provision, even on setup.
+- `GEO_PROVISION=force kamal-docker deploy` — also provision on a deploy. Use this
+  after a **deploy-scope change** (a new state/country in `backend/.kamal/geo.env`),
+  when the data must be rebuilt for the new region.
+
+Run it standalone (e.g. after a scope change, or `FORCE=1` to rebuild in place):
 
 ```bash
 infra/scripts/provision-geo-host.sh [user@host]
@@ -142,10 +171,13 @@ app is already up); it warns and tells you to re-run.
   Nominatim import; the container stays up but `status.php` reports not-ready
   until it finishes (~10–20 min for a state, hours for whole-US). Watch:
   `docker logs -f flckd-backend-geocoder`.
-- **House-number geocoding (TIGER) is a follow-on.** `provision-geo-host.sh` gets
-  base geocoding working (OSM house numbers). US TIGER house numbers + Wikipedia
-  importance are added by `infra/scripts/build-geocoder.sh`, which needs the OSM
-  import *complete* first. It self-heals on a later run.
+- **House-number geocoding (TIGER) is now step [5], not a manual follow-on.**
+  `provision-geo-host.sh` imports US Census TIGER house numbers itself (the prod
+  mirror of the dev-only `build-geocoder.sh`), after waiting for the OSM import to
+  complete (`add-data` needs a finished DB). It is idempotent (skips when
+  `location_property_tiger` is already populated; `FORCE=1` reimports) and self-heals
+  on a later run if the geocoder wasn't ready in time. Wikipedia importance is still
+  an optional manual extra. `TIGER=skip` bypasses the step.
 - **The build loads the production box.** Routing + tile builds use host CPU/RAM.
   For a state this is minutes and fine; for whole-US, provision during a quiet
   window or use the release-based pipeline instead.

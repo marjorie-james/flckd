@@ -162,15 +162,19 @@ place.
 There are two ways to fill the substrate:
 
 **Automated (single co-located box).** If you deploy with the `bin/kamal-docker`
-wrapper, it runs `infra/scripts/provision-geo-host.sh` after a successful
-`setup`/`deploy`. The script downloads the extract locally (Geofabrik throttles
-datacenter IPs, so it does *not* rely on the host reaching Geofabrik), streams it
-to the host, builds the routing graph + vector tiles **on the host** (native
-amd64) straight into the accessory dirs, places the geocoder extract, and reboots
-each accessory. It is **idempotent** — a no-op once each stage has completed
-(tracked via build-completion markers + geocoder readiness) — so it is safe on
-every deploy. Skip it with `GEO_PROVISION=skip`; run it standalone with
-`infra/scripts/provision-geo-host.sh [user@host]`. See
+wrapper, it runs `infra/scripts/provision-geo-host.sh` after a successful `setup`.
+The script downloads the extract locally (Geofabrik throttles datacenter IPs, so it
+does *not* rely on the host reaching Geofabrik), streams it to the host, builds the
+routing graph + vector tiles **on the host** (native amd64) straight into the
+accessory dirs, places the geocoder extract, reboots each accessory, filters
+the surveillance nodes from the extract into the **cameras table** (so the map has
+cameras + clustering bubbles from the first boot), and imports **US Census TIGER
+house numbers** so specific street addresses resolve (not just streets). It runs on
+**`setup` only** — a routine `deploy` is just the app image swap and never rebuilds
+the (static, minutes-to-build) geo data. After a **deploy-scope change** rebuild it
+with `GEO_PROVISION=force kamal-docker deploy` or run it standalone:
+`infra/scripts/provision-geo-host.sh [user@host]` (`FORCE=1` to rebuild in place).
+`GEO_PROVISION=skip` disables it even on setup. See
 [geo-provisioning.md](geo-provisioning.md) for the full rationale (why we build on
 the host, download locally, etc.) and caveats.
 

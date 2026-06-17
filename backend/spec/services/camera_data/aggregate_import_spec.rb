@@ -90,9 +90,9 @@ RSpec.describe CameraData::AggregateImport do
     # Road lookup that snaps any camera near (41.68, -93.13) to the same OSM way.
     let(:road_lookup) do
       lookup = double("road_lookup")
-      allow(lookup).to receive(:nearest_road) do |lng:, lat:|
+      allow(lookup).to receive(:nearby_roads) do |lng:, lat:|
         way = (lat.round(1) == 41.7 ? 111 : (lat * 1000).to_i)
-        { osm_way_id: way, geometry_ewkt: "SRID=4326;LINESTRING(#{lng} #{lat}, #{lng + 0.01} #{lat})", distance_m: 5.0 }
+        [ { osm_way_id: way, geometry_ewkt: "SRID=4326;LINESTRING(#{lng} #{lat}, #{lng + 0.01} #{lat})", distance_m: 5.0 } ]
       end
       lookup
     end

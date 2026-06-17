@@ -87,6 +87,8 @@ export function RouteResult({
 
       {coverageWarning && <p className="coverage-warning">{coverageWarning}</p>}
 
+      <RouteExport route={route} />
+
       <div className="directions-header">
         <h3>{t("result.directions")}</h3>
         <PrintableDirections
@@ -100,8 +102,6 @@ export function RouteResult({
           <li key={i}>{m.localized_text}</li>
         ))}
       </ol>
-
-      <RouteExport route={route} />
     </section>
   );
 }

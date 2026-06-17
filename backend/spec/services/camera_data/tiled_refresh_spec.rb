@@ -104,8 +104,8 @@ RSpec.describe CameraData::TiledRefresh do
     # Simulate a continuation that imported the only tile, checkpointed the cursor,
     # then was interrupted before finalize — so @source_name is never set on resume.
     road_lookup = Class.new do
-      def nearest_road(lng:, lat:)
-        { osm_way_id: 999, geometry_ewkt: "SRID=4326;LINESTRING(#{lng} #{lat}, #{lng + 0.001} #{lat})", distance_m: 4.0 }
+      def nearby_roads(lng:, lat:)
+        [ { osm_way_id: 999, geometry_ewkt: "SRID=4326;LINESTRING(#{lng} #{lat}, #{lng + 0.001} #{lat})", distance_m: 4.0 } ]
       end
     end.new
 

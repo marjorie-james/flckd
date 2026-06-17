@@ -99,6 +99,23 @@ describe("RoutePanel", () => {
       { origin: "Des Moines, IA", destination: "Iowa City, IA" },
     );
   });
+
+  it("places the Plan button directly under the destination field (no reserved gap)", () => {
+    render(<RoutePanel onPlan={() => {}} planning={false} />);
+    const inputs = document.querySelectorAll('input[inputmode="search"]');
+
+    // Neither field reserves space below it: the suggestion list is a pure overlay,
+    // so the Plan button sits immediately under the destination field. (The list
+    // overlays the disabled button while a destination is still being typed.)
+    expect(inputs[0].closest(".input-group")).not.toHaveClass("reserve-dropdown");
+    expect(inputs[1].closest(".input-group")).not.toHaveClass("reserve-dropdown");
+
+    // The destination input-group is the form child immediately before the submit
+    // button — nothing (no spacer) sits between them.
+    const destGroup = inputs[1].closest(".input-group")!;
+    const planButton = screen.getByRole("button", { name: /plan route/i });
+    expect(destGroup.nextElementSibling).toBe(planButton);
+  });
 });
 
 describe("RouteNotice", () => {

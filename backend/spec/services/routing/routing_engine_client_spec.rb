@@ -80,6 +80,29 @@ RSpec.describe Routing::RoutingEngineClient do
     end
   end
 
+  describe "#locate_all" do
+    it "returns every distinct usable edge within radius, nearest-first" do
+      stub_request(:post, "#{base_url}/locate")
+        .to_return(status: 200, body: fixture("locate.json"),
+                   headers: { "Content-Type" => "application/json" })
+
+      edges = client.locate_all(lat: 41.5868, lng: -93.6250, radius: 40)
+
+      expect(edges).to eq([
+        { osm_way_id: 12_345_678, shape: "}_qsFt}whMaAbC", distance_m: 4.2 },
+        { osm_way_id: 99_887_766, shape: "}_qsFt}whMnDsB", distance_m: 12.4 }
+      ])
+    end
+
+    it "skips edges without usable edge_info and returns [] when none qualify" do
+      stub_request(:post, "#{base_url}/locate")
+        .to_return(status: 200, body: [ { "edges" => [ { "distance" => 3.0, "edge_info" => {} } ] } ].to_json,
+                   headers: { "Content-Type" => "application/json" })
+
+      expect(client.locate_all(lat: 0.0, lng: 0.0, radius: 40)).to eq([])
+    end
+  end
+
   describe "#status" do
     it "returns the engine status including tileset_last_modified" do
       stub_request(:get, "#{base_url}/status")
