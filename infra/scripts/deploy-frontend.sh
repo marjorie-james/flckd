@@ -24,6 +24,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"      # -> infra/
 REPO="$(cd "${ROOT}/.." && pwd)"
 DEPLOY_YML="${DEPLOY_YML:-${REPO}/backend/config/deploy.yml}"
+# shellcheck source=infra/scripts/lib-deploy-host.sh
+. "${ROOT}/scripts/lib-deploy-host.sh"
 DIST="${REPO}/frontend/dist"
 CADDYFILE="${ROOT}/caddy/Caddyfile"
 CADDY_IMAGE="${CADDY_IMAGE:-caddy:2}"
@@ -34,21 +36,13 @@ FRONTEND_ENV="${FRONTEND_ENV:-${REPO}/backend/.kamal/frontend.env}"
 [ -f "${FRONTEND_ENV}" ] && source "${FRONTEND_ENV}"
 : "${FLCKD_DOMAIN:?set FLCKD_DOMAIN (backend/.kamal/frontend.env or env)}"
 : "${ACME_EMAIL:?set ACME_EMAIL}"
-API_HOST="${API_HOST:-$(awk '/^[[:space:]]*proxy:/{f=1} f&&/host:/{print $2; exit}' "${DEPLOY_YML}")}"
+API_HOST="${API_HOST:-$(_deploy_yml_host proxy)}"
 : "${API_HOST:?could not determine API_HOST (deploy.yml proxy.host)}"
 
-# ── Target host (mirror provision-geo-host.sh) ───────────────────────────────
-GEO_HOST="${1:-${GEO_HOST:-}}"
-[ -n "${GEO_HOST}" ] || GEO_HOST="$(awk '/^[[:space:]]*routing:/{f=1} f&&/host:/{print $2; exit}' "${DEPLOY_YML}")"
-[ -n "${GEO_HOST}" ] || { echo "deploy-frontend: could not determine host (pass user@host)" >&2; exit 1; }
-if [ "${GEO_HOST}" = "${GEO_HOST#*@}" ]; then
-  SSH_USER="${SSH_USER:-$(awk '/^ssh:/{f=1} f&&/user:/{print $2; exit}' "${DEPLOY_YML}")}"
-  GEO_HOST="${SSH_USER:-deploy}@${GEO_HOST}"
-fi
-SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o BatchMode=yes)
-sshx() { ssh "${SSH_OPTS[@]}" "${GEO_HOST}" "$@"; }
+# ── Target host (resolved by infra/scripts/lib-deploy-host.sh) ───────────────
+resolve_target_host "${1:-${GEO_HOST:-}}"
 
-echo "==> Deploying frontend + Caddy edge to ${GEO_HOST}"
+echo "==> Deploying frontend + Caddy edge to ${TARGET_HOST}"
 echo "    domain: ${FLCKD_DOMAIN} (www → apex)   api host: ${API_HOST}"
 
 # ── 1. Build the frontend if dist is missing (or FORCE_BUILD=1) ──────────────
@@ -61,8 +55,7 @@ else
 fi
 
 # ── 2. Stream dist + Caddyfile to the host ───────────────────────────────────
-HOST_HOME="$(sshx 'echo "$HOME"')"
-: "${HOST_HOME:?deploy-frontend: could not resolve the remote \$HOME — refusing to use a root-relative path}"
+resolve_remote_home
 DIST_DIR="${HOST_HOME%/}/flckd-frontend/dist"
 CADDY_DIR="${HOST_HOME%/}/flckd-caddy"
 echo "==> [2/3] Streaming dist/ (${DIST_DIR}) and Caddyfile…"
