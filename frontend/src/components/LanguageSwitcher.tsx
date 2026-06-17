@@ -30,7 +30,7 @@ export function LanguageSwitcher() {
 
   return (
     <label className="language-switcher">
-      <span className="visually-hidden">{t("language")}</span>
+      <span className="language-switcher__label">{t("language")}</span>
       <select value={value} onChange={onChange}>
         <option value={AUTOMATIC}>{t("languageAuto")}</option>
         {SUPPORTED_LOCALES.map((l) => (

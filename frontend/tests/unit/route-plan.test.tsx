@@ -99,6 +99,17 @@ describe("RoutePanel", () => {
       { origin: "Des Moines, IA", destination: "Iowa City, IA" },
     );
   });
+
+  it("reserves space below the destination field so its dropdown clears the Plan button", () => {
+    render(<RoutePanel onPlan={() => {}} planning={false} />);
+    const inputs = document.querySelectorAll('input[inputmode="search"]');
+
+    // Destination is the last field; it reserves a fixed gap so its dropdown opens
+    // into that space instead of covering the button (and the button doesn't move).
+    expect(inputs[1].closest(".input-group")).toHaveClass("reserve-dropdown");
+    // The origin field keeps the default overlay (no reserved gap).
+    expect(inputs[0].closest(".input-group")).not.toHaveClass("reserve-dropdown");
+  });
 });
 
 describe("RouteNotice", () => {
