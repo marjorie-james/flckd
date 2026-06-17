@@ -87,7 +87,14 @@ export function PlanRoutePage() {
   return (
     <div className="plan-page">
       <header className="app-header">
-        <h1>{t("app.title")}</h1>
+        {/* The wordmark is the brand mark and is decorative (aria-hidden): the
+            real, localized page heading is the <h1> beside it, so a screen reader
+            announces the descriptive title — not the redacted brand string — and
+            the h1 keeps exactly the catalog text the i18n contract asserts. */}
+        <div className="brand">
+          <span className="wordmark" aria-hidden="true">flckd</span>
+          <h1 className="app-title">{t("app.title")}</h1>
+        </div>
         <LanguageSwitcher />
       </header>
 
