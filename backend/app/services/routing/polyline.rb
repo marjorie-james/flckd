@@ -46,6 +46,27 @@ module Routing
       "SRID=4326;LINESTRING(#{coords.map { |lng, lat| "#{lng} #{lat}" }.join(', ')})"
     end
 
+    # Initial compass bearing in degrees (0..360) from the first decoded point to
+    # the last, or nil when the shape yields fewer than two points. Used when
+    # snapping a camera to tell a road's opposing/parallel carriageway (roughly the
+    # same axis) from a perpendicular cross street, so a camera only ever monitors
+    # the road it actually watches in both travel directions — not the streets that
+    # merely cross near it.
+    def bearing(encoded, precision: PRECISION)
+      coords = decode(encoded, precision: precision)
+      return nil if coords.size < 2
+
+      rad = Math::PI / 180.0
+      lng1, lat1 = coords.first
+      lng2, lat2 = coords.last
+      phi1 = lat1 * rad
+      phi2 = lat2 * rad
+      dlng = (lng2 - lng1) * rad
+      y = Math.sin(dlng) * Math.cos(phi2)
+      x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dlng)
+      (Math.atan2(y, x) / rad) % 360
+    end
+
     # Like #to_linestring_ewkt but never raises: nil for blank or undecodable input.
     # The hot-path scorers (proximity + camera detection) both turn a route's
     # geometry into a line this way, so it lives here as the single source of truth.
