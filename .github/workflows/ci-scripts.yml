@@ -71,6 +71,10 @@ jobs:
             test/infra/fetch-extract.bats \
             test/infra/setup.bats \
             test/infra/country-registry.bats \
+            test/infra/state-registry.bats \
+            test/infra/deploy-scope-env.bats \
+            test/infra/deploy-scope-secrets.bats \
+            test/infra/deploy-scope-cross-check.bats \
             test/infra/build-geo.bats \
             test/infra/lib-deploy-host.bats
 

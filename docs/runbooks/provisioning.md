@@ -66,7 +66,13 @@ ssh-keygen -t ed25519 -f kamal_deploy -C flckd-deploy   # add kamal_deploy.pub t
   ```
   It supplies the `secret:` entries deploy.yml references: `RAILS_MASTER_KEY`,
   `DATABASE_PASSWORD`, `POSTGRES_PASSWORD`, `NOMINATIM_PASSWORD`,
-  `KAMAL_REGISTRY_USERNAME`, `KAMAL_REGISTRY_PASSWORD`.
+  `KAMAL_REGISTRY_USERNAME`, `KAMAL_REGISTRY_PASSWORD`. It also carries
+  `GEOCODER_REGION_STATE` + `GEOCODER_VIEWBOX`, but you do **not** fill those —
+  `bin/kamal-docker` resolves them from the deploy scope (`backend/.kamal/geo.env`)
+  into `.kamal/deploy-scope.env`, which the example reads automatically (empty for a
+  whole-country deploy). These come from the wrapper, so deploying via plain
+  `kamal deploy` (e.g. the `deploy.yml` GitHub Actions template) would not set them —
+  use `bin/kamal-docker`.
 
 ## 5. Configure GitHub Actions (for the deploy workflows)
 
@@ -150,6 +156,12 @@ the whole US:
 GEO_REGION_URL=https://download.geofabrik.de/north-america/us/iowa-latest.osm.pbf bin/kamal-docker deploy
 GEO_COUNTRY=us bin/kamal-docker setup        # whole-US substrate
 ```
+
+That scope also drives the deployed **app**: `bin/kamal-docker` writes the resolved state
+into `backend/.kamal/deploy-scope.env`, which `.kamal/secrets` injects as
+`GEOCODER_REGION_STATE` + `GEOCODER_VIEWBOX` (declared under `env.secret` in `deploy.yml`),
+so a single-state deploy **frames the map on — and geocodes within — that state** instead of
+the whole US. See [geo-provisioning.md](geo-provisioning.md).
 
 **Release-based (multi-host / CI).** Build a versioned substrate and roll it out:
 

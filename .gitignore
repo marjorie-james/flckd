@@ -47,6 +47,10 @@ backend/config/deploy.yml
 backend/.kamal/geo.env
 !backend/.kamal/geo.env.example
 
+# Generated single-state backend env (GEOCODER_REGION_STATE + GEOCODER_VIEWBOX),
+# written by bin/kamal-docker from the deploy scope and read by .kamal/secrets.
+backend/.kamal/deploy-scope.env
+
 # Frontend / Caddy edge config (real domain + ACME email) — gitignored; .example tracked.
 backend/.kamal/frontend.env
 !backend/.kamal/frontend.env.example

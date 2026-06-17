@@ -144,6 +144,12 @@ boundaries) **and** the initial map frames that state. The TIGER import is narro
 to just that state. Selecting `US` writes `GEOCODER_COUNTRY=us` (whole-country
 geocoding + CONUS framing); absent `infra/.env`, the backend defaults to US (FR-002).
 
+The same state framing applies to a **single-state production deploy** — it is not
+dev-only. A single-state `backend/.kamal/geo.env` makes `bin/kamal-docker` wire
+`GEOCODER_REGION_STATE` + `GEOCODER_VIEWBOX` into the deployed backend, so the app
+frames + geocodes that state in production too. See
+[geo-provisioning.md](geo-provisioning.md).
+
 You can also point the extract straight at any Geofabrik `.osm.pbf`:
 
 ```bash

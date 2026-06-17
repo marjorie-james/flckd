@@ -80,6 +80,13 @@ env:
     - RAILS_MASTER_KEY
     - SECRET_KEY_BASE
     - DATABASE_PASSWORD
+    # Single-state map framing + geocoding scope (FR-007). Not secret, but injected
+    # from a file: bin/kamal-docker resolves the deploy scope (backend/.kamal/geo.env)
+    # into .kamal/deploy-scope.env, which .kamal/secrets reads. Both are empty for a
+    # whole-country deploy, so the app frames the entire country. Generated — do not
+    # set by hand; change the scope in backend/.kamal/geo.env instead.
+    - GEOCODER_REGION_STATE
+    - GEOCODER_VIEWBOX
 
 # Persist gem-free; logs go to the platform. Limit retained logs (anonymity:
 # the anonymity_logging init strips client IPs from the request "Started" line

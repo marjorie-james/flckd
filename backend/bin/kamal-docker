@@ -56,6 +56,22 @@ elif [ -z "${SECRET_KEY_BASE:-}" ] && [ ! -f .kamal/secrets.env ]; then
   exit 1
 fi
 
+# Derive the single-state backend env (GEOCODER_REGION_STATE + GEOCODER_VIEWBOX)
+# from the deploy scope (the same .kamal/geo.env that drives geo provisioning) and
+# write it to .kamal/deploy-scope.env (gitignored). Kamal reads that file via
+# .kamal/secrets at deploy time, so a single-state production deploy frames the map
+# on — and geocodes within — that state instead of the whole country (FR-007); both
+# values are empty for a whole-country deploy. Written before EVERY kamal run so
+# `config`, `setup`, and `deploy` all reflect the current scope. Values are written
+# unquoted (the file is parsed by .kamal/secrets with sed, never sourced), which
+# keeps spaces/commas intact.
+# shellcheck source=/dev/null
+. "$REPO_ROOT/infra/scripts/deploy-scope-env.sh"
+{
+  printf 'GEOCODER_REGION_STATE=%s\n' "${GEOCODER_REGION_STATE:-}"
+  printf 'GEOCODER_VIEWBOX=%s\n' "${GEOCODER_VIEWBOX:-}"
+} > "$BACKEND_DIR/.kamal/deploy-scope.env"
+
 # Kamal 2.11.0, pinned by digest (the registry publishes :latest, not :2.11.0).
 KAMAL_IMAGE="ghcr.io/basecamp/kamal@sha256:b0fb3d6e581da6a24d530b07a7daa6f5cf9046b3e51098a992f4f715c7f37270"
 

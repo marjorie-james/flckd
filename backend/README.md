@@ -48,7 +48,7 @@ Connection settings come from environment variables (defaults target the Docker 
 | `DATABASE_USER` / `DATABASE_PASSWORD` | `flckd` / `flckd` | |
 | `DATABASE_NAME` / `TEST_DATABASE_NAME` | `flckd_development` / `flckd_test` | |
 | `ROUTING_URL` / `GEOCODER_URL` | private service URLs | self-hosted only |
-| `GEOCODER_VIEWBOX` | _(unset)_ | bounding box for Nominatim result ranking (lng_min,lat_max,lng_max,lat_min). Only consulted in the **single-state dev override** (`GEOCODER_REGION_STATE` set); otherwise the viewbox comes from `Geocoding::CountryRegistry` (whole-country, default US). The Iowa dev example is `"-96.7,43.6,-90.0,40.3"`. |
+| `GEOCODER_VIEWBOX` | _(unset)_ | the single-state bounding box (lng_min,lat_max,lng_max,lat_min) — it bounds Nominatim search **and frames the initial map** on that state. Consulted only for **single-state deployments** (`GEOCODER_REGION_STATE` set): set in dev via `infra/.env`, and in production via `.kamal/deploy-scope.env` (written by `bin/kamal-docker` from the deploy scope, read by `.kamal/secrets`). Otherwise the viewbox comes from `Geocoding::CountryRegistry` (whole-country, default US). The Iowa example is `"-96.7,43.6,-90.0,40.3"`. |
 
 ## Tests (Constitution Principle II — must be green to merge)
 
