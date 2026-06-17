@@ -45,6 +45,12 @@ export function RouteResult({
   // surfaced by CameraSummary, so here we only show the positive status pill.
   const status = routeStatus(route);
 
+  // Resolve the coverage warning first; an unknown code falls back to "" and we
+  // render nothing rather than an empty <p class="coverage-warning">.
+  const coverageWarning = route.coverage_warning
+    ? t(`errors.${route.coverage_warning}`, { defaultValue: "" })
+    : "";
+
   return (
     <section className="route-result">
       {status === "avoided" && <p className="status clean">{t("result.fullyClean")}</p>}
@@ -79,11 +85,7 @@ export function RouteResult({
         </button>
       )}
 
-      {route.coverage_warning && (
-        <p className="coverage-warning">
-          {t(`errors.${route.coverage_warning}`, { defaultValue: "" })}
-        </p>
-      )}
+      {coverageWarning && <p className="coverage-warning">{coverageWarning}</p>}
 
       <div className="directions-header">
         <h3>{t("result.directions")}</h3>

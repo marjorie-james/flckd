@@ -51,7 +51,12 @@ module CameraData
     def touch_seen(data_source:, except_refs: [])
       return unless data_source
 
-      scope = data_source.cameras.where.not(verification_status: "removed")
+      # Exclude auto_retired cameras: stamping their last_seen would make
+      # #reconcile revive them even though the source never re-reported them this
+      # run. A camera the source genuinely re-reports in a delta is in
+      # delta[:upserted] (stamped by the importer + revived by reconcile's
+      # seen_in_source! branch), so this stays correct for real re-reports.
+      scope = data_source.cameras.where.not(verification_status: "removed").where(auto_retired: false)
       scope = scope.where.not(external_ref: except_refs) if except_refs.any?
       scope.update_all(last_seen_in_source_at: Time.current)
     end

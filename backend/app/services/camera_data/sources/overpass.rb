@@ -153,7 +153,7 @@ module CameraData
         <<~QL
           [out:json][timeout:#{@timeout}]#{diff_directive};
           (
-            node["man_made"="surveillance"]["surveillance:type"="ALPR"](#{bbox});
+            node["man_made"="surveillance"]["surveillance:type"~"^ALPR$",i](#{bbox});
             node["man_made"="surveillance"]["camera:type"~"alpr|anpr",i](#{bbox});
             node["man_made"="surveillance"]["brand"~"flock",i](#{bbox});
             node["man_made"="surveillance"]["operator"~"flock",i](#{bbox});

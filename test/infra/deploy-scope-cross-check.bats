@@ -61,3 +61,14 @@ built_state() {  # <geo_env>
   assert_equal "$(framed_state "${BATS_TEST_TMPDIR}/geo.env")" "US"
   assert_equal "$(built_state "${BATS_TEST_TMPDIR}/geo.env")" "US"
 }
+
+# A sub-state extract URL (slug state_resolve REJECTS) paired with a free-form
+# GEO_REGION_LABEL must NOT drift: the host builds from the URL (whole-country /
+# sub-extract, built_state == US) so the backend must also frame the whole
+# country. The label California can no longer override the unrecognized URL.
+@test "sub-state URL + GEO_REGION_LABEL: framed == built == US (label cannot override)" {
+  printf 'GEO_REGION_URL=https://download.geofabrik.de/north-america/us/california/los-angeles-latest.osm.pbf\nGEO_REGION_LABEL=California\n' \
+    > "${BATS_TEST_TMPDIR}/geo.env"
+  assert_equal "$(framed_state "${BATS_TEST_TMPDIR}/geo.env")" "$(built_state "${BATS_TEST_TMPDIR}/geo.env")"
+  assert_equal "$(framed_state "${BATS_TEST_TMPDIR}/geo.env")" "US"
+}

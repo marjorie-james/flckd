@@ -6,7 +6,9 @@ import type { GeocodeResult } from "../src/types/api";
 // (an exact street address) surfaces at the top of the autocomplete list.
 function stubFetch(body: unknown) {
   const res = { ok: true, status: 200, statusText: "OK", json: async () => body } as Response;
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
+  const mock = vi.fn().mockResolvedValue(res);
+  vi.stubGlobal("fetch", mock);
+  return mock;
 }
 
 const result = (label: string, confidence: number): GeocodeResult => ({
@@ -41,5 +43,14 @@ describe("geocodeSearch result ordering", () => {
     stubFetch({ results: [] });
 
     await expect(geocodeSearch("anything")).resolves.toEqual({ results: [] });
+  });
+
+  it("forwards an AbortSignal so superseded type-ahead lookups are cancelled", async () => {
+    const fetchMock = stubFetch({ results: [] });
+    const controller = new AbortController();
+    await geocodeSearch("anything", "en", controller.signal);
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBe(controller.signal);
   });
 });

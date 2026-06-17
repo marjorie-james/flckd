@@ -102,8 +102,18 @@ module CameraData
 
     def importer = @importer
 
+    # The source's name, resolved independently of #import_next so a continuation
+    # resume — where every tile was already imported+checkpointed before the
+    # interrupt and #import_next never runs again — can still resolve data_source
+    # for reconcile/snap and key per_source correctly. Constructing a source does
+    # NO fetch; it only exposes source_name. Guards the empty-tiles case. On the
+    # normal path @source_name is already set by #import_next and is reused.
+    def source_name
+      @source_name ||= (@source_factory.call(@tiles.first).source_name if @tiles.any?)
+    end
+
     def data_source
-      @data_source ||= (@source_name && DataSource.find_by(name: @source_name))
+      @data_source ||= (source_name && DataSource.find_by(name: source_name))
     end
 
     # The timestamp to use as the delta anchor — snapshotted exactly once on the
@@ -166,7 +176,7 @@ module CameraData
       outcome["error_class"] = state["error_class"] if state["error_class"]
 
       Result.new(
-        per_source: { @source_name => outcome },
+        per_source: { source_name => outcome },
         totals: { "added" => state["added"], "updated" => state["updated"], "skipped" => state["skipped"], "retired" => retired },
         snapped_total: snapped,
         status: status

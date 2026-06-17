@@ -1,0 +1,25 @@
+# Solid Cache configuration (Rails.cache backend). In production this drives the
+# :solid_cache_store wired in config/environments/production.rb and, transitively,
+# the Rack::Attack throttle counters. Production points at the dedicated `cache`
+# connection (database.yml -> flckd_production_cache, migrations in db/cache_migrate)
+# so cache rows never mingle with app data and so throttle counters are durable +
+# shared across every Kamal container. development/test omit `database:` and fall
+# back to the primary connection — there is no separate cache DB locally, so the
+# cache migration neither runs nor is required in the single-DB dev/test layout.
+default: &default
+  store_options:
+    # Cap age of the oldest cache entry to fulfill retention policies.
+    max_age: <%= 60.days.to_i %>
+    max_size: <%= 256.megabytes %>
+    # Namespace per environment so entries can't collide across environments.
+    namespace: <%= Rails.env %>
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  database: cache
+  <<: *default

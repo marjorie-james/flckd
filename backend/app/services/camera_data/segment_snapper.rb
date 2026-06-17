@@ -29,7 +29,9 @@ module CameraData
     def snap_all(cameras)
       cameras = cameras.to_a
       return [] if cameras.empty?
-      return cameras.filter_map { |c| snap(c) } if @concurrency == 1 || cameras.one?
+      if @concurrency == 1 || cameras.one?
+        return cameras.filter_map { |c| road = safe_lookup(c); road && create_segment(c, road) }
+      end
 
       # Fan out the network-bound lookups concurrently, then persist serially on the
       # caller's thread — writes stay single-threaded and the output order matches
@@ -43,6 +45,17 @@ module CameraData
     def lookup(camera)
       coords = camera.location
       @road_lookup.nearest_road(lng: coords.x, lat: coords.y)
+    end
+
+    # Per-camera lookup that never aborts the whole snap pass: one camera's failed
+    # road lookup records nil (later dropped by filter_map) instead of raising at
+    # Thread#join and discarding every already-computed lookup. Used by BOTH the
+    # concurrent and single-threaded branches so the two paths behave identically.
+    def safe_lookup(camera)
+      lookup(camera)
+    rescue StandardError => e
+      Rails.logger.warn("[camera_data] segment snap lookup failed for camera #{camera.id}: #{e.class}")
+      nil
     end
 
     # Runs #lookup for every camera across a bounded worker pool, preserving input
@@ -62,7 +75,7 @@ module CameraData
             rescue ThreadError
               break # queue drained
             end
-            ActiveRecord::Base.connection_pool.with_connection { results[i] = lookup(camera) }
+            ActiveRecord::Base.connection_pool.with_connection { results[i] = safe_lookup(camera) }
           end
         end
       end.each(&:join)

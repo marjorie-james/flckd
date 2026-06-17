@@ -117,7 +117,19 @@ _derive_deploy_scope_env() {
     url_slug="${url_slug%.osm.pbf}"
   fi
 
-  for token in "${url_slug}" "${region}" "${geo_region_label}" "${region_label}"; do
+  # When a URL is present it is fully authoritative (parity with
+  # provision-geo-host.sh, which resolves built_state from the URL slug alone):
+  # the ONLY candidate token is the URL slug, so a sub-state extract URL whose
+  # slug doesn't resolve (e.g. `.../us/california/los-angeles-latest.osm.pbf`)
+  # falls through to whole-country framing instead of being overridden by a
+  # free-form label. Only when NO URL was given do the region/label tokens apply.
+  if [ -n "${url}" ]; then
+    set -- "${url_slug}"
+  else
+    set -- "${region}" "${geo_region_label}" "${region_label}"
+  fi
+
+  for token in "$@"; do
     [ -n "${token}" ] || continue
     if state_resolve "${token}" 2>/dev/null; then
       GEOCODER_REGION_STATE="${STATE_LABEL}"

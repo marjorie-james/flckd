@@ -49,4 +49,8 @@ RSpec.describe Api::V1::LocaleNegotiator do
   it "treats an unparseable q-value as 1.0" do
     expect(negotiate("es;q=bogus, en")).to eq(:es)
   end
+
+  it "parses an RFC-valid uppercase Q= weight case-insensitively" do
+    expect(negotiate("en;Q=0.1, es;Q=0.9")).to eq(:es)
+  end
 end

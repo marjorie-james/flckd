@@ -199,4 +199,22 @@ describe("MapView comparison route (009)", () => {
     rerender(<MapView route={baseRoute()} origin={null} showComparison={false} />);
     expect(compData()?.geometry.coordinates).toHaveLength(0);
   });
+
+  it("clears the previous route line when a new route decodes to empty geometry", () => {
+    const { rerender } = render(<MapView route={baseRoute()} origin={null} showComparison />);
+    // A real route was drawn into the route source.
+    const routeData = () =>
+      H.state.sources["route"]?.data as GeoJSON.Feature<GeoJSON.LineString> | undefined;
+    expect(routeData()?.geometry.coordinates.length).toBeGreaterThan(0);
+
+    // A new, non-null route whose geometry decodes to no points must not leave the
+    // previous line under the new plan — the route source is emptied.
+    rerender(<MapView route={baseRoute({})} origin={null} showComparison />);
+    H.calls.setData = [];
+    rerender(<MapView route={{ ...baseRoute(), geometry: "" }} origin={null} showComparison />);
+
+    const last = lastFeature() as unknown as GeoJSON.Feature<GeoJSON.LineString>;
+    expect(last.geometry).toEqual({ type: "LineString", coordinates: [] });
+    expect(routeData()?.geometry.coordinates).toHaveLength(0);
+  });
 });

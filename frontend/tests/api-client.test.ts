@@ -53,6 +53,15 @@ describe("apiClient anonymity", () => {
     expect(url).not.toMatch(/^https?:\/\//);
   });
 
+  it("forwards an AbortSignal into the fetch options (cancels superseded GETs)", async () => {
+    const fetchMock = stubFetch({ cameras: [] });
+    const controller = new AbortController();
+    await apiGet("/cameras", { bbox: "1,2,3,4" }, controller.signal);
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBe(controller.signal);
+  });
+
   it("surfaces backend error code/status as ApiError", async () => {
     stubFetch({ code: "bad_request", message: "nope" }, false, 400);
     await expect(apiPost("/routes", {})).rejects.toMatchObject({

@@ -98,6 +98,11 @@ RSpec.describe "Anonymity guarantees", type: :request do
       expect(response).to have_http_status(:ok)
       expect(log).not_to include("203.0.113.7")
       expect(log).not_to match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/)
+      # Positive: the typed address is redacted, not just absent IPs. Rails'
+      # filtered_path URL-encodes (space->'+', comma->'%2C'), so a regression of
+      # filter_parameters would surface the town token verbatim or URL-encoded.
+      expect(log).not_to include("Springfield")
+      expect(log).not_to match(/Springfield/i)
     end
 
     it "leaks no client IP when checking coverage at a country-scale point" do
@@ -110,6 +115,10 @@ RSpec.describe "Anonymity guarantees", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(log).not_to include("198.51.100.9")
+      # Positive: the queried coordinates must be redacted from the log line, not
+      # merely the client IP. lat/lng are filtered params; a filter_parameters
+      # regression would surface these values in the filtered_path.
+      expect(log).not_to match(/41\.59|93\.62/)
     end
 
     it "sends a typed address only to our self-hosted geocoder, never a third party" do

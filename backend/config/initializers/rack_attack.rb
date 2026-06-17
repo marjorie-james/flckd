@@ -4,7 +4,12 @@
 # the client IP held only in the cache for the rolling window, never persisted
 # and never linked to route data. This bounds abuse without building a profile.
 class Rack::Attack
-  # Use the Rails cache (Solid Cache) for counters; entries expire with the window.
+  # Counters live in Rack::Attack.cache.store, which defaults to Rails.cache;
+  # entries expire with the rolling window. In production Rails.cache is Solid Cache
+  # on the dedicated `cache` database (config/environments/production.rb +
+  # config/cache.yml), so counters are durable and SHARED across Kamal containers —
+  # throttling aggregates cluster-wide rather than per-container. In tests we pin an
+  # isolated in-process store so counts don't leak between examples.
   Rack::Attack.cache.store = ActiveSupport::Cache::MemoryStore.new if Rails.env.test?
 
   # The real client IP. Rack::Request#ip does NOT honour Rails' trusted-proxy
@@ -19,10 +24,14 @@ class Rack::Attack
     req.ip
   end
 
-  # Coarse, non-identifying discriminator: a truncated digest of the client IP, so
-  # the raw IP is never stored as a key.
+  # Coarse, non-identifying discriminator: a truncated HMAC of the client IP, so
+  # the raw IP is never stored as a key. A plain digest would be trivially
+  # reversible (the ~4.3B IPv4 space is brute-forceable), recovering a client
+  # identifier while the entry lives. Keying with secret_key_base — which never
+  # enters the cache — makes the bucket key non-reversible without the secret,
+  # while staying stable across processes so bucketing is deterministic/distinct.
   def self.coarse_key(req)
-    Digest::SHA256.hexdigest(client_ip(req).to_s)[0, 12]
+    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, client_ip(req).to_s)[0, 12]
   end
 
   # General API throttle: 60 requests / minute / coarse-bucket.

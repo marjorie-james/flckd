@@ -158,16 +158,23 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
         if (map.getLayer(id)) map.setLayoutProperty(id, "text-field", expr);
       }
     };
+    // A deferred load handler registered when a switch happens before the style
+    // loads. Hoisted so cleanup can remove it (mirroring the route/origin effects).
+    let pendingLoad: (() => void) | null = null;
     const onLanguageChanged = (lng: string) => {
       // If a switch happens before the style loads, apply the language that is
       // current when "load" fires (not the captured one) — so a rapid en→es→en
       // switch can't leave a stale intermediate label language.
       if (map.isStyleLoaded()) applyLabelLanguage(lng);
-      else map.once("load", () => applyLabelLanguage(i18n.language));
+      else {
+        pendingLoad = () => applyLabelLanguage(i18n.language);
+        map.once("load", pendingLoad);
+      }
     };
     i18n.on("languageChanged", onLanguageChanged);
     return () => {
       i18n.off("languageChanged", onLanguageChanged);
+      if (pendingLoad) map.off("load", pendingLoad);
     };
   }, [map]);
 
@@ -196,20 +203,28 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
     const map = mapRef.current;
     if (!map) return;
 
-    // No route (e.g. "completely avoid" found none, or an error): clear any drawn route
-    // and comparison lines so a stale path never lingers under the message.
-    if (!route) {
-      const clear = () => {
-        (map.getSource(ROUTE_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(lineFeature([]));
-        (map.getSource(COMPARISON_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(lineFeature([]));
-      };
+    // Empty both line sources so a stale path never lingers under the message.
+    // Used both when there is no route and when a new route decodes to nothing.
+    const clear = () => {
+      (map.getSource(ROUTE_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(lineFeature([]));
+      (map.getSource(COMPARISON_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(lineFeature([]));
+    };
+    const clearLines = () => {
       if (map.isStyleLoaded()) clear();
       else map.once("load", clear);
       return () => map.off("load", clear);
+    };
+
+    // No route (e.g. "completely avoid" found none, or an error): clear any drawn route
+    // and comparison lines so a stale path never lingers under the message.
+    if (!route) {
+      return clearLines();
     }
 
     const routeCoords = decodePolyline(route.geometry, 6);
-    if (routeCoords.length === 0) return;
+    // A new (non-null) route whose geometry decodes to nothing must still clear
+    // the previous route's line, not bail and leave it rendered under the plan.
+    if (routeCoords.length === 0) return clearLines();
 
     // The comparison line is drawn only when avoidance actually costs time
     // (added_duration_s > 0) and the user hasn't dismissed it (FR-002a/FR-006).

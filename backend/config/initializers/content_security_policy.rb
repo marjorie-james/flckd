@@ -1,8 +1,10 @@
 # Strict, self-origin-only Content Security Policy (anonymity: FR-012a). All
 # scripts, styles, fonts, images, and connections must be same-origin so the
-# browser never reaches a third party while planning a route. The only outbound
-# navigation is the user-initiated maps handoff (a top-level link the user
-# explicitly clicks), which CSP's default-src does not block.
+# browser never reaches a third party while planning a route. There is no
+# outbound third-party navigation. The only way a route leaves the app is a
+# user-initiated, fully client-side GPX file export built in the browser
+# (RouteExport.tsx) — nothing is transmitted, so no CSP egress allowance is
+# needed.
 Rails.application.configure do
   config.content_security_policy do |policy|
     policy.default_src :self

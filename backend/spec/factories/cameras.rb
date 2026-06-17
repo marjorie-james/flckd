@@ -22,6 +22,10 @@ FactoryBot.define do
     trait :removed do
       verification_status { "removed" }
     end
+
+    trait :disputed do
+      verification_status { "disputed" }
+    end
   end
 
   factory :monitored_segment do

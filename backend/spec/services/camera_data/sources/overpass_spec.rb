@@ -81,6 +81,29 @@ RSpec.describe CameraData::Sources::Overpass do
     expect { bad.fetch }.to raise_error(ArgumentError, /numeric/)
   end
 
+  describe "case-insensitive surveillance:type parity with the PBF source" do
+    # A bare host for the shared OsmTagging predicate (used by the PBF-extract
+    # source), so we can assert the predicate and the Overpass QL agree.
+    let(:tagger) do
+      Class.new do
+        include CameraData::Sources::OsmTagging
+        public :osm_alpr?
+      end.new
+    end
+
+    it "the osm_alpr? predicate selects a lowercase surveillance:type=alpr node" do
+      expect(tagger.osm_alpr?("man_made" => "surveillance", "surveillance:type" => "alpr")).to be(true)
+    end
+
+    it "builds a case-insensitive surveillance:type clause in the Overpass QL" do
+      ql = source.send(:query_for, bbox)
+      # ALPR-but-lowercase must be matchable: regex anchored, case-insensitive (,i),
+      # not the old exact ="ALPR" form that dropped lowercase nodes.
+      expect(ql).to include(%(["surveillance:type"~"^ALPR$",i]))
+      expect(ql).not_to include(%(["surveillance:type"="ALPR"]))
+    end
+  end
+
   describe "#supports_delta?" do
     it "returns true when since is within the 14-day window" do
       expect(source.supports_delta?(since: 1.day.ago)).to be(true)

@@ -25,8 +25,10 @@ class Camera < ApplicationRecord
   validates :consecutive_missing_count, numericality: { greater_than_or_equal_to: 0 }
 
   # Cameras whose segments should be fed into routing exclusion. Removed (human)
-  # and auto-retired (source stopped reporting) cameras are never avoided; disputed
-  # ones only above a confidence floor.
+  # and auto-retired (source stopped reporting) cameras are never avoided. All
+  # other statuses — unverified, verified, and disputed alike — are treated the
+  # same: routable subjects them only to the confidence floor it is passed (no
+  # status-specific threshold for disputed cameras today).
   scope :active, -> { where.not(verification_status: "removed").where(auto_retired: false) }
   scope :routable, ->(min_confidence = 0.0) { active.where("confidence >= ?", min_confidence) }
   # Cameras present in a prior import but missing from their source's latest

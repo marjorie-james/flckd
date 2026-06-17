@@ -182,7 +182,7 @@ module Routing
               unavoidable << id
             end
           end
-          break unless progressed # nothing more could be excluded — best effort reached
+          next unless progressed # nothing more excludable this pass — but later passes may differ
         end
 
         break if best_passed.empty? # found a fully clean route

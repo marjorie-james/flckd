@@ -7,9 +7,11 @@
 # observability (FR-011, FR-012a). This complements the log redaction in
 # config/initializers/anonymity_logging.rb.
 #
-# Uses Rails' structured event reporter (Rails.event, Rails 8.1) when available,
-# falling back to a structured log line so the initializer is boot-safe on any
-# 8.1.x patch.
+# Emits each event as a structured (JSON) log line. We deliberately do NOT route
+# through Rails.event here: no Rails.event subscriber is registered anywhere in
+# the app, so notifying it would be a silent no-op and produce zero observability
+# output. Writing straight to Rails.logger keeps the per-request latency telemetry
+# actually observable (and the scrubber in anonymity_logging.rb still applies).
 ActiveSupport::Notifications.subscribe("process_action.action_controller") do |event|
   payload = event.payload
   controller = payload[:controller].to_s
@@ -25,9 +27,5 @@ ActiveSupport::Notifications.subscribe("process_action.action_controller") do |e
     view_ms: payload[:view_runtime]&.round(1)
   }.compact
 
-  if defined?(Rails.event) && Rails.event.respond_to?(:notify)
-    Rails.event.notify("api.request", data)
-  else
-    Rails.logger.info(data.to_json)
-  end
+  Rails.logger.info(data.to_json)
 end

@@ -10,6 +10,7 @@ import { usePlanRoute } from "../services/routeApi";
 import { useCoverageBounds } from "../services/coverageApi";
 import { ApiError } from "../services/apiClient";
 import type { Coordinate, RouteRequest } from "../types/api";
+import { routeTotals } from "../utils/routeTotals";
 
 // Mobile-first single-page flow: header → map → input panel → result.
 export function PlanRoutePage() {
@@ -78,8 +79,8 @@ export function PlanRoutePage() {
     ? t("status.planning")
     : route
       ? t("status.routeReady", {
-          minutes: Math.round(route.duration_s / 60),
-          km: (route.distance_m / 1000).toFixed(1),
+          minutes: routeTotals(route).travelMin,
+          km: routeTotals(route).km,
         })
       : "";
 

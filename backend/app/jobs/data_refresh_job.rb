@@ -33,6 +33,14 @@ class DataRefreshJob < ApplicationJob
   UNSET = Object.new
   private_constant :UNSET
 
+  # A run is considered stale (its process died non-gracefully — SIGKILL/OOM/power
+  # loss — leaving status stuck at "running") once it has been running this long.
+  # Without a reaper, a single stuck run would block every future refresh forever
+  # via the running-guard, silently freezing the camera dataset. The threshold is
+  # deliberately generous so it never trips a legitimately long resuming run:
+  # max_resumptions (50) × worst-case per-run wall time stays well under 6 hours.
+  STALE_RUN_AFTER = 6.hours
+
   def perform(_mode = "aggregate", trigger: "scheduled", tiles: nil, source_factory: nil, road_lookup: UNSET)
     run = acquire_run(trigger)
     return :skipped if run == :skipped
@@ -86,6 +94,11 @@ class DataRefreshJob < ApplicationJob
   # Start a fresh run, or — when resuming after an interruption — adopt the one
   # already in progress instead of creating a second (FR-014).
   def acquire_run(trigger)
+    # Clear out any run whose process died without finalizing (status stuck at
+    # "running") BEFORE the running-guard, so a crashed run can't block refreshes
+    # forever. A genuine resume (continuation.started?) adopts the existing run.
+    reap_stale_runs
+
     if continuation.started?
       RefreshRun.running.recent.first || RefreshRun.create!(trigger: trigger, started_at: Time.current)
     elsif RefreshRun.running?
@@ -93,6 +106,21 @@ class DataRefreshJob < ApplicationJob
       :skipped
     else
       RefreshRun.create!(trigger: trigger, started_at: Time.current)
+    end
+  end
+
+  # Mark any run abandoned in "running" past STALE_RUN_AFTER as failed (a
+  # non-graceful kill never reached `finalize` or the rescue, so the row is stuck).
+  # This unblocks the running-guard and surfaces the silent stall to telemetry.
+  def reap_stale_runs
+    stale = RefreshRun.running.where(started_at: ..STALE_RUN_AFTER.ago)
+    stale.find_each do |run|
+      run.update!(status: "failed", finished_at: Time.current,
+                  duration_ms: ((Time.current - run.started_at) * 1000).round)
+      Telemetry.alert(
+        "camera_data refresh reaped stale run (stuck in running > #{STALE_RUN_AFTER.inspect})",
+        run_id: run.id, started_at: run.started_at
+      )
     end
   end
 

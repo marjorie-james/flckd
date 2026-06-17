@@ -34,6 +34,22 @@ describe("RouteResult camera status", () => {
     expect(screen.getByText(/3 cameras avoided/i)).toBeInTheDocument();
   });
 
+  it("renders the coverage warning when its code has a catalog entry", () => {
+    const { container } = render(
+      <RouteResult route={route({ coverage_warning: "outside_coverage" })} />,
+    );
+    const p = container.querySelector("p.coverage-warning");
+    expect(p).not.toBeNull();
+    expect(p?.textContent ?? "").not.toBe("");
+  });
+
+  it("renders no empty coverage-warning paragraph for an unknown code", () => {
+    const { container } = render(
+      <RouteResult route={route({ coverage_warning: "totally_unknown_code" })} />,
+    );
+    expect(container.querySelector("p.coverage-warning")).toBeNull();
+  });
+
   it("does not show the avoided count when the route can't avoid every camera", () => {
     render(
       <RouteResult

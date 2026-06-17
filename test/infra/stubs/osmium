@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# bats stub: osmium — used by test/infra/build-cameras.bats
+#
+# Handles the two call shapes build-cameras.sh makes:
+#   1. tags-filter --overwrite -o <TMP_PBF> <EXTRACT> n/man_made=surveillance
+#        -> write a dummy PBF to <TMP_PBF>.
+#   2. export --overwrite -f geojson --add-unique-id=type_id -o <OUT> <TMP_PBF>
+#        -> write a GeoJSON FeatureCollection to <OUT> with OSMIUM_STUB_FEATURES
+#           "Feature" entries (default 3; 0 simulates an empty match).
+#
+# Records every invocation to BATS_TEST_TMPDIR/osmium_calls.
+
+echo "$*" >> "${BATS_TEST_TMPDIR}/osmium_calls"
+
+# Find the -o <dest> argument (both shapes use it).
+dest=""
+prev=""
+mode="${1:-}"
+for arg in "$@"; do
+  [ "${prev}" = "-o" ] && dest="${arg}"
+  prev="${arg}"
+done
+
+if [ "${mode}" = "tags-filter" ]; then
+  [ -n "${dest}" ] && printf 'dummy-pbf\n' > "${dest}"
+  exit 0
+fi
+
+if [ "${mode}" = "export" ]; then
+  count="${OSMIUM_STUB_FEATURES:-3}"
+  {
+    echo '{ "type": "FeatureCollection", "features": ['
+    i=0
+    while [ "${i}" -lt "${count}" ]; do
+      sep=","; [ "$(( i + 1 ))" -eq "${count}" ] && sep=""
+      echo "  { \"type\": \"Feature\", \"id\": \"n${i}\" }${sep}"
+      i=$(( i + 1 ))
+    done
+    echo '] }'
+  } > "${dest}"
+  exit 0
+fi
+
+exit 0

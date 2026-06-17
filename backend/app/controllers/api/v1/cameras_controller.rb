@@ -65,8 +65,11 @@ module Api
         raise ActionController::ParameterMissing, :bbox
       end
 
+      # Strict, matching parse_bbox / BaseController#required_float: an optional or
+      # empty min_confidence keeps the 0.0 default (no floor), but junk ("abc")
+      # yields a 400 rather than silently coercing to 0.0 and returning everything.
       def min_confidence
-        (params[:min_confidence] || 0.0).to_f
+        params[:min_confidence].present? ? required_float(params[:min_confidence], :min_confidence) : 0.0
       end
 
       def camera_json(camera, segment)

@@ -27,6 +27,22 @@ RSpec.describe Geo::SubstrateFreshness do
     expect(described_class.new(routing: routing).check.state).to eq(:unknown)
   end
 
+  it "reports unknown (not stale) for an empty tileset_last_modified" do
+    allow(routing).to receive(:status).and_return("tileset_last_modified" => "")
+    expect(Telemetry).to receive(:alert).with(a_string_including("unknown"))
+    expect(Telemetry).not_to receive(:alert).with(a_string_including("stale"), anything)
+
+    expect(described_class.new(routing: routing).check.state).to eq(:unknown)
+  end
+
+  it "reports unknown (not stale) for a zero/epoch-0 tileset_last_modified" do
+    allow(routing).to receive(:status).and_return("tileset_last_modified" => 0)
+    expect(Telemetry).to receive(:alert).with(a_string_including("unknown"))
+    expect(Telemetry).not_to receive(:alert).with(a_string_including("stale"), anything)
+
+    expect(described_class.new(routing: routing).check.state).to eq(:unknown)
+  end
+
   it "notifies telemetry and reports unknown when routing is unreachable" do
     allow(routing).to receive(:status).and_raise(Geo::HttpClient::ServiceError, "down")
     expect(Telemetry).to receive(:notify)

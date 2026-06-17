@@ -37,10 +37,13 @@ module Api
       # Extracts the q-value (0.0–1.0) from a tag's parameters, defaulting to 1.0
       # when absent or unparseable.
       def self.quality_of(params)
-        q = params.find { |p| p.strip.start_with?("q=") }
+        # Match the q-prefix case-insensitively: RFC 7231 allows an uppercase
+        # "Q=" weight, which a lowercase-only match would ignore (defaulting to
+        # 1.0 and returning the wrong locale).
+        q = params.find { |p| p.strip.downcase.start_with?("q=") }
         return 1.0 unless q
 
-        Float(q.strip.delete_prefix("q="), exception: false) || 1.0
+        Float(q.strip[2..], exception: false) || 1.0
       end
       private_class_method :quality_of
     end

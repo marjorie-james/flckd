@@ -125,3 +125,19 @@ derive() { bash -c "set -euo pipefail; . '${SCOPE_SH}'; printf '%s|%s\n' \"\${GE
   # The derived env is still empty (whole-country), so the deploy doesn't fail.
   assert_output --partial "|"
 }
+
+# A sub-state extract URL whose slug state_resolve REJECTS must NOT be overridden
+# by a free-form GEO_REGION_LABEL. The URL is authoritative (parity with
+# provision-geo-host.sh's URL-slug-only built_state), so a label like California
+# can no longer "rescue" an unrecognized URL into framing California — the deploy
+# falls through to whole-country framing instead.
+@test "a sub-state URL is not overridden by GEO_REGION_LABEL (whole-country framing)" {
+  GEO_REGION_URL="https://download.geofabrik.de/north-america/us/california/los-angeles-latest.osm.pbf" \
+    GEO_REGION_LABEL="California" run derive
+  assert_success
+  assert_output --partial "could not resolve a US state"
+  # Whole-country framing: the derived single-state env is empty (the "|" line),
+  # and the label California never leaks into GEOCODER_REGION_STATE.
+  assert_output --partial "|"
+  refute_output --partial "California|"
+}

@@ -13,7 +13,7 @@ interface CoverageBoundsResponse {
 export function useCoverageBounds() {
   return useQuery({
     queryKey: ["coverage-bounds"],
-    queryFn: () => apiGet<CoverageBoundsResponse>("/coverage/bounds"),
+    queryFn: ({ signal }) => apiGet<CoverageBoundsResponse>("/coverage/bounds", undefined, signal),
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,

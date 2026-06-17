@@ -28,9 +28,13 @@ module Geocoding
     # bottom); convert to our [[west, south], [east, north]] framing corners.
     # Returns nil for a malformed viewbox so the caller falls back.
     def viewbox_bounds(viewbox)
-      west, north, east, south = viewbox.split(",").map { |v| Float(v) }
-      return nil if [ west, north, east, south ].any?(&:nil?)
+      parts = viewbox.split(",")
+      # Require EXACTLY four components: too few left a nil corner (caught below),
+      # but too many silently used the first four — a typo'd 5-component viewbox
+      # would mis-frame the map. Reject anything but four and fall back.
+      return nil unless parts.length == 4
 
+      west, north, east, south = parts.map { |v| Float(v) }
       [ [ west, south ], [ east, north ] ]
     rescue ArgumentError
       nil

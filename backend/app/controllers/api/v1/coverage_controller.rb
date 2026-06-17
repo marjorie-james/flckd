@@ -5,7 +5,7 @@ module Api
     # configured country's framing extent (FR-007).
     class CoverageController < BaseController
       def show
-        lat, lng = required_coordinate(params.require(:lat), params.require(:lng), :lat)
+        lat, lng = required_coordinate(params.require(:lat), params.require(:lng), :coordinate)
         # PRESENCE of camera data at the point (a containing data-region), with
         # that region's own freshness — not "is this inside the country".
         area = CoverageArea.containing(lng, lat).first
