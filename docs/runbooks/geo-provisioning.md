@@ -13,19 +13,26 @@ origin/destination/route ever leaves the box (FR-012a).
 
 ## TL;DR
 
-`backend/bin/kamal-docker setup` (or `deploy`) runs
-`infra/scripts/provision-geo-host.sh` automatically after the app comes up. The
-script:
+`backend/bin/kamal-docker setup` runs `infra/scripts/provision-geo-host.sh`
+automatically after the app comes up. The script:
 
 1. downloads the OSM extract **on your machine** and streams it to the host,
 2. builds the routing graph (Valhalla) and vector tiles (Planetiler) **on the
    host**, straight into the accessory data dirs,
 3. places the extract for the geocoder and reboots it (Nominatim imports on boot).
 
-It is **idempotent** — a no-op once each stage has actually completed (it tracks
-build-completion markers + geocoder readiness, not just whether a file exists) —
-so it is safe to leave wired into every deploy. Skip it with `GEO_PROVISION=skip`.
-Run it standalone:
+It runs on **`setup` only** — a routine `deploy` is just the app image swap and
+never touches the geo data (building the graph/tiles and re-downloading the extract
+is minutes of work, and the data is static once built). The script is itself
+**idempotent** (it tracks build-completion markers + geocoder readiness, not just
+whether a file exists), but a deploy doesn't even invoke it.
+
+- `GEO_PROVISION=skip kamal-docker setup` — never provision, even on setup.
+- `GEO_PROVISION=force kamal-docker deploy` — also provision on a deploy. Use this
+  after a **deploy-scope change** (a new state/country in `backend/.kamal/geo.env`),
+  when the data must be rebuilt for the new region.
+
+Run it standalone (e.g. after a scope change, or `FORCE=1` to rebuild in place):
 
 ```bash
 infra/scripts/provision-geo-host.sh [user@host]
