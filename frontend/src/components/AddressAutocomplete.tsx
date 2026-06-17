@@ -24,11 +24,6 @@ interface Props {
   required?: boolean;
   // Optional trailing control inside the input (e.g. "use my location").
   trailing?: ReactNode;
-  // Reserve permanent space below the field for the (overlaid) suggestion list.
-  // Used for the last field (destination): the list stays a fixed-position overlay
-  // that opens into the reserved gap, so it never covers the submit button below —
-  // and the button doesn't move when the list opens/closes.
-  reserveDropdownSpace?: boolean;
 }
 
 // An accessible address field: an ARIA 1.2 combobox whose suggestions are a
@@ -36,7 +31,7 @@ interface Props {
 // Escape dismisses the list. Focus stays on the input; the active option is
 // conveyed via aria-activedescendant (the combobox pattern), and a polite live
 // region announces how many suggestions are available.
-export function AddressAutocomplete({ id, label, value, onValueChange, suggestions, onSelect, open, loading = false, error = false, describedById, required = false, trailing, reserveDropdownSpace = false }: Props) {
+export function AddressAutocomplete({ id, label, value, onValueChange, suggestions, onSelect, open, loading = false, error = false, describedById, required = false, trailing }: Props) {
   const { t } = useTranslation();
   const [active, setActive] = useState(-1);
   const [dismissed, setDismissed] = useState(false);
@@ -131,7 +126,7 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
   };
 
   return (
-    <div className={`input-group${reserveDropdownSpace ? " reserve-dropdown" : ""}`} onBlur={onBlur}>
+    <div className="input-group" onBlur={onBlur}>
       <label htmlFor={id}>{label}</label>
       <div className="input-wrap">
         <input

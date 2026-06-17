@@ -123,6 +123,18 @@ body {
   .header-repo-link {
     display: none;
   }
+
+  /* Show the full descriptive title on narrow screens rather than truncating it
+     to an ellipsis: step the size down and tighten the tracking so it fits, and
+     allow it to wrap instead of clip if a very narrow viewport still can't hold
+     one line. The wordmark stays the prominent brand mark above it. */
+  .app-title {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
 }
 
 /* Brand cluster: the wordmark over its descriptive, localized heading. */
@@ -313,10 +325,9 @@ body {
   gap: 10px;
   padding: 16px;
   border-bottom: 1px solid var(--border);
-  /* Height of the suggestion dropdown; also the space reserved below the last
-     field so its dropdown never covers the submit button (see .reserve-dropdown).
-     ~4 rows tall — a longer result set scrolls within it. Shrink this to tighten
-     both the dropdown and the reserved gap together. */
+  /* Height of the suggestion dropdown — ~4 rows tall; a longer result set scrolls
+     within it. The dropdown is an overlay (position: absolute), so it doesn't
+     affect layout. */
   --suggest-h: 9rem;
 }
 
@@ -408,15 +419,6 @@ body {
      last field, never extends past the space reserved for it below. */
   max-height: var(--suggest-h);
   overflow-y: auto;
-}
-
-/* The destination is the last field, so its downward overlay would sit on top of
-   the "Plan route" button. Reserve a fixed gap below it so the list opens into that
-   gap and clears the button — without the button moving when the list opens/closes.
-   The gap is the dropdown's full footprint (its --suggest-h height plus the 6px it
-   sits below the field) plus a little breathing room beneath it. */
-.input-group.reserve-dropdown {
-  margin-bottom: calc(var(--suggest-h) + 6px + 0.75rem);
 }
 
 .suggestions li button {
