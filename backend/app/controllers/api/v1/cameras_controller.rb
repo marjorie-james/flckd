@@ -3,6 +3,13 @@ module Api
     # Lists known cameras within a viewport for display (US4). Returns reference
     # points only — never user data.
     class CamerasController < BaseController
+      # Safety valve on a single viewport response. The points are clustered on the
+      # client (MapLibre runs supercluster on a worker), so thousands render without
+      # main-thread jank; this cap just bounds the payload and the per-camera segment
+      # geometry. Reaching it means the count may under-represent the true total, so
+      # the client surfaces it rather than truncating silently (FR-011).
+      VIEWPORT_LIMIT = 5_000
+
       # Below this zoom the client clusters the dots and does not draw the
       # monitored stretch, so we skip the per-camera segment geometry entirely:
       # a much lighter payload and no PostGIS segment join for thousands of
@@ -16,7 +23,7 @@ module Api
         cameras = Camera
                   .routable(min_confidence)
                   .where("ST_Intersects(location, ST_MakeEnvelope(?, ?, ?, ?, 4326))", *bbox)
-                  .limit(500)
+                  .limit(VIEWPORT_LIMIT)
                   .to_a
 
         segments = detailed? ? segment_display(cameras.map(&:id)) : {}

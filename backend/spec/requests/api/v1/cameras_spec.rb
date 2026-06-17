@@ -70,6 +70,18 @@ RSpec.describe "GET /api/v1/cameras", type: :request do
     expect(response.parsed_body.dig("details", "param")).to eq("zoom")
   end
 
+  it "caps the number of cameras returned per viewport" do
+    stub_const("Api::V1::CamerasController::VIEWPORT_LIMIT", 2)
+    3.times do |i|
+      create(:camera, location: "SRID=4326;POINT(#{-104.99 + (i * 0.001)} 39.74)", confidence: 0.9)
+    end
+
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body["cameras"].size).to eq(2)
+  end
+
   it "400s without a bbox" do
     get "/api/v1/cameras"
     expect(response).to have_http_status(:bad_request)
