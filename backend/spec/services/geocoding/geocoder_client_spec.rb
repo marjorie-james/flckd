@@ -63,13 +63,92 @@ RSpec.describe Geocoding::GeocoderClient do
       expect(regional.search("x").first[:label]).to eq("1007 East Grand Avenue, Des Moines, IA 50319")
     end
 
-    it "threads the requested language and limit into the query" do
+    it "threads the requested language into the query and over-fetches the limit" do
+      # We ask Nominatim for more than the caller's limit (4×, capped at 20) so
+      # that collapsing duplicate street segments still fills the trimmed list.
       stub = stub_request(:get, "#{base_url}/search")
-        .with(query: hash_including("accept-language" => "es", "limit" => "3"))
+        .with(query: hash_including("accept-language" => "es", "limit" => "12"))
         .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
 
       client.search("madrid", lang: "es", limit: 3)
       expect(stub).to have_been_requested
+    end
+
+    it "collapses a street split across many OSM ways into one suggestion" do
+      # The recorded single-state response omits addr["state"] (no admin_level-4
+      # boundary), so this is the region_state dev path where the bug appears.
+      regional = described_class.new(base_url: base_url, region_state: "Iowa")
+      # "Larkmoor Drive" comes back as the same road 7 times across 3 ZIPs.
+      stub_request(:get, "#{base_url}/search")
+        .with(query: hash_including("q" => "1234 Larkmoor Drive"))
+        .to_return(status: 200, body: fixture("search_split_street.json"),
+                   headers: { "Content-Type" => "application/json" })
+
+      results = regional.search("1234 Larkmoor Drive", limit: 5)
+
+      expect(results.size).to eq(1)
+      # House number echoed onto the street; ZIP dropped since it was the only
+      # differentiator between the collapsed segments.
+      expect(results.first).to include(
+        label: "1234 Larkmoor Drive, Fairhaven, IA",
+        # Street-level confidence (rank 26) — the echo never implies house-level
+        # precision we do not have.
+        confidence: 0.87
+      )
+      # The representative is the first (highest-relevance) segment.
+      expect(results.first[:lat]).to be_within(1e-6).of(42.1)
+    end
+
+    it "echoes a typed house number onto a street-only match" do
+      street = {
+        "lat" => "42.10", "lon" => "-93.70", "type" => "residential", "place_rank" => 26,
+        "address" => { "road" => "Larkmoor Drive", "city" => "Fairhaven", "state" => "Iowa", "postcode" => "55502" }
+      }
+      stub_request(:get, "#{base_url}/search").with(query: hash_including("q" => "1234 Larkmoor Drive"))
+        .to_return(status: 200, body: [ street ].to_json, headers: { "Content-Type" => "application/json" })
+
+      expect(client.search("1234 Larkmoor Drive").first[:label])
+        .to eq("1234 Larkmoor Drive, Fairhaven, IA 55502")
+    end
+
+    it "does not echo a typed house number onto a non-street result (a city)" do
+      city = {
+        "lat" => "42.10", "lon" => "-93.60", "type" => "city", "place_rank" => 16, "name" => "Fairhaven",
+        "address" => { "city" => "Fairhaven", "state" => "Iowa" }
+      }
+      stub_request(:get, "#{base_url}/search").with(query: hash_including("q" => "1234 Fairhaven"))
+        .to_return(status: 200, body: [ city ].to_json, headers: { "Content-Type" => "application/json" })
+
+      expect(client.search("1234 Fairhaven").first[:label]).to eq("Fairhaven, IA")
+    end
+
+    it "leaves a precise house match untouched, keeping its ZIP" do
+      house = {
+        "lat" => "41.5912", "lon" => "-93.603", "type" => "house", "place_rank" => 30,
+        "address" => { "house_number" => "1007", "road" => "East Grand Avenue",
+                       "city" => "Des Moines", "state" => "Iowa", "postcode" => "50319" }
+      }
+      stub_request(:get, "#{base_url}/search").with(query: hash_including("q" => "1007 East Grand Avenue"))
+        .to_return(status: 200, body: [ house ].to_json, headers: { "Content-Type" => "application/json" })
+
+      result = client.search("1007 East Grand Avenue").first
+      expect(result[:label]).to eq("1007 East Grand Avenue, Des Moines, IA 50319")
+      expect(result[:confidence]).to eq(1.0)
+    end
+
+    it "keeps genuinely distinct streets separate when collapsing" do
+      streets = [
+        { "lat" => "42.1", "lon" => "-93.8", "type" => "residential", "place_rank" => 26,
+          "address" => { "road" => "Larkmoor Drive", "city" => "Fairhaven", "state" => "Iowa", "postcode" => "55502" } },
+        { "lat" => "42.1", "lon" => "-93.8", "type" => "residential", "place_rank" => 26,
+          "address" => { "road" => "Larkmoor Court", "city" => "Fairhaven", "state" => "Iowa", "postcode" => "55502" } }
+      ]
+      stub_request(:get, "#{base_url}/search").with(query: hash_including("q" => "Larkmoor"))
+        .to_return(status: 200, body: streets.to_json, headers: { "Content-Type" => "application/json" })
+
+      labels = client.search("Larkmoor").map { |r| r[:label] }
+      expect(labels).to contain_exactly("Larkmoor Drive, Fairhaven, IA 55502",
+                                        "Larkmoor Court, Fairhaven, IA 55502")
     end
 
     it "sends viewbox and bounded=1 when constructed with a viewbox" do

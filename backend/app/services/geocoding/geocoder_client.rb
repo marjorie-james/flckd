@@ -30,6 +30,14 @@ module Geocoding
       "Wisconsin" => "WI", "Wyoming" => "WY", "District of Columbia" => "DC"
     }.freeze
 
+    # Leading house number in a typed address: "1234 …", "123A …". Captured so it
+    # can be echoed onto a street-only match (see #humanized_label).
+    HOUSE_NUMBER_RE = /\A\s*(\d+[a-z]?)\b/i
+
+    # A trailing US ZIP (with optional +4) on a humanized label. Stripped so two
+    # rows that differ ONLY by ZIP collapse to one street (see #dedupe_streets).
+    ZIP_SUFFIX_RE = /\s+\d{5}(?:-\d{4})?\z/
+
     # Builds the configured client. By default the deployment spans a whole
     # country (CountryRegistry, default US): the viewbox is derived from the
     # country's bbox and the single-state workarounds are off — the whole-country
@@ -69,12 +77,22 @@ module Geocoding
 
     # Forward search / autocomplete.
     # Returns an array of result hashes: { label:, lat:, lng:, type:, confidence: }
+    #
+    # We over-fetch from Nominatim (#fetch_limit) and then collapse duplicate
+    # street segments (#dedupe_streets) before trimming back to the caller's
+    # `limit`. A street is commonly split into several OSM ways (one per
+    # subdivision / ZIP), so a plain request returns the same road many times
+    # (one residential street can come back 7×); collapsing first means the
+    # trimmed list still holds that many *distinct* places instead of one road
+    # repeated.
     def search(text, lang: "en", limit: 5)
+      typed_house_number = leading_house_number(text)
       params = { q: normalize_query(text), format: "jsonv2", addressdetails: 1,
-                 limit: limit, "accept-language": lang }
+                 limit: fetch_limit(limit), "accept-language": lang }
       params.merge!(viewbox: @viewbox, bounded: 1) if @viewbox
       body = get("/search", **params)
-      Array(body).map { |f| to_result(f) }
+      results = Array(body).map { |f| to_result(f, typed_house_number: typed_house_number) }
+      dedupe_streets(results).first(limit)
     end
 
     # Reverse geocode. Returns a single result hash, or nil when nothing matches.
@@ -125,11 +143,50 @@ module Geocoding
         (@region_state.present? && part.casecmp?(@region_state))
     end
 
+    # The leading house number a user typed, or nil. Read from the raw text (not
+    # the state-normalized query) so the digits survive regardless of #normalize_query.
+    def leading_house_number(text)
+      text.to_s[HOUSE_NUMBER_RE, 1]
+    end
+
+    # How many candidates to request from Nominatim for a caller asking for
+    # `limit`. We over-fetch so that collapsing duplicate street segments (a
+    # single road returns once per OSM way) still leaves enough *distinct* places
+    # to fill the caller's limit. Capped at 20 to bound the response size.
+    def fetch_limit(limit)
+      [ limit * 4, 20 ].min
+    end
+
+    # Collapses results that refer to the same street into one. OSM splits a road
+    # into a way per subdivision, so "1234 Larkmoor Drive" comes back as the same
+    # road seven times across three ZIPs. Results whose labels match once the ZIP
+    # is removed are grouped; the highest-confidence member represents the group
+    # (ties keep Nominatim's original, relevance-ordered position). When a group
+    # collapsed more than one member, the ZIP was its only differentiator, so the
+    # surviving label drops it ("…, Fairhaven, IA"). A lone result is untouched —
+    # a precise house match keeps its full "…, IA 50319" label.
+    def dedupe_streets(results)
+      results.each_with_index
+             .group_by { |result, _index| dedupe_key(result[:label]) }
+             .map do |_key, group|
+               representative, = group.min_by { |result, index| [ -result[:confidence], index ] }
+               next representative if group.one?
+
+               representative.merge(label: representative[:label].sub(ZIP_SUFFIX_RE, ""))
+             end
+    end
+
+    def dedupe_key(label)
+      label.to_s.sub(ZIP_SUFFIX_RE, "").downcase
+    end
+
     # Maps a Nominatim jsonv2 place into our normalized result shape. Nominatim
-    # returns lat/lon as strings.
-    def to_result(place)
+    # returns lat/lon as strings. `typed_house_number` (parsed from the query) is
+    # echoed into the label when the geocoder can only resolve the street (see
+    # #humanized_label).
+    def to_result(place, typed_house_number: nil)
       {
-        label: humanized_label(place),
+        label: humanized_label(place, typed_house_number: typed_house_number),
         lat: place["lat"]&.to_f,
         lng: place["lon"]&.to_f,
         type: place["type"] || place["category"],
@@ -143,16 +200,25 @@ module Geocoding
     # becomes "1007 East Grand Avenue, Des Moines, IA 50319". Drops the neighbourhood,
     # county, and country; abbreviates the state; folds house number + street into
     # one line. Falls back to `display_name` when address details are absent.
-    def humanized_label(place)
+    def humanized_label(place, typed_house_number: nil)
       addr = place["address"]
       return place["display_name"].to_s unless addr.is_a?(Hash)
 
       # A street address leads with "house number + street"; everything else (a
       # city, a named POI, a bare street) leads with its own name. This keeps POIs
       # and cities free of road noise ("Old Capitol, Iowa City, IA").
+      #
+      # When the user typed a house number but the geocoder could only resolve the
+      # street (no data for that exact house — common where TIGER has no
+      # interpolation for the road), we echo the typed number onto the street as a
+      # best-effort match: "1234 Larkmoor Drive, …". The pin is still the street
+      # (confidence stays at the street rank — see #confidence_for), but the label
+      # reflects what the user asked for instead of silently dropping it.
       lead =
         if addr["house_number"]
           [ addr["house_number"], addr["road"] ].compact.join(" ")
+        elsif typed_house_number.present? && addr["road"].present?
+          "#{typed_house_number} #{addr['road']}"
         else
           place["name"].presence || addr["road"]
         end
