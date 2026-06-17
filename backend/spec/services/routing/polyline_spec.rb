@@ -36,4 +36,17 @@ RSpec.describe Routing::Polyline do
       expect(described_class.to_linestring_ewkt("")).to be_nil
     end
   end
+
+  describe ".bearing" do
+    it "returns the initial compass bearing from first to last point" do
+      # Google example: (-120.2, 38.5) -> ... -> (-126.453, 43.252): heading NW.
+      bearing = described_class.bearing("_p~iF~ps|U_ulLnnqC_mqNvxq`@", precision: 1e5)
+
+      expect(bearing).to be_within(2.0).of(317.1)
+    end
+
+    it "is nil when fewer than two points decode" do
+      expect(described_class.bearing("")).to be_nil
+    end
+  end
 end

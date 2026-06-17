@@ -49,6 +49,18 @@ namespace :camera_data do
     end
   end
 
+  desc "Backfill missing monitored segments (e.g. opposing carriageways) for already-snapped cameras"
+  task backfill_segments: :environment do
+    road_lookup = CameraData::ValhallaRoadLookup.new
+    cameras = Camera.all
+    before = MonitoredSegment.count
+    # Idempotent per (camera, osm_way_id): only the carriageways a camera is
+    # missing get added, so this is safe to re-run.
+    added = CameraData::SegmentSnapper.new(road_lookup: road_lookup).snap_all(cameras)
+    puts "Added #{added.size} monitored segment(s) across #{cameras.count} camera(s) " \
+         "(#{before} → #{MonitoredSegment.count})."
+  end
+
   namespace :refresh do
     desc "Show recent refresh runs (per-source counts). Append -- --json for machine output (FR-013)"
     task status: :environment do
