@@ -104,7 +104,14 @@ module CameraData
       roads.filter_map do |road|
         next if existing.include?(road[:osm_way_id])
 
-        create_segment(camera, road, direction: direction_for(camera, road[:osm_way_id] == primary_way))
+        begin
+          create_segment(camera, road, direction: direction_for(camera, road[:osm_way_id] == primary_way))
+        rescue ActiveRecord::RecordNotUnique
+          # Another snap pass created this (camera, osm_way_id) between our read of
+          # `existing` and this insert (the unique index is the source of truth).
+          # It's already monitored — skip it rather than abort the pass.
+          nil
+        end
       end
     end
 

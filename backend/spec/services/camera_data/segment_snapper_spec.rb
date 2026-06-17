@@ -59,6 +59,26 @@ RSpec.describe CameraData::SegmentSnapper do
     expect(camera.monitored_segments.pluck(:osm_way_id)).to contain_exactly(999, 1000)
   end
 
+  it "skips a (camera, way) another pass created concurrently, without raising" do
+    camera = create(:camera)
+    camera.monitored_segments.create!(
+      osm_way_id: 999, geometry: "SRID=4326;LINESTRING(-104.9905 39.7392, -104.9901 39.7392)",
+      direction: "both", snap_distance_m: 4.0
+    )
+    # Simulate a stale read: the idempotency pre-check misses the existing row, so
+    # the snapper attempts the insert and the DB unique index rejects it. It must
+    # swallow that and finish, not abort the pass.
+    allow(camera.monitored_segments).to receive(:pluck).and_return([])
+    allow(road_lookup).to receive(:nearby_roads).and_return([
+      { osm_way_id: 999, geometry_ewkt: "SRID=4326;LINESTRING(-104.9905 39.7392, -104.9901 39.7392)", distance_m: 4.0 }
+    ])
+
+    result = nil
+    expect { result = described_class.new(road_lookup: road_lookup).snap(camera) }.not_to raise_error
+    expect(result).to be_nil
+    expect(camera.monitored_segments.count).to eq(1)
+  end
+
   it "returns nil when no road is found" do
     allow(road_lookup).to receive(:nearby_roads).and_return([])
     camera = create(:camera)
