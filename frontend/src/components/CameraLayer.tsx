@@ -35,9 +35,17 @@ const CONE_SUSPECT = "cam-cone-suspect";
 const CLUSTER_RADIUS = 50;
 const CLUSTER_MAX_ZOOM = 16;
 const BBOX_DEBOUNCE_MS = 300;
-// Mirrors the backend's per-request limit; reaching it means the viewport count
-// may under-represent the true total (FR-011 — surfaced, not silent).
-const SERVER_CAP = 500;
+// Mirrors the backend's per-request limit (CamerasController::VIEWPORT_LIMIT);
+// reaching it means the viewport count may under-represent the true total
+// (FR-011 — surfaced, not silent).
+const SERVER_CAP = 5_000;
+// The watched-stretch lines are NOT clustered (a clustered source holds points
+// only), so they would otherwise be drawn for every camera at every zoom — the
+// real render cost when the viewport holds many cameras. Gate them to higher
+// zoom: the monitored stretch is only legible once you're looking at a
+// neighbourhood, and by then few cameras are in view. Below this, only the
+// clustered dots render.
+const SEGMENT_MIN_ZOOM = 14;
 // A camera is "suspect" (styled distinctly) when disputed or low-confidence (FR-008).
 const LOW_CONFIDENCE = 0.5;
 
@@ -194,13 +202,16 @@ function popupHtml(
 
 export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
   const { t } = useTranslation();
-  // 1. Viewport bbox on settle (moveend), debounced so rapid moves coalesce (FR-002/003).
-  const [rawBbox, setRawBbox] = useState("");
+  // 1. Viewport bbox + zoom on settle (moveend), debounced so rapid moves
+  // coalesce (FR-002/003). The (floored) zoom rides along so the backend can
+  // drop the heavy segment geometry when zoomed out (lighter payload). bbox and
+  // zoom share one debounced value so they always stay in sync.
+  const [rawView, setRawView] = useState("");
   useEffect(() => {
     if (!map) return;
     const update = () => {
       const b = map.getBounds();
-      setRawBbox(`${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`);
+      setRawView(`${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}|${Math.floor(map.getZoom())}`);
     };
     update(); // frame the current view immediately
     map.on("moveend", update);
@@ -208,8 +219,10 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
       map.off("moveend", update);
     };
   }, [map]);
-  const bbox = useDebounce(rawBbox, BBOX_DEBOUNCE_MS);
-  const { data } = useCameras(bbox || null);
+  const view = useDebounce(rawView, BBOX_DEBOUNCE_MS);
+  const [bbox, zoomStr] = view.split("|");
+  const zoom = zoomStr ? Number(zoomStr) : null;
+  const { data } = useCameras(bbox || null, zoom);
 
   // 2. Clustered source + layers; setData on every viewport result (FR-001/004/010).
   useEffect(() => {
@@ -248,6 +261,9 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
           id: SEGMENT_LAYER,
           type: "line",
           source: SEGMENT_SOURCE,
+          // Only draw the (unclustered) watched stretches once zoomed in, so a
+          // dense viewport renders just the clustered dots (see SEGMENT_MIN_ZOOM).
+          minzoom: SEGMENT_MIN_ZOOM,
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
             "line-color": ["case", ["get", "suspect"], SUSPECT_COLOR, CONFIRMED_COLOR],

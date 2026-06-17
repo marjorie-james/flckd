@@ -3,19 +3,44 @@ module Api
     # Lists known cameras within a viewport for display (US4). Returns reference
     # points only — never user data.
     class CamerasController < BaseController
+      # Safety valve on a single viewport response. The points are clustered on the
+      # client (MapLibre runs supercluster on a worker), so thousands render without
+      # main-thread jank; this cap just bounds the payload and the per-camera segment
+      # geometry. Reaching it means the count may under-represent the true total, so
+      # the client surfaces it rather than truncating silently (FR-011).
+      VIEWPORT_LIMIT = 5_000
+
+      # Below this zoom the client clusters the dots and does not draw the
+      # monitored stretch, so we skip the per-camera segment geometry entirely:
+      # a much lighter payload and no PostGIS segment join for thousands of
+      # cameras. The segment fields come back null and the dot falls back to its
+      # raw location. At or above this zoom — or when no zoom hint is sent (a
+      # caller that always wants full detail) — segments are included.
+      SEGMENT_DETAIL_ZOOM = 14
+
       def index
         bbox = parse_bbox(params.require(:bbox))
         cameras = Camera
                   .routable(min_confidence)
                   .where("ST_Intersects(location, ST_MakeEnvelope(?, ?, ?, ?, 4326))", *bbox)
-                  .limit(500)
+                  .limit(VIEWPORT_LIMIT)
                   .to_a
 
-        segments = segment_display(cameras.map(&:id))
+        segments = detailed? ? segment_display(cameras.map(&:id)) : {}
         render json: { cameras: cameras.map { |c| camera_json(c, segments[c.id]) } }
       end
 
       private
+
+      # Whether to include the heavy per-camera segment geometry. An absent zoom
+      # keeps the full payload (back-compat); a zoom hint below SEGMENT_DETAIL_ZOOM
+      # drops it. Strict like #min_confidence: junk ("abc") is a 400, not a silent
+      # coercion that would quietly change the detail level.
+      def detailed?
+        return true if params[:zoom].blank?
+
+        required_float(params[:zoom], :zoom) >= SEGMENT_DETAIL_ZOOM
+      end
 
       # Per-camera display info for the monitored segment it sits on, batched into a
       # single query (no N+1): the camera point snapped onto the road it actually
