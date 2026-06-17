@@ -252,11 +252,13 @@ fi
 # empty and the map shows no cameras / clustering bubbles. We reuse the extract
 # step [0] already put on the host: filter man_made=surveillance nodes into a
 # GeoJSON with osmium (run from our own pinned image, built on the host from
-# infra/osmium/Dockerfile over stdin — no third-party image, FR-012a), copy it to
-# the running web container at CAMERA_OSM_GEOJSON_PATH, and run camera_data:import
+# infra/osmium/Dockerfile over stdin — no third-party image, FR-012a), publish it
+# into the PERSISTENT `flckd-cameras` named volume (mounted into the app roles at
+# CAMERA_OSM_GEOJSON_PATH via deploy.yml `volumes:`), and run camera_data:import
 # SOURCE=pbf — which imports the nodes and snaps each to its monitored road segment
-# via Valhalla (already up). The DB rows persist across deploys; the import is
-# idempotent (add/update), so a re-run just refreshes. Skip with CAMERAS=skip.
+# via Valhalla (already up). The volume survives deploys, so the daily DataRefreshJob
+# (job container) keeps re-reading it instead of finding the file gone with the
+# replaced container. The import is idempotent (add/update). Skip with CAMERAS=skip.
 echo "==> [4/4] Camera dataset (PBF-derived surveillance nodes → import)"
 # Resolve the live web container (the one running the app image; never a
 # *_replaced_* drain container from an in-flight deploy).
@@ -270,13 +272,14 @@ else
   echo "    building osmium image on host + filtering surveillance nodes…"
   # Build our osmium image on the host from the Dockerfile over stdin (no context).
   sshx "docker build -q -t flckd-osmium:bookworm -" < "${REPO}/infra/osmium/Dockerfile" >/dev/null
-  # Coarse man_made=surveillance filter → GeoJSON (the exact ALPR narrowing happens
-  # at import time in OsmExtractFile, matching the Overpass path).
+  # Coarse man_made=surveillance filter → GeoJSON in the (deploy-owned) build dir,
+  # so the host can read the feature count directly. The exact ALPR narrowing
+  # happens at import time in OsmExtractFile, matching the Overpass path.
   sshx "set -e; \
-    docker run --rm -v '${BUILD_DIR}:/d' flckd-osmium:bookworm sh -c ' \
-      osmium tags-filter --overwrite -o /d/surveillance.osm.pbf /d/extract.osm.pbf n/man_made=surveillance && \
-      osmium export --overwrite -f geojson --add-unique-id=type_id -o /d/cameras.geojson /d/surveillance.osm.pbf && \
-      rm -f /d/surveillance.osm.pbf'"
+    docker run --rm -v '${BUILD_DIR}:/src' flckd-osmium:bookworm sh -c ' \
+      osmium tags-filter --overwrite -o /src/surveillance.osm.pbf /src/extract.osm.pbf n/man_made=surveillance && \
+      osmium export --overwrite -f geojson --add-unique-id=type_id -o /src/cameras.geojson /src/surveillance.osm.pbf && \
+      rm -f /src/surveillance.osm.pbf'"
   CAM_FEATURES="$(sshx "grep -c '\"Feature\"' '${BUILD_DIR}/cameras.geojson' 2>/dev/null || echo 0")"
   echo "    ${CAM_FEATURES} surveillance features in cameras.geojson"
   # Fail closed on an implausibly empty export (a wrong/partial extract): importing
@@ -287,9 +290,14 @@ else
     echo "    empty camera set. Check the extract; set ALLOW_EMPTY=1 to override." >&2
     exit 1
   fi
-  echo "    importing into ${WEB_CONTAINER} (CAMERA_OSM_GEOJSON_PATH; snaps via Valhalla)…"
+  # Publish into the persistent named volume the app roles mount (via a writer
+  # container — the volume is root-owned; the app mounts it read-only). Then import
+  # in the web container, which reads it at CAMERA_OSM_GEOJSON_PATH and snaps via
+  # Valhalla. The volume (not the replaced container) is what survives deploys.
+  echo "    publishing cameras.geojson → flckd-cameras volume + importing into ${WEB_CONTAINER}…"
   sshx "set -e; \
-    docker cp '${BUILD_DIR}/cameras.geojson' '${WEB_CONTAINER}:/rails/storage/cameras.geojson'; \
+    docker run --rm -v '${BUILD_DIR}:/src:ro' -v flckd-cameras:/dst flckd-osmium:bookworm \
+      cp /src/cameras.geojson /dst/cameras.geojson; \
     docker exec -e SOURCE=pbf '${WEB_CONTAINER}' bin/rails camera_data:import"
   echo "    camera import complete."
 fi
