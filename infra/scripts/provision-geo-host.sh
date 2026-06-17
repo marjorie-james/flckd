@@ -30,6 +30,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"               # -> infra/
 REPO="$(cd "${ROOT}/.." && pwd)"
 DEPLOY_YML="${DEPLOY_YML:-${REPO}/backend/config/deploy.yml}"
+# shellcheck source=infra/scripts/lib-deploy-host.sh
+. "${ROOT}/scripts/lib-deploy-host.sh"
 
 # Build images — pinned to match the dev build scripts / deploy.yml exactly so the
 # host graph/tiles are byte-for-byte what dev produces (no prod/dev engine drift).
@@ -59,27 +61,10 @@ country_resolve "${GEO_COUNTRY:-${COUNTRY:-us}}" || exit 1
 REGION_URL="${GEO_REGION_URL:-${REGION_URL:-${COUNTRY_EXTRACT_URL}}}"
 REGION_LABEL="${GEO_REGION_LABEL:-${REGION_LABEL:-${COUNTRY_NAME}}}"
 
-# ── Target host ──────────────────────────────────────────────────────────────
-# Default to the routing accessory's host from deploy.yml (single-box deploys use
-# the same host for every accessory).
-GEO_HOST="${1:-${GEO_HOST:-}}"
-if [ -z "${GEO_HOST}" ]; then
-  GEO_HOST="$(awk '/^[[:space:]]*routing:/{f=1} f&&/host:/{print $2; exit}' "${DEPLOY_YML}")"
-fi
-[ -n "${GEO_HOST}" ] || { echo "provision-geo-host: could not determine GEO_HOST (pass user@host or set in deploy.yml)" >&2; exit 1; }
+# ── Target host (resolved by infra/scripts/lib-deploy-host.sh) ───────────────
+resolve_target_host "${1:-${GEO_HOST:-}}"
 
-# deploy.yml host values are bare addresses; the SSH user comes from `ssh.user:`
-# (Kamal applies it for us, but our own ssh calls must add it). Prepend it when the
-# resolved host carries no explicit `user@`. Override with SSH_USER.
-if [ "${GEO_HOST}" = "${GEO_HOST#*@}" ]; then
-  SSH_USER="${SSH_USER:-$(awk '/^ssh:/{f=1} f&&/user:/{print $2; exit}' "${DEPLOY_YML}")}"
-  GEO_HOST="${SSH_USER:-deploy}@${GEO_HOST}"
-fi
-
-SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o BatchMode=yes)
-sshx() { ssh "${SSH_OPTS[@]}" "${GEO_HOST}" "$@"; }
-
-echo "==> Provisioning geo substrate for ${REGION_LABEL} on ${GEO_HOST}"
+echo "==> Provisioning geo substrate for ${REGION_LABEL} on ${TARGET_HOST}"
 echo "    extract: ${REGION_URL}"
 
 # Resolve the on-host dir backing an accessory's container path via docker inspect
@@ -102,8 +87,7 @@ echo "    geocoder import  : ${GEOCODER_DIR:-<accessory not found>}"
 # all three accessories. MUST be an absolute path: docker `-v <src>:/dst` treats a
 # relative/bare src as a NAMED VOLUME (empty), not a host bind mount, so resolve
 # the deploy user's $HOME on the host and anchor the dir there.
-HOST_HOME="$(sshx 'echo "$HOME"')"
-: "${HOST_HOME:?provision-geo-host: could not resolve the remote \$HOME — refusing to use a root-relative build dir}"
+resolve_remote_home
 BUILD_DIR="${GEO_BUILD_DIR:-${HOST_HOME%/}/geo-build}"
 
 # ── 0. Get the OSM extract onto the host (cached) ─────────────────────────────
@@ -122,8 +106,8 @@ else
   # Geofabrik's download proxy intermittently 502/503s; retry generously on all
   # transient errors so a brief hiccup doesn't abort the whole provisioning.
   curl -fSL --retry 6 --retry-delay 5 --retry-all-errors -o "${LOCAL_EXTRACT}" "${REGION_URL}"
-  echo "    streaming $(du -h "${LOCAL_EXTRACT}" | cut -f1) to ${GEO_HOST}…"
-  scp "${SSH_OPTS[@]}" "${LOCAL_EXTRACT}" "${GEO_HOST}:${BUILD_DIR}/extract.osm.pbf"
+  echo "    streaming $(du -h "${LOCAL_EXTRACT}" | cut -f1) to ${TARGET_HOST}…"
+  scp "${SSH_OPTS[@]}" "${LOCAL_EXTRACT}" "${TARGET_HOST}:${BUILD_DIR}/extract.osm.pbf"
   rm -f "${LOCAL_EXTRACT}"
   trap - EXIT
   echo "    extract in place on host."
@@ -136,10 +120,16 @@ fi
 
 # ── 1. Routing graph (Valhalla) ──────────────────────────────────────────────
 # build-routing-graph.sh, run on the host straight into the routing data dir.
+# Gate on a completion MARKER written only after the build AND the accessory
+# restart succeed, not on the mere presence of valhalla_tiles.tar — a build killed
+# mid-write leaves a non-empty-but-truncated tar that `test -s` would wrongly
+# accept, and writing the marker last lets a failed restart self-heal on re-run.
+# The marker lives in the (deploy-owned) data dir; valhalla_service ignores it.
 echo "==> [1/3] Routing graph (Valhalla)"
-if [ -n "${ROUTING_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -s '${ROUTING_DIR}/valhalla_tiles.tar'"; }; then
+if [ -n "${ROUTING_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${ROUTING_DIR}/.graph-complete'"; }; then
   echo "    stopping routing accessory, building graph, restarting…"
   sshx "set -e; \
+    rm -f '${ROUTING_DIR}/.graph-complete'; \
     docker stop flckd-backend-routing >/dev/null 2>&1 || true; \
     docker run --rm -v '${ROUTING_DIR}:/data' -v '${BUILD_DIR}:/src:ro' -w /data ${VALHALLA_IMAGE} bash -lc ' \
       set -e; \
@@ -147,27 +137,32 @@ if [ -n "${ROUTING_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -s '${RO
       valhalla_build_tiles -c /data/valhalla.json /src/extract.osm.pbf; \
       find /data/valhalla_tiles | sort -n | valhalla_build_extract -c /data/valhalla.json -v --overwrite; \
       rm -rf /data/valhalla_tiles'; \
-    docker start flckd-backend-routing >/dev/null"
+    docker start flckd-backend-routing >/dev/null; \
+    touch '${ROUTING_DIR}/.graph-complete'"
   echo "    routing graph built."
 else
-  echo "    valhalla_tiles.tar already present — skipping (FORCE=1 to rebuild)."
+  echo "    routing graph already built (completion marker present) — skipping (FORCE=1 to rebuild)."
 fi
 
 # ── 2. Vector tiles (Planetiler → PMTiles) ───────────────────────────────────
 # Scratch (downloads + tmp) goes under /src (the build dir), so the accessory dir
 # only ever receives the finished tiles.pmtiles.
 echo "==> [2/3] Vector tiles (Planetiler → PMTiles)"
-if [ -n "${TILES_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -s '${TILES_DIR}/tiles.pmtiles'"; }; then
+# Same completion-marker gate as routing: a half-written tiles.pmtiles from an
+# interrupted Planetiler run would pass `test -s` but be unusable.
+if [ -n "${TILES_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${TILES_DIR}/.tiles-complete'"; }; then
   echo "    building tiles.pmtiles…"
   sshx "set -e; \
+    rm -f '${TILES_DIR}/.tiles-complete'; \
     docker run --rm -v '${TILES_DIR}:/data' -v '${BUILD_DIR}:/src' ${PLANETILER_IMAGE} \
       --osm-path=/src/extract.osm.pbf --output=/data/tiles.pmtiles \
       --download --download-dir=/src/sources --tmpdir=/src/tmp --force; \
     docker run --rm -v '${BUILD_DIR}:/src' --entrypoint sh ${PLANETILER_IMAGE} -c 'rm -rf /src/tmp /src/sources' || true; \
-    docker restart flckd-backend-tiles >/dev/null"
+    docker restart flckd-backend-tiles >/dev/null; \
+    touch '${TILES_DIR}/.tiles-complete'"
   echo "    tiles built."
 else
-  echo "    tiles.pmtiles already present — skipping (FORCE=1 to rebuild)."
+  echo "    tiles already built (completion marker present) — skipping (FORCE=1 to rebuild)."
 fi
 
 # ── 3. Geocoder OSM import (Nominatim imports on boot) ────────────────────────
@@ -178,16 +173,30 @@ fi
 # finishes. TIGER house numbers + Wikipedia importance are a follow-on
 # (build-geocoder.sh) once the import is healthy.
 echo "==> [3/3] Geocoder OSM import (Nominatim)"
-if [ -n "${GEOCODER_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -s '${GEOCODER_DIR}/extract.osm.pbf'"; }; then
+# The import runs asynchronously on container boot; status.php reports ready only
+# once it has finished. Gate on READINESS, not just the extract's presence, so a
+# completed import is correctly skipped — and so a failed import isn't masked by
+# the extract still sitting on disk. We deliberately do NOT restart an import
+# that's merely still in progress (that would interrupt it); a genuinely stuck
+# import is recovered with FORCE=1. status.php is the geocoder's own host port
+# (deploy.yml geocoder: 127.0.0.1:8081).
+_geocoder_ready() { sshx "curl -sf --max-time 5 http://127.0.0.1:8081/status.php >/dev/null 2>&1"; }
+if [ -z "${GEOCODER_DIR}" ]; then
+  echo "    geocoder accessory not found — skipping."
+elif [ "${FORCE:-0}" != "1" ] && _geocoder_ready; then
+  echo "    geocoder already imported (status.php ready) — skipping."
+elif [ "${FORCE:-0}" != "1" ] && sshx "test -s '${GEOCODER_DIR}/extract.osm.pbf'"; then
+  echo "    extract placed but status.php not ready — import is in progress or needs"
+  echo "    attention; not restarting (would interrupt an in-flight import)."
+  echo "    Watch: docker logs -f flckd-backend-geocoder ; FORCE=1 to rebuild."
+else
   echo "    placing extract + rebooting geocoder (import runs in the background)…"
   sshx "set -e; \
     docker run --rm -v '${BUILD_DIR}:/src:ro' -v '${GEOCODER_DIR}:/dst' ${VALHALLA_IMAGE} \
       cp -f /src/extract.osm.pbf /dst/extract.osm.pbf; \
     docker restart flckd-backend-geocoder >/dev/null"
   echo "    geocoder import kicked off (watch: docker logs -f flckd-backend-geocoder)."
-else
-  echo "    extract already in place for the geocoder — skipping."
 fi
 
-echo "==> Geo provisioning done for ${REGION_LABEL} on ${GEO_HOST}."
+echo "==> Geo provisioning done for ${REGION_LABEL} on ${TARGET_HOST}."
 echo "    routing + tiles are live; the geocoder import completes in the background."
