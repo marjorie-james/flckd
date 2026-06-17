@@ -166,9 +166,10 @@ wrapper, it runs `infra/scripts/provision-geo-host.sh` after a successful `setup
 The script downloads the extract locally (Geofabrik throttles datacenter IPs, so it
 does *not* rely on the host reaching Geofabrik), streams it to the host, builds the
 routing graph + vector tiles **on the host** (native amd64) straight into the
-accessory dirs, places the geocoder extract, reboots each accessory, and filters
+accessory dirs, places the geocoder extract, reboots each accessory, filters
 the surveillance nodes from the extract into the **cameras table** (so the map has
-cameras + clustering bubbles from the first boot). It runs on
+cameras + clustering bubbles from the first boot), and imports **US Census TIGER
+house numbers** so specific street addresses resolve (not just streets). It runs on
 **`setup` only** — a routine `deploy` is just the app image swap and never rebuilds
 the (static, minutes-to-build) geo data. After a **deploy-scope change** rebuild it
 with `GEO_PROVISION=force kamal-docker deploy` or run it standalone:

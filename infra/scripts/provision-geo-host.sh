@@ -129,7 +129,7 @@ BUILD_DIR="${GEO_BUILD_DIR:-${HOST_HOME%/}/geo-build}"
 # stream the file to the host. Geofabrik commonly throttles datacenter IPs to a
 # hang, so we do not rely on the host reaching it directly. Cached on the host
 # between runs; FORCE=1 re-fetches.
-echo "==> [0/4] Ensure OSM extract on host (${BUILD_DIR}/extract.osm.pbf)"
+echo "==> [0/5] Ensure OSM extract on host (${BUILD_DIR}/extract.osm.pbf)"
 sshx "mkdir -p '${BUILD_DIR}'"
 # Mirror fetch-extract.sh: a sibling URL marker records which region the cached
 # extract is for, so a deploy-scope change (different REGION_URL) forces a fresh
@@ -169,7 +169,7 @@ fi
 # mid-write leaves a non-empty-but-truncated tar that `test -s` would wrongly
 # accept, and writing the marker last lets a failed restart self-heal on re-run.
 # The marker lives in the (deploy-owned) data dir; valhalla_service ignores it.
-echo "==> [1/4] Routing graph (Valhalla)"
+echo "==> [1/5] Routing graph (Valhalla)"
 # The completion marker also encodes the region (REGION_URL) so a deploy-scope
 # change rebuilds rather than serving the previous region's graph: rebuild when
 # the marker is absent OR its stored URL differs from the resolved REGION_URL.
@@ -194,7 +194,7 @@ fi
 # ── 2. Vector tiles (Planetiler → PMTiles) ───────────────────────────────────
 # Scratch (downloads + tmp) goes under /src (the build dir), so the accessory dir
 # only ever receives the finished tiles.pmtiles.
-echo "==> [2/4] Vector tiles (Planetiler → PMTiles)"
+echo "==> [2/5] Vector tiles (Planetiler → PMTiles)"
 # Same completion-marker gate as routing: a half-written tiles.pmtiles from an
 # interrupted Planetiler run would pass `test -s` but be unusable. The marker also
 # encodes REGION_URL so a deploy-scope change rebuilds the tiles for the new region.
@@ -220,7 +220,7 @@ fi
 # the container stays up and status.php reports not-ready until the import
 # finishes. TIGER house numbers + Wikipedia importance are a follow-on
 # (build-geocoder.sh) once the import is healthy.
-echo "==> [3/4] Geocoder OSM import (Nominatim)"
+echo "==> [3/5] Geocoder OSM import (Nominatim)"
 # The import runs asynchronously on container boot; status.php reports ready only
 # once it has finished. Gate on READINESS, not just the extract's presence, so a
 # completed import is correctly skipped — and so a failed import isn't masked by
@@ -259,7 +259,7 @@ fi
 # via Valhalla (already up). The volume survives deploys, so the daily DataRefreshJob
 # (job container) keeps re-reading it instead of finding the file gone with the
 # replaced container. The import is idempotent (add/update). Skip with CAMERAS=skip.
-echo "==> [4/4] Camera dataset (PBF-derived surveillance nodes → import)"
+echo "==> [4/5] Camera dataset (PBF-derived surveillance nodes → import)"
 # Resolve the live web container (the one running the app image; never a
 # *_replaced_* drain container from an in-flight deploy).
 WEB_CONTAINER="$(sshx "docker ps --format '{{.Names}}' | grep '^flckd-backend-web-' | grep -v '_replaced_' | head -1" || true)"
@@ -300,6 +300,87 @@ else
       cp /src/cameras.geojson /dst/cameras.geojson; \
     docker exec -e SOURCE=pbf '${WEB_CONTAINER}' bin/rails camera_data:import"
   echo "    camera import complete."
+fi
+
+# ── 5. TIGER house-number import (US Census address-range interpolation) ───────
+# Mirrors local build-geocoder.sh, for the Kamal geocoder container. Without this,
+# only OSM-native house numbers resolve (sparse); TIGER fills the rest of US street
+# addresses (e.g. "7418 Beechwood Drive"). US-only — skipped for tiger:false
+# countries. `nominatim add-data` needs a COMPLETE OSM import, so we wait for the
+# geocoder to report ready (at setup time step [3] kicked it off async). The host
+# reaches nominatim.org, so the (~1.8 GB whole-US) preprocessed bundle is downloaded
+# ON the host (cached); only the in-scope county CSVs are kept. The activation steps
+# (search frontend + SQL functions + numeric-token cleanup) match build-geocoder.sh
+# and are idempotent. Skip with TIGER=skip; FORCE=1 reimports.
+echo "==> [5/5] TIGER house-number import (Nominatim add-data)"
+TIGER_YEAR="${TIGER_YEAR:-2024}"
+TIGER_BUNDLE_URL="${TIGER_BUNDLE_URL:-https://nominatim.org/data/tiger${TIGER_YEAR}-nominatim-preprocessed.csv.tar.gz}"
+TIGER_UA="${TIGER_USER_AGENT:-flckd-setup (+https://github.com/marjorie-james/flckd)}"
+TIGER_WAIT="${TIGER_WAIT:-2700}"   # seconds to wait for geocoder readiness (~45 min)
+if [ "${TIGER:-}" = "skip" ]; then
+  echo "    TIGER=skip — leaving house-number data as-is."
+elif [ "${COUNTRY_TIGER:-true}" != "true" ]; then
+  echo "    TIGER does not apply to ${COUNTRY_NAME:-this country} (registry tiger:false) — skipping."
+elif [ -z "${GEOCODER_DIR}" ]; then
+  echo "    geocoder accessory not found — skipping TIGER import."
+else
+  # Scope: a single-state deploy filters to that state's counties (FIPS prefix); a
+  # whole-country deploy keeps every county. Resolve the state from the extract slug
+  # (same token deploy-scope uses); a non-resolving slug ⇒ whole-US.
+  # shellcheck source=infra/scripts/state-registry.sh
+  . "${ROOT}/scripts/state-registry.sh"
+  _tiger_slug="${REGION_URL##*/}"; _tiger_slug="${_tiger_slug%-latest.osm.pbf}"; _tiger_slug="${_tiger_slug%.osm.pbf}"
+  if state_resolve "${_tiger_slug}" 2>/dev/null; then
+    TIGER_SCOPE="${STATE_FIPS}"; TIGER_REGEX="^${STATE_FIPS}[0-9]{3}\\.csv\$"; TIGER_DESC="${STATE_LABEL} (FIPS ${STATE_FIPS})"
+  else
+    TIGER_SCOPE="us"; TIGER_REGEX="^[0-9]{5}\\.csv\$"; TIGER_DESC="whole US"
+  fi
+  echo "    scope: ${TIGER_DESC}"
+
+  _tiger_count() { sshx "docker exec -u postgres flckd-backend-geocoder psql -d nominatim -tAc 'select count(*) from location_property_tiger' 2>/dev/null || echo 0"; }
+  if [ "${FORCE:-0}" != "1" ] && [ "$(_tiger_count)" -gt 0 ]; then
+    echo "    TIGER already imported (location_property_tiger populated) — skipping (FORCE=1 to reimport)."
+  else
+    # add-data needs a complete OSM import. At setup time that import is still
+    # running (step [3] kicked it off async), so block on readiness here.
+    echo "    waiting for geocoder readiness (up to $((TIGER_WAIT/60)) min)…"
+    _tiger_ready=0; _tiger_waited=0
+    while [ "${_tiger_waited}" -lt "${TIGER_WAIT}" ]; do
+      if sshx "curl -sf --max-time 5 http://127.0.0.1:8081/status.php >/dev/null 2>&1"; then _tiger_ready=1; break; fi
+      sleep 15; _tiger_waited=$((_tiger_waited + 15))
+    done
+    if [ "${_tiger_ready}" != "1" ]; then
+      echo "    geocoder not ready after $((TIGER_WAIT/60)) min — skipping TIGER for now." >&2
+      echo "    Re-run infra/scripts/provision-geo-host.sh once it's ready (docker logs -f flckd-backend-geocoder)." >&2
+    else
+      # Download (cached) + extract the in-scope county CSVs into the geocoder import
+      # dir, then import. Runs as one host-side script (no nested ssh quoting); the
+      # CSV filter uses the host's tar, then a root container copies them into the
+      # root-owned import dir.
+      echo "    downloading TIGER ${TIGER_YEAR} bundle on host (cached) + extracting ${TIGER_DESC}…"
+      sshx "bash -s" <<EOF_TIGER
+set -euo pipefail
+BUNDLE="${BUILD_DIR}/tiger-bundle.tar.gz"
+SCRATCH="${BUILD_DIR}/tiger/${TIGER_SCOPE}"
+test -s "\$BUNDLE" || curl -fSL --retry 6 --retry-delay 5 --retry-all-errors -A '${TIGER_UA}' -o "\$BUNDLE" '${TIGER_BUNDLE_URL}'
+mkdir -p "\$SCRATCH"; rm -f "\$SCRATCH"/*.csv
+members="\$(tar tzf "\$BUNDLE" | grep -E '${TIGER_REGEX}')"
+[ -n "\$members" ] || { echo "TIGER: no in-scope county CSVs in bundle for ${TIGER_SCOPE}" >&2; exit 1; }
+printf '%s\n' "\$members" | tar xzf "\$BUNDLE" -C "\$SCRATCH" -T -
+echo "    extracted \$(ls "\$SCRATCH"/*.csv | wc -l | tr -d ' ') county CSV(s)"
+docker run --rm -v "${BUILD_DIR}:/src:ro" -v "${GEOCODER_DIR}:/dst" busybox sh -c 'mkdir -p /dst/tiger/${TIGER_SCOPE} && cp /src/tiger/${TIGER_SCOPE}/*.csv /dst/tiger/${TIGER_SCOPE}/'
+EOF_TIGER
+      echo "    importing into Nominatim (add-data + refresh)…"
+      sshx "docker exec -u nominatim -w /nominatim flckd-backend-geocoder nominatim add-data --tiger-data /nominatim/import/tiger/${TIGER_SCOPE}"
+      # Activate TIGER lookups: search frontend + SQL functions (gated on the flag).
+      sshx "docker exec -u nominatim -w /nominatim flckd-backend-geocoder bash -c 'grep -q \"^NOMINATIM_USE_US_TIGER_DATA=\" .env || echo NOMINATIM_USE_US_TIGER_DATA=yes >> .env; nominatim refresh --website --functions'"
+      # Drop purely-numeric word tokens that shadow house numbers (see build-geocoder.sh).
+      sshx "docker exec -i -u postgres flckd-backend-geocoder psql -d nominatim -v ON_ERROR_STOP=1" <<'SQL'
+DELETE FROM word WHERE type IN ('W','w') AND word_token ~ '^[0-9]+$';
+SQL
+      echo "    TIGER import complete — house-number geocoding enabled."
+    fi
+  fi
 fi
 
 echo "==> Geo provisioning done for ${REGION_LABEL} on ${TARGET_HOST}."

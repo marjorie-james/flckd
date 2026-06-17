@@ -47,7 +47,11 @@ case "${cmd}" in
   *"test -s"*"extract.osm.pbf"*)
     [ "${PROV_EXTRACT_CACHED:-0}" = "1" ] && exit 0 || exit 1 ;;
   *"status.php"*)
-    exit 1 ;;  # geocoder not ready (forces the place+reboot branch if reached)
+    # Geocoder readiness: PROV_GEOCODER_READY=1 → ready (step 3 skip + step 5 proceed).
+    [ "${PROV_GEOCODER_READY:-0}" = "1" ] && exit 0 || exit 1 ;;
+  *"location_property_tiger"*)
+    # TIGER idempotency check (step 5): echo the row count.
+    echo "${PROV_TIGER_COUNT:-0}"; exit 0 ;;
   *"flckd-backend-web-"*)
     # Web-container resolution (step 4): echo a fake name iff PROV_WEB_PRESENT=1.
     # The import's own `docker cp/exec` lines also match this and just succeed.
@@ -166,4 +170,42 @@ teardown() { rm -rf "${BATS_TEST_TMPDIR}"; }
   ALLOW_EMPTY=1 PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 PROV_CAM_FEATURES=0 run bash "${SCRIPT}"
   assert_success
   assert_output --partial "importing into flckd-backend-web-test"
+}
+
+# ---------------------------------------------------------------------------
+# Step 5 — TIGER house-number import
+# ---------------------------------------------------------------------------
+
+@test "tiger step: TIGER=skip leaves house-number data as-is" {
+  TIGER=skip PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "TIGER=skip"
+}
+
+@test "tiger step: skips when the geocoder accessory is absent" {
+  PROV_ACCESSORIES_PRESENT=0 PROV_EXTRACT_CACHED=1 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "geocoder accessory not found — skipping TIGER import"
+}
+
+@test "tiger step: imports when geocoder is ready and TIGER not yet loaded" {
+  PROV_ACCESSORIES_PRESENT=1 PROV_MOUNT=/data PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 \
+    PROV_GEOCODER_READY=1 PROV_TIGER_COUNT=0 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "importing into Nominatim"
+  assert_output --partial "TIGER import complete"
+}
+
+@test "tiger step: skips when TIGER is already loaded (idempotent)" {
+  PROV_ACCESSORIES_PRESENT=1 PROV_MOUNT=/data PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 \
+    PROV_GEOCODER_READY=1 PROV_TIGER_COUNT=42 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "TIGER already imported"
+}
+
+@test "tiger step: skips (does not hang) when the geocoder never becomes ready" {
+  PROV_ACCESSORIES_PRESENT=1 PROV_MOUNT=/data PROV_EXTRACT_CACHED=1 PROV_WEB_PRESENT=1 \
+    PROV_GEOCODER_READY=0 PROV_TIGER_COUNT=0 TIGER_WAIT=0 run bash "${SCRIPT}"
+  assert_success
+  assert_output --partial "geocoder not ready"
 }
