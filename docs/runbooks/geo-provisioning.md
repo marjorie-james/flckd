@@ -25,6 +25,13 @@ automatically after the app comes up. The script:
    populated as part of setup** (otherwise the map shows no cameras / clustering
    bubbles). Skip with `CAMERAS=skip`; the empty-set guard refuses to import an
    implausibly empty result unless `ALLOW_EMPTY=1`.
+5. imports **US Census TIGER house-number data** into the geocoder (the prod mirror
+   of `build-geocoder.sh`) — so specific street addresses ("7418 Beechwood Drive")
+   resolve, not just streets. US-only; waits for the geocoder OSM import to finish
+   first (`add-data` needs a complete DB), downloads the preprocessed bundle on the
+   host, keeps the in-scope counties, then activates TIGER lookups (search frontend +
+   SQL functions) and clears numeric tokens that shadow house numbers. Skip with
+   `TIGER=skip`; `FORCE=1` reimports.
 
 > **Persistence vs. freshness.** Step 4 writes `cameras.geojson` into the persistent
 > `flckd-cameras` named volume (mounted read-only into the app roles at
@@ -164,10 +171,13 @@ app is already up); it warns and tells you to re-run.
   Nominatim import; the container stays up but `status.php` reports not-ready
   until it finishes (~10–20 min for a state, hours for whole-US). Watch:
   `docker logs -f flckd-backend-geocoder`.
-- **House-number geocoding (TIGER) is a follow-on.** `provision-geo-host.sh` gets
-  base geocoding working (OSM house numbers). US TIGER house numbers + Wikipedia
-  importance are added by `infra/scripts/build-geocoder.sh`, which needs the OSM
-  import *complete* first. It self-heals on a later run.
+- **House-number geocoding (TIGER) is now step [5], not a manual follow-on.**
+  `provision-geo-host.sh` imports US Census TIGER house numbers itself (the prod
+  mirror of the dev-only `build-geocoder.sh`), after waiting for the OSM import to
+  complete (`add-data` needs a finished DB). It is idempotent (skips when
+  `location_property_tiger` is already populated; `FORCE=1` reimports) and self-heals
+  on a later run if the geocoder wasn't ready in time. Wikipedia importance is still
+  an optional manual extra. `TIGER=skip` bypasses the step.
 - **The build loads the production box.** Routing + tile builds use host CPU/RAM.
   For a state this is minutes and fine; for whole-US, provision during a quiet
   window or use the release-based pipeline instead.
