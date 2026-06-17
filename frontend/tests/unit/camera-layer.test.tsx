@@ -21,6 +21,7 @@ const H = vi.hoisted(() => {
     data: { cameras: [] as unknown[] },
     reduced: false,
     bboxes: [] as Array<string | null>,
+    zooms: [] as Array<number | null>,
     debounceDelays: [] as number[],
     popups,
     FakePopup,
@@ -28,7 +29,7 @@ const H = vi.hoisted(() => {
 });
 
 vi.mock("../../src/services/cameraApi", () => ({
-  useCameras: (bbox: string | null) => { H.bboxes.push(bbox); return { data: H.data }; },
+  useCameras: (bbox: string | null, zoom: number | null) => { H.bboxes.push(bbox); H.zooms.push(zoom); return { data: H.data }; },
 }));
 vi.mock("../../src/hooks/useDebounce", () => ({
   useDebounce: (v: string, delay: number) => { H.debounceDelays.push(delay); return v; },
@@ -62,6 +63,7 @@ function makeFakeMap(bounds = BOUNDS) {
   return {
     calls,
     getBounds: () => bounds,
+    getZoom: () => 12,
     isStyleLoaded: () => true,
     getLayer: () => undefined,
     getSource: () => (added ? source : undefined),
@@ -83,7 +85,7 @@ function makeFakeMap(bounds = BOUNDS) {
   };
 }
 
-beforeEach(() => { H.data = { cameras: [] }; H.reduced = false; H.bboxes = []; H.debounceDelays = []; H.popups.length = 0; });
+beforeEach(() => { H.data = { cameras: [] }; H.reduced = false; H.bboxes = []; H.zooms = []; H.debounceDelays = []; H.popups.length = 0; });
 
 describe("CameraLayer viewport fetch (T002)", () => {
   it("computes a bbox from the map and fetches cameras for it (debounced)", () => {
@@ -98,6 +100,14 @@ describe("CameraLayer viewport fetch (T002)", () => {
     render(<CameraLayer map={map as never} />);
     act(() => map.fire("moveend"));
     expect(H.bboxes.filter((b) => b === "-93.7,41.5,-93.5,41.7").length).toBeGreaterThan(0);
+  });
+
+  it("sends the floored map zoom (so the backend can drop detail when zoomed out)", () => {
+    const map = makeFakeMap();
+    render(<CameraLayer map={map as never} />);
+    // The bbox stays clean (zoom rides a separate arg, not the bbox string).
+    expect(H.bboxes).toContain("-93.7,41.5,-93.5,41.7");
+    expect(H.zooms).toContain(12);
   });
 });
 

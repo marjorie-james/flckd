@@ -194,13 +194,16 @@ function popupHtml(
 
 export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
   const { t } = useTranslation();
-  // 1. Viewport bbox on settle (moveend), debounced so rapid moves coalesce (FR-002/003).
-  const [rawBbox, setRawBbox] = useState("");
+  // 1. Viewport bbox + zoom on settle (moveend), debounced so rapid moves
+  // coalesce (FR-002/003). The (floored) zoom rides along so the backend can
+  // drop the heavy segment geometry when zoomed out (lighter payload). bbox and
+  // zoom share one debounced value so they always stay in sync.
+  const [rawView, setRawView] = useState("");
   useEffect(() => {
     if (!map) return;
     const update = () => {
       const b = map.getBounds();
-      setRawBbox(`${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}`);
+      setRawView(`${b.getWest()},${b.getSouth()},${b.getEast()},${b.getNorth()}|${Math.floor(map.getZoom())}`);
     };
     update(); // frame the current view immediately
     map.on("moveend", update);
@@ -208,8 +211,10 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
       map.off("moveend", update);
     };
   }, [map]);
-  const bbox = useDebounce(rawBbox, BBOX_DEBOUNCE_MS);
-  const { data } = useCameras(bbox || null);
+  const view = useDebounce(rawView, BBOX_DEBOUNCE_MS);
+  const [bbox, zoomStr] = view.split("|");
+  const zoom = zoomStr ? Number(zoomStr) : null;
+  const { data } = useCameras(bbox || null, zoom);
 
   // 2. Clustered source + layers; setData on every viewport result (FR-001/004/010).
   useEffect(() => {

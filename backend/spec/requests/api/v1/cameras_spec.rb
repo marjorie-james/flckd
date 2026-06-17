@@ -38,6 +38,38 @@ RSpec.describe "GET /api/v1/cameras", type: :request do
     expect(cam["facing_direction"]).to be_nil
   end
 
+  it "omits the segment geometry when zoomed out below the detail threshold" do
+    camera = create(:camera, location: "SRID=4326;POINT(-104.99 39.74)", confidence: 0.9, facing_direction: 90)
+    create(:monitored_segment, camera: camera,
+                               geometry: "SRID=4326;LINESTRING(-104.991 39.74, -104.989 39.74)")
+
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8", zoom: "11" }
+
+    cam = response.parsed_body["cameras"].find { |c| c["id"] == camera.id }
+    # Heavy geometry dropped for the lighter zoomed-out payload...
+    expect(cam["snapped_location"]).to be_nil
+    expect(cam["segment"]).to be_nil
+    # ...but the cheap point fields still come back so the dot renders.
+    expect(cam["facing_direction"]).to eq(90)
+  end
+
+  it "includes the segment geometry at or above the detail threshold" do
+    camera = create(:camera, location: "SRID=4326;POINT(-104.99 39.74)", confidence: 0.9)
+    create(:monitored_segment, camera: camera,
+                               geometry: "SRID=4326;LINESTRING(-104.991 39.74, -104.989 39.74)")
+
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8", zoom: "16" }
+
+    cam = response.parsed_body["cameras"].find { |c| c["id"] == camera.id }
+    expect(cam["segment"]).to eq([ [ -104.991, 39.74 ], [ -104.989, 39.74 ] ])
+  end
+
+  it "400s on a non-numeric zoom (strict, unlike to_f coercing to 0.0)" do
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8", zoom: "abc" }
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig("details", "param")).to eq("zoom")
+  end
+
   it "400s without a bbox" do
     get "/api/v1/cameras"
     expect(response).to have_http_status(:bad_request)
