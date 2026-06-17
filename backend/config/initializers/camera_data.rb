@@ -1,9 +1,13 @@
 # Camera-data aggregation configuration (feature 003).
 #
 # CAMERA_REFRESH_MISSING_LIMIT — how many consecutive daily refreshes a camera
-# may be absent from its source before it is auto-retired (verification_status
-# set to "removed", excluding it from routing). Verified cameras are exempt.
-# Default 3 (per spec clarification); ENV-overridable for ops tuning.
+# may be absent from its source before it is auto-retired. Auto-retirement sets
+# the RECOVERABLE `auto_retired` flag (Camera#mark_missing!), which excludes the
+# camera from routing but is automatically revived if the source reports it again
+# (Camera#seen_in_source!). This is distinct from verification_status="removed",
+# the TERMINAL human-only removal path (Camera#remove!). Verified cameras are
+# exempt from auto-retirement. Default 3 (per spec clarification); ENV-overridable
+# for ops tuning.
 #
 # CAMERA_OSM_SOURCE — which mechanism supplies the OpenStreetMap ALPR substrate
 # (ADR 0002). The DATA and license are identical either way (OpenStreetMap,

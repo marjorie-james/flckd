@@ -74,4 +74,20 @@ RSpec.describe "GET /api/v1/cameras", type: :request do
     get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9foo,39.8" }
     expect(response).to have_http_status(:bad_request)
   end
+
+  it "400s on a non-numeric min_confidence (strict, unlike to_f coercing to 0.0)" do
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8", min_confidence: "abc" }
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig("details", "param")).to eq("min_confidence")
+  end
+
+  it "applies the default 0.0 floor when min_confidence is omitted" do
+    inside = create(:camera, location: "SRID=4326;POINT(-104.99 39.74)", confidence: 0.1)
+
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8" }
+
+    expect(response).to have_http_status(:ok)
+    ids = response.parsed_body["cameras"].map { |c| c["id"] }
+    expect(ids).to include(inside.id)
+  end
 end

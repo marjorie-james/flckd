@@ -146,6 +146,27 @@ RSpec.describe DataRefreshJob, type: :job do
     expect { expect(run!).to eq(:skipped) }.not_to change(Camera, :count)
   end
 
+  it "reaps a run stuck in 'running' past the staleness threshold and proceeds" do
+    # A process killed non-gracefully (SIGKILL/OOM) leaves this row stuck forever.
+    stuck = RefreshRun.create!(trigger: "scheduled", started_at: 7.hours.ago, status: "running")
+    allow(Telemetry).to receive(:alert)
+
+    expect { run! }.to change(Camera, :count).by(1)
+
+    expect(stuck.reload.status).to eq("failed")
+    expect(stuck.finished_at).to be_present
+    expect(Telemetry).to have_received(:alert).with(a_string_including("reaped stale run"), hash_including(run_id: stuck.id))
+    # A fresh run actually proceeded (no longer blocked by the stuck guard).
+    expect(RefreshRun.last.status).to eq("success")
+  end
+
+  it "does NOT reap a recently-started running run (still skips per FR-014)" do
+    recent = RefreshRun.create!(trigger: "manual", started_at: 10.minutes.ago, status: "running")
+
+    expect { expect(run!).to eq(:skipped) }.not_to change(Camera, :count)
+    expect(recent.reload.status).to eq("running")
+  end
+
   it "supports a manual trigger" do
     run!(trigger: "manual")
     expect(RefreshRun.last.trigger).to eq("manual")

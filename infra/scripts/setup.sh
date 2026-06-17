@@ -105,8 +105,51 @@ _est_remaining() {
 # Inner content between │ and │ = 46 visible chars → total line = 50 chars
 _SEP=$(printf '─%.0s' {1..46})
 
-# Restore cursor on any exit (Ctrl-C, error, or clean finish)
+# ── Interrupt cleanup ────────────────────────────────────────────────────────
+# A Ctrl-C (or kill) during a long step would otherwise leak two things:
+#   1. the DETACHED `docker compose up -d` containers setup started (notably the
+#      multi-hour Nominatim OSM import, which keeps running in the daemon), and
+#   2. the current step's background job + its mktemp log (rm'd only on the
+#      normal done/failed paths inside _run_step).
+# These script-level vars let the interrupt handler reach both. _CUR_PID/_CUR_LOG
+# track the running step (promoted out of _run_step's local scope); the import
+# overlap and the final `up -d` set _STARTED_SERVICES so cleanup only tears down
+# THIS project's compose stack when setup actually started something.
+_CUR_PID=""
+_CUR_LOG=""
+_STARTED_SERVICES=""
+
+# _on_interrupt: restore the cursor, kill the current step's job + remove its log,
+# and — if setup brought up detached services — `stop` this project's compose stack
+# (which includes the geocoder import). Never `down -v`: a Ctrl-C must not destroy
+# data. Idempotent, so the EXIT trap (cursor restore only) firing afterwards is safe.
+_on_interrupt() {
+  tput cnorm 2>/dev/null || true
+  [ -n "${_CUR_PID}" ] && kill "${_CUR_PID}" 2>/dev/null || true
+  [ -n "${_CUR_LOG}" ] && rm -f "${_CUR_LOG}" 2>/dev/null || true
+  if [ -n "${_STARTED_SERVICES}" ]; then
+    docker compose -f "${COMPOSE_FILE}" stop >/dev/null 2>&1 || true
+  fi
+  echo >&2
+  error "setup interrupted — stopped background containers."
+  exit 130
+}
+
+# Restore cursor on any exit (Ctrl-C, error, or clean finish); stop leaked
+# background work on an interrupt (INT/TERM) via _on_interrupt.
 trap 'tput cnorm 2>/dev/null || true' EXIT
+trap '_on_interrupt' INT TERM
+
+# Source-only seam (tests): when the script is SOURCED with SETUP_SOURCE_ONLY=1,
+# stop here — the interrupt machinery (_on_interrupt, _CUR_PID/_CUR_LOG/_
+# STARTED_SERVICES) and the colour/log helpers above are defined, but none of the
+# main flow (scope resolution, Docker work) runs. Normal execution and the dry-run
+# path are untouched (SETUP_SOURCE_ONLY is unset there, and `return` outside a
+# sourced file would error — but it's never reached when run normally). Lets a bats
+# test exercise _on_interrupt directly with no real signals or Docker.
+if [ "${SETUP_SOURCE_ONLY:-0}" = "1" ]; then
+  return 0 2>/dev/null || exit 0
+fi
 
 # ── State code resolution ──────────────────────────────────────────────────────
 # _resolve_code CODE: match a state by its two-letter USPS abbreviation (e.g. IA)
@@ -277,6 +320,7 @@ EOF
       cat <<EOF
 COUNTRY="${COUNTRY_FOR_CONFIG}"
 REGION_LABEL="${REGION_LABEL}"
+REGION_URL="${COUNTRY_EXTRACT_URL}"
 EOF
     else
       cat <<EOF
@@ -405,6 +449,7 @@ fi
     # forget; the wait below surfaces any failure. _GEOCODER_T0 makes the wait
     # count the whole import.
     _GEOCODER_T0=$SECONDS
+    _STARTED_SERVICES=1  # detached containers now running — clean them up on Ctrl-C
     docker compose -f "${COMPOSE_FILE}" up -d geocoder >/dev/null 2>&1 || true
 
     echo
@@ -559,6 +604,10 @@ fi
 
       "$@" >"$log" 2>&1 &
       local pid=$!
+      # Promote the running job + its log to script scope so _on_interrupt can
+      # reach them (the locals are invisible to a trap firing mid-step).
+      _CUR_PID=$pid
+      _CUR_LOG=$log
       tput civis 2>/dev/null || true
 
       while kill -0 "$pid" 2>/dev/null; do
@@ -584,6 +633,7 @@ fi
         _T_TIMES[$idx]="$et"
         _draw_panel 0
         rm -f "$log"
+        _CUR_PID=""; _CUR_LOG=""
       else
         _T_STATES[$idx]="failed"
         _T_TIMES[$idx]="$et"
@@ -615,6 +665,7 @@ fi
         esac
         echo
         rm -f "$log"
+        _CUR_PID=""; _CUR_LOG=""
         exit 1
       fi
     }
@@ -722,6 +773,7 @@ fi
     # surfaces any failure. _GEOCODER_T0 lets that step show the true import
     # elapsed + ETA (counting the overlap), not just the residual wait.
     _GEOCODER_T0=$SECONDS
+    _STARTED_SERVICES=1  # detached containers now running — clean them up on Ctrl-C
     docker compose -f "${COMPOSE_FILE}" up -d geocoder >/dev/null 2>&1 || true
 
     # 4 — Build routing graph (Valhalla) + vector tiles (Planetiler) in parallel

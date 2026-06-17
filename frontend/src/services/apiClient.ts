@@ -35,12 +35,17 @@ async function handle<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-export function apiGet<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+export function apiGet<T>(
+  path: string,
+  params?: Record<string, string | number>,
+  signal?: AbortSignal,
+): Promise<T> {
   const qs = params
     ? "?" + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
     : "";
   return fetch(`${base()}${path}${qs}`, {
     headers: { "Accept-Language": currentLocale() },
+    signal,
   }).then((r) => handle<T>(r));
 }
 

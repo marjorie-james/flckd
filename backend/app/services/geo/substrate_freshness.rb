@@ -19,12 +19,16 @@ module Geo
 
     def check
       modified = @routing.status["tileset_last_modified"]
-      if modified.nil?
+      epoch = modified.to_i
+      # Treat any non-positive/non-numeric epoch as unknown, like a missing value:
+      # "", 0, and junk all coerce to <= 0 and would otherwise compute a garbage
+      # age (~epoch 0) and fire a spurious stale/rebuild alert.
+      if modified.nil? || epoch <= 0
         Telemetry.alert("geo substrate freshness unknown — routing /status had no tileset_last_modified")
         return Result.new(state: :unknown, age_days: nil)
       end
 
-      age_days = ((Time.current - Time.at(modified.to_i)) / 1.day).floor
+      age_days = ((Time.current - Time.at(epoch)) / 1.day).floor
       if age_days > @stale_after_days
         Telemetry.alert(
           "geo routing tileset is stale — rebuild the substrate (see docs/runbooks/geo-stack.md)",

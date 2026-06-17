@@ -70,6 +70,23 @@ echo "Exporting GeoJSON → ${OUT}"
 # OsmExtractFile turns back into the canonical osm:node/<id> external_ref.
 osmium_run export --overwrite -f geojson --add-unique-id=type_id -o "${OUT}" "${TMP_PBF}"
 
+# Fail closed on an implausibly empty export. A corrupt/partial extract or a wrong
+# EXTRACT_PATH yields a valid-but-empty FeatureCollection; downstream that imports
+# as a successful zero-camera set, and on the daily cadence 3 consecutive empties
+# auto-retire the ENTIRE camera set (FR-008/009). Refuse it unless explicitly
+# overridden (ALLOW_EMPTY=1 — e.g. a genuinely camera-free region). build-geo.sh
+# runs under `set -e`, so this non-zero exit aborts before the import step.
+COUNT="$(grep -c '"Feature"' "${OUT}" 2>/dev/null || true)"
+COUNT="${COUNT:-0}"
+if [ "${COUNT}" -lt "${MIN_CAMERA_FEATURES:-1}" ] && [ "${ALLOW_EMPTY:-0}" != "1" ]; then
+  echo "error: ${COUNT} surveillance features in ${OUT} (< ${MIN_CAMERA_FEATURES:-1})." >&2
+  echo "       refusing to feed an empty camera set downstream (it would auto-retire" >&2
+  echo "       the whole camera set after 3 daily empties). Check EXTRACT_PATH is a" >&2
+  echo "       complete, current extract. Set ALLOW_EMPTY=1 to override." >&2
+  rm -f "${TMP_PBF}"
+  exit 1
+fi
+
 rm -f "${TMP_PBF}"
-echo "Done. $(grep -c '"Feature"' "${OUT}" 2>/dev/null || echo '?') candidate features in ${OUT}"
+echo "Done. ${COUNT} candidate features in ${OUT}"
 echo "Deliver this file to the app host at CAMERA_OSM_GEOJSON_PATH (default storage/cameras.geojson)."

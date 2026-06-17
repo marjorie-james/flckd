@@ -30,11 +30,10 @@ namespace :eval do
       dest   = { lat: cities[b][0], lng: cities[b][1] }
 
       started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      avoid = planner.plan(origin: origin, destination: dest, preference: "avoid")
+      avoid = planner.plan(origin: origin, destination: dest)
       durations << (Process.clock_gettime(Process::CLOCK_MONOTONIC) - started)
 
-      fastest = planner.plan(origin: origin, destination: dest, preference: "fastest")
-      passed = fastest.remaining_cameras.size # cameras the fastest route drives past
+      passed = avoid.fastest_comparison[:cameras_passed_count] # cameras the fastest route drives past
       next unless passed.positive?            # only pairs where avoidance is actually needed
 
       rows << { pair: "#{a} → #{b}", passed: passed, clean: avoid.is_fully_clean,

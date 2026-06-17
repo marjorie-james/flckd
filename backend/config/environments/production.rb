@@ -43,8 +43,12 @@ Rails.application.configure do
   # Don't log any deprecations.
   config.active_support.report_deprecations = false
 
-  # Replace the default in-process memory cache store with a durable alternative.
-  # config.cache_store = :mem_cache_store
+  # Replace the default file cache store with Solid Cache on the dedicated `cache`
+  # database (see config/cache.yml and the create_solid_cache_entries migration in
+  # db/cache_migrate). This is durable and SHARED across Kamal containers, which is
+  # what Rack::Attack's throttle counters need to aggregate cluster-wide rather than
+  # counting per-container in a process-local store.
+  config.cache_store = :solid_cache_store
 
   # Durable Active Job backend: Solid Queue, on the primary database (no dedicated
   # queue DB — see config/queue.yml and the create_solid_queue_tables migration).

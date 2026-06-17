@@ -46,4 +46,34 @@ RSpec.describe CameraData::SegmentSnapper do
     expect(segments.map(&:camera_id)).to eq(cameras.map(&:id)) # input order preserved
     expect(MonitoredSegment.count).to eq(5)
   end
+
+  # A road lookup that raises for one specific camera location and succeeds for the
+  # rest, so a single failing lookup must NOT abort the whole snap pass.
+  def flaky_lookup(failing_lng:)
+    Class.new do
+      define_method(:failing_lng) { failing_lng }
+      def nearest_road(lng:, lat:)
+        raise "lookup boom" if lng == failing_lng
+
+        { osm_way_id: 999, geometry_ewkt: "SRID=4326;LINESTRING(#{lng} #{lat}, #{lng + 0.001} #{lat})", distance_m: 4.0 }
+      end
+    end.new
+  end
+
+  [ 1, 4 ].each do |concurrency|
+    it "snaps the remaining cameras when one camera's lookup raises (concurrency=#{concurrency})" do
+      good_a = create(:camera, location: "SRID=4326;POINT(-104.10 39.0)")
+      bad    = create(:camera, location: "SRID=4326;POINT(-104.20 39.0)")
+      good_b = create(:camera, location: "SRID=4326;POINT(-104.30 39.0)")
+      lookup = flaky_lookup(failing_lng: -104.20)
+
+      segments = nil
+      expect {
+        segments = described_class.new(road_lookup: lookup, concurrency: concurrency).snap_all([ good_a, bad, good_b ])
+      }.not_to raise_error
+
+      expect(segments.map(&:camera_id)).to contain_exactly(good_a.id, good_b.id)
+      expect(MonitoredSegment.count).to eq(2)
+    end
+  end
 end

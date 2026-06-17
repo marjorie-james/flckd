@@ -6,10 +6,18 @@ import { useEffect, useState } from "react";
 export function useDebounce(value: string, delay: number, flushBelow = 0): string {
   const shouldFlush = flushBelow > 0 && value.trim().length < flushBelow;
   const [debounced, setDebounced] = useState(value);
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (shouldFlush) return;
+    // While flushing, keep `debounced` in sync with the (short) value so that
+    // when the input crosses back above the threshold we don't return a stale
+    // previously-typed query for one render.
+    if (shouldFlush) {
+      setDebounced(value);
+      return;
+    }
     const id = setTimeout(() => setDebounced(value), delay);
     return () => clearTimeout(id);
   }, [value, delay, shouldFlush]);
+  /* eslint-enable react-hooks/set-state-in-effect */
   return shouldFlush ? value : debounced;
 }

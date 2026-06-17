@@ -66,7 +66,19 @@ sshx "mkdir -p '${DIST_DIR}' '${CADDY_DIR}'"
 # the old files until restart — clearing + copying into the same inode is seen live.
 sshx "rm -rf '${DIST_DIR}.new' && mkdir -p '${DIST_DIR}.new'"
 tar -C "${DIST}" -czf - . | sshx "tar -C '${DIST_DIR}.new' -xzf -"
-sshx "find '${DIST_DIR}' -mindepth 1 -delete && cp -a '${DIST_DIR}.new/.' '${DIST_DIR}/' && rm -rf '${DIST_DIR}.new'"
+# Swap by CONTENTS with NO empty window: copy the new files in FIRST (overwriting
+# in place, keeping the bind-mounted inode Caddy serves), THEN prune only the
+# stale paths that aren't in the new build, THEN drop the staging dir. The old
+# "delete everything then copy" left the live document root empty for the whole
+# copy (a brief 404 outage on every redeploy). The prune walks the new tree and
+# deletes any sibling under the live dir whose relative path is absent from .new.
+sshx "set -e; \
+  cp -a '${DIST_DIR}.new/.' '${DIST_DIR}/'; \
+  cd '${DIST_DIR}'; \
+  find . -mindepth 1 -depth -print | while IFS= read -r p; do \
+    [ -e \"${DIST_DIR}.new/\$p\" ] || rm -rf \"\$p\"; \
+  done; \
+  rm -rf '${DIST_DIR}.new'"
 tar -C "$(dirname "${CADDYFILE}")" -czf - "$(basename "${CADDYFILE}")" | sshx "tar -C '${CADDY_DIR}' -xzf -"
 
 # ── 3. Boot or reload Caddy ──────────────────────────────────────────────────

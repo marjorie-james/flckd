@@ -76,18 +76,43 @@ resolve_target_host "${1:-${GEO_HOST:-}}"
 echo "==> Provisioning geo substrate for ${REGION_LABEL} on ${TARGET_HOST}"
 echo "    extract: ${REGION_URL}"
 
+# True iff the named accessory container exists on the host.
+accessory_exists() {  # <container>
+  sshx "docker inspect $1 >/dev/null 2>&1"
+}
+
 # Resolve the on-host dir backing an accessory's container path via docker inspect
 # (robust to wherever Kamal placed the bind source). Echoes the host path.
 accessory_dir() {  # <container> <container-path>
   sshx "docker inspect $1 --format '{{range .Mounts}}{{if eq .Destination \"$2\"}}{{.Source}}{{end}}{{end}}'" 2>/dev/null
 }
 
-# `|| true`: docker inspect exits non-zero when a container is absent, and a bare
-# `VAR="$(cmd)"` under `set -e` would abort here instead of letting the per-step
-# `[ -n "${DIR}" ]` guards skip the missing accessory gracefully.
-ROUTING_DIR="$(accessory_dir flckd-backend-routing /data || true)"
-TILES_DIR="$(accessory_dir flckd-backend-tiles /data || true)"
-GEOCODER_DIR="$(accessory_dir flckd-backend-geocoder /nominatim/import || true)"
+# Resolve an accessory's host data dir, distinguishing two cases that the old
+# `accessory_dir ... || true` collapsed into a silent skip:
+#   - container ABSENT  → echo nothing (legitimate skip; the per-step `[ -n … ]`
+#     guards no-op the missing accessory, e.g. a partial setup)
+#   - container PRESENT but the data mount can't be resolved → LOUD failure
+#     (exit 1). Otherwise a present-but-unmounted accessory would resolve to an
+#     empty dir, every step would skip, and the script would print success and
+#     exit 0 with the geo substrate never built — an invisible failure.
+resolve_accessory_dir() {  # <container> <container-path>
+  if ! accessory_exists "$1"; then
+    return 0  # absent → graceful skip
+  fi
+  local dir
+  dir="$(accessory_dir "$1" "$2" || true)"
+  if [ -z "${dir}" ]; then
+    echo "error: accessory ${1} exists but its data mount (${2}) could not be resolved." >&2
+    echo "  The container is up but the expected bind mount is missing — refusing to" >&2
+    echo "  report a false success. Check the accessory's Kamal directories: mapping." >&2
+    exit 1
+  fi
+  printf '%s' "${dir}"
+}
+
+ROUTING_DIR="$(resolve_accessory_dir flckd-backend-routing /data)"
+TILES_DIR="$(resolve_accessory_dir flckd-backend-tiles /data)"
+GEOCODER_DIR="$(resolve_accessory_dir flckd-backend-geocoder /nominatim/import)"
 echo "    routing  data dir: ${ROUTING_DIR:-<accessory not found>}"
 echo "    tiles    data dir: ${TILES_DIR:-<accessory not found>}"
 echo "    geocoder import  : ${GEOCODER_DIR:-<accessory not found>}"
@@ -106,8 +131,15 @@ BUILD_DIR="${GEO_BUILD_DIR:-${HOST_HOME%/}/geo-build}"
 # between runs; FORCE=1 re-fetches.
 echo "==> [0/3] Ensure OSM extract on host (${BUILD_DIR}/extract.osm.pbf)"
 sshx "mkdir -p '${BUILD_DIR}'"
-if [ "${FORCE:-0}" != "1" ] && sshx "test -s '${BUILD_DIR}/extract.osm.pbf'"; then
-  echo "    extract already on host — skipping download"
+# Mirror fetch-extract.sh: a sibling URL marker records which region the cached
+# extract is for, so a deploy-scope change (different REGION_URL) forces a fresh
+# download instead of silently reusing the previous region's extract. The cache
+# hit requires BOTH the extract present AND the stored URL matching REGION_URL.
+EXTRACT_MARKER="${BUILD_DIR}/extract.osm.pbf.url"
+if [ "${FORCE:-0}" != "1" ] \
+   && sshx "test -s '${BUILD_DIR}/extract.osm.pbf'" \
+   && sshx "test -f '${EXTRACT_MARKER}' && [ \"\$(cat '${EXTRACT_MARKER}')\" = '${REGION_URL}' ]"; then
+  echo "    extract already on host for this region — skipping download"
 else
   echo "    downloading locally: ${REGION_URL}"
   LOCAL_EXTRACT="$(mktemp "${TMPDIR:-/tmp}/flckd-extract.XXXXXX")"
@@ -119,6 +151,9 @@ else
   scp "${SSH_OPTS[@]}" "${LOCAL_EXTRACT}" "${TARGET_HOST}:${BUILD_DIR}/extract.osm.pbf"
   rm -f "${LOCAL_EXTRACT}"
   trap - EXIT
+  # Record the region marker only after the extract is in place, so an aborted
+  # transfer never leaves a marker that would mask a missing/partial extract.
+  sshx "printf '%s\n' '${REGION_URL}' > '${EXTRACT_MARKER}'"
   echo "    extract in place on host."
 fi
 
@@ -135,7 +170,10 @@ fi
 # accept, and writing the marker last lets a failed restart self-heal on re-run.
 # The marker lives in the (deploy-owned) data dir; valhalla_service ignores it.
 echo "==> [1/3] Routing graph (Valhalla)"
-if [ -n "${ROUTING_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${ROUTING_DIR}/.graph-complete'"; }; then
+# The completion marker also encodes the region (REGION_URL) so a deploy-scope
+# change rebuilds rather than serving the previous region's graph: rebuild when
+# the marker is absent OR its stored URL differs from the resolved REGION_URL.
+if [ -n "${ROUTING_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${ROUTING_DIR}/.graph-complete' && [ \"\$(cat '${ROUTING_DIR}/.graph-complete')\" = '${REGION_URL}' ]"; }; then
   echo "    stopping routing accessory, building graph, restarting…"
   sshx "set -e; \
     rm -f '${ROUTING_DIR}/.graph-complete'; \
@@ -147,10 +185,10 @@ if [ -n "${ROUTING_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${RO
       find /data/valhalla_tiles | sort -n | valhalla_build_extract -c /data/valhalla.json -v --overwrite; \
       rm -rf /data/valhalla_tiles'; \
     docker start flckd-backend-routing >/dev/null; \
-    touch '${ROUTING_DIR}/.graph-complete'"
+    printf '%s\n' '${REGION_URL}' > '${ROUTING_DIR}/.graph-complete'"
   echo "    routing graph built."
 else
-  echo "    routing graph already built (completion marker present) — skipping (FORCE=1 to rebuild)."
+  echo "    routing graph already built for this region (completion marker matches) — skipping (FORCE=1 to rebuild)."
 fi
 
 # ── 2. Vector tiles (Planetiler → PMTiles) ───────────────────────────────────
@@ -158,8 +196,9 @@ fi
 # only ever receives the finished tiles.pmtiles.
 echo "==> [2/3] Vector tiles (Planetiler → PMTiles)"
 # Same completion-marker gate as routing: a half-written tiles.pmtiles from an
-# interrupted Planetiler run would pass `test -s` but be unusable.
-if [ -n "${TILES_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${TILES_DIR}/.tiles-complete'"; }; then
+# interrupted Planetiler run would pass `test -s` but be unusable. The marker also
+# encodes REGION_URL so a deploy-scope change rebuilds the tiles for the new region.
+if [ -n "${TILES_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${TILES_DIR}/.tiles-complete' && [ \"\$(cat '${TILES_DIR}/.tiles-complete')\" = '${REGION_URL}' ]"; }; then
   echo "    building tiles.pmtiles…"
   sshx "set -e; \
     rm -f '${TILES_DIR}/.tiles-complete'; \
@@ -168,10 +207,10 @@ if [ -n "${TILES_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${TILE
       --download --download-dir=/src/sources --tmpdir=/src/tmp --force; \
     docker run --rm -v '${BUILD_DIR}:/src' --entrypoint sh ${PLANETILER_IMAGE} -c 'rm -rf /src/tmp /src/sources' || true; \
     docker restart flckd-backend-tiles >/dev/null; \
-    touch '${TILES_DIR}/.tiles-complete'"
+    printf '%s\n' '${REGION_URL}' > '${TILES_DIR}/.tiles-complete'"
   echo "    tiles built."
 else
-  echo "    tiles already built (completion marker present) — skipping (FORCE=1 to rebuild)."
+  echo "    tiles already built for this region (completion marker matches) — skipping (FORCE=1 to rebuild)."
 fi
 
 # ── 3. Geocoder OSM import (Nominatim imports on boot) ────────────────────────

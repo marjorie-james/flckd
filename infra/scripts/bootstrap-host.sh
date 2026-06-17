@@ -43,6 +43,20 @@ DEPLOY_YML="${DEPLOY_YML:-${REPO}/backend/config/deploy.yml}"
 # when the host has no working IPv6 egress.
 read -r -a DNS_SERVERS <<<"${DOCKER_DNS:-1.1.1.1 8.8.8.8}"
 
+# SECURITY: validate every resolver in bash BEFORE it is interpolated into the
+# Python heredoc that runs as root on the host. Each token is spliced UNQUOTED
+# into `want = [...]`, so an unvalidated DOCKER_DNS is a root-RCE vector (and a
+# stray quote/bracket silently corrupts daemon.json). Require a plain IPv4 dotted
+# quad — this rejects every quote/bracket/space/command-substitution payload while
+# leaving the default "1.1.1.1 8.8.8.8" working.
+if [ "${#DNS_SERVERS[@]}" -eq 0 ]; then
+  echo "DOCKER_DNS is empty — provide at least one IPv4 resolver" >&2
+  exit 2
+fi
+for s in "${DNS_SERVERS[@]}"; do
+  [[ "$s" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || { echo "invalid DOCKER_DNS resolver: '$s' (expected an IPv4 address)" >&2; exit 2; }
+done
+
 resolve_target_host "${1:-${GEO_HOST:-}}"
 echo "==> Bootstrapping Docker DNS on ${TARGET_HOST} (resolvers: ${DNS_SERVERS[*]})"
 

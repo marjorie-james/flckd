@@ -24,7 +24,7 @@ interface CamerasResponse {
 export function useCameras(bbox: string | null) {
   return useQuery({
     queryKey: ["cameras", bbox],
-    queryFn: () => apiGet<CamerasResponse>("/cameras", { bbox: bbox! }),
+    queryFn: ({ signal }) => apiGet<CamerasResponse>("/cameras", { bbox: bbox! }, signal),
     enabled: Boolean(bbox),
     staleTime: 300_000,
   });

@@ -33,6 +33,12 @@ RSpec.describe "GET /api/v1/coverage", type: :request do
     get "/api/v1/coverage", params: { lat: 200, lng: -104.99 }
     expect(response).to have_http_status(:bad_request)
   end
+
+  it "labels the offending param :coordinate (pair-level) when the longitude is out of range" do
+    get "/api/v1/coverage", params: { lat: 39.74, lng: 200 }
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig("details", "param")).to eq("coordinate")
+  end
 end
 
 RSpec.describe "GET /api/v1/coverage/bounds", type: :request do

@@ -100,6 +100,42 @@ RSpec.describe CameraData::TiledRefresh do
     expect(Camera.count).to eq(2)
   end
 
+  it "finalizes a fully-checkpointed resume even when import_next never runs again" do
+    # Simulate a continuation that imported the only tile, checkpointed the cursor,
+    # then was interrupted before finalize — so @source_name is never set on resume.
+    road_lookup = Class.new do
+      def nearest_road(lng:, lat:)
+        { osm_way_id: 999, geometry_ewkt: "SRID=4326;LINESTRING(#{lng} #{lat}, #{lng + 0.001} #{lat})", distance_m: 4.0 }
+      end
+    end.new
+
+    first = described_class.new(tiles: [ tile_a ], source_factory: factory(tile_a => src([ cam_a ])))
+    state = first.blank_state
+    first.import_next(state)
+    expect(state["i"]).to eq(first.size) # last tile imported + checkpointed
+
+    # Cursor rides the continuation as JSON.
+    state = JSON.parse(state.to_json)
+
+    # Resume on a FRESH instance: finalize runs with state["i"] == size and no
+    # import_next call, so source resolution can't rely on @source_name.
+    second = described_class.new(
+      tiles: [ tile_a ],
+      source_factory: factory(tile_a => src([ cam_a ])),
+      road_lookup: road_lookup,
+      cutoff: 1.minute.ago
+    )
+    result = second.finalize(state)
+
+    # data_source resolved → snap ran (camera got a monitored segment).
+    cam = Camera.find_by!(external_ref: "osm:a")
+    expect(cam.monitored_segments.count).to eq(1)
+    expect(result.snapped_total).to eq(1)
+    # per_source is keyed by the source name, not nil.
+    expect(result.per_source.keys).to eq([ "OpenStreetMap" ])
+    expect(result.per_source["OpenStreetMap"]).to include("tiles_ok" => 1)
+  end
+
   it "skips snapping when no road lookup is configured" do
     result = described_class.new(
       tiles: [ tile_a ], source_factory: factory(tile_a => src([ cam_a ])), road_lookup: nil

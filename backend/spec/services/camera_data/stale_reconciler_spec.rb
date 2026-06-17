@@ -70,6 +70,37 @@ RSpec.describe CameraData::StaleReconciler do
     expect(result.retired).to eq(0)
   end
 
+  describe "#touch_seen (delta path)" do
+    it "does not stamp auto_retired cameras (so reconcile won't revive ones the source never re-reported)" do
+      cam = camera(seen_at: cutoff - 5.days, missing: 5)
+      cam.update!(auto_retired: true)
+
+      # Delta run touches everything-not-in-the-diff; the auto-retired camera is in
+      # neither upserted nor deleted_refs, so it must be left untouched.
+      described_class.new.touch_seen(data_source: source, except_refs: [])
+      described_class.new(missing_limit: 3).reconcile(data_source: source, cutoff: cutoff)
+
+      cam.reload
+      expect(cam.auto_retired).to be(true) # NOT revived
+      expect(cam.consecutive_missing_count).to eq(5) # unchanged
+    end
+
+    it "still revives an auto_retired camera the source actually re-reports in the delta" do
+      cam = camera(seen_at: cutoff - 5.days, missing: 5)
+      cam.update!(auto_retired: true)
+
+      # In a real delta the re-reported camera is upserted: the importer stamps its
+      # last_seen_in_source_at to now (>= cutoff). Simulate that here, then reconcile.
+      cam.update!(last_seen_in_source_at: cutoff + 1.minute)
+      described_class.new.touch_seen(data_source: source, except_refs: [ cam.external_ref ])
+      described_class.new(missing_limit: 3).reconcile(data_source: source, cutoff: cutoff)
+
+      cam.reload
+      expect(cam.auto_retired).to be(false) # revived
+      expect(cam.consecutive_missing_count).to eq(0)
+    end
+  end
+
   it "only touches the given source's cameras" do
     other = DataSource.create!(name: "DeFlock", kind: "community", license: "ODbL-1.0")
     untouched = create(:camera, data_source: other, last_seen_in_source_at: cutoff - 1.day, consecutive_missing_count: 0)

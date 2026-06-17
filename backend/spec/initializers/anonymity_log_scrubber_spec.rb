@@ -16,6 +16,34 @@ RSpec.describe AnonymityLogScrubber do
         .to eq("rendered in 3.5ms, 12 segments")
     end
 
+    # Regression: low-precision coordinate PAIRS used to slip through because the
+    # single-coordinate COORD regex only matched 3+ decimals. The structural
+    # COORD_PAIR matcher catches them even at 0-2 decimals, while a lone number
+    # ("3.5ms" above) is still left alone.
+    it "redacts a 1-decimal coordinate pair (e.g. a bbox corner)" do
+      expect(described_class.scrub("bbox 41.5,-93.6"))
+        .to eq("bbox [redacted-coord],[redacted-coord]")
+    end
+
+    it "redacts a 2-decimal coordinate pair" do
+      expect(described_class.scrub("at 41.59,-93.62"))
+        .to eq("at [redacted-coord],[redacted-coord]")
+    end
+
+    it "redacts an integer coordinate pair" do
+      expect(described_class.scrub("near 41,-93"))
+        .to eq("near [redacted-coord],[redacted-coord]")
+    end
+
+    it "redacts a pair with whitespace around the separator" do
+      expect(described_class.scrub("point 41.59, -93.62"))
+        .to eq("point [redacted-coord], [redacted-coord]")
+    end
+
+    it "leaves a lone low-precision number alone (no comma-joined pair)" do
+      expect(described_class.scrub("took 3.5ms")).to eq("took 3.5ms")
+    end
+
     it "passes non-string messages through untouched" do
       expect(described_class.scrub(nil)).to be_nil
       expect(described_class.scrub({ a: 1 })).to eq({ a: 1 })
@@ -63,6 +91,27 @@ RSpec.describe AnonymityLogScrubber do
 
       formatters = targets.select { |l| l.respond_to?(:formatter) }.map(&:formatter)
       expect(formatters).to all(be_a(AnonymityLogScrubber::Formatter))
+    end
+
+    # Regression: wrapping snapshotted Rails.logger.broadcasts at boot, so a sink
+    # attached LATER (by a subsequently-loaded initializer/gem) emitted unscrubbed
+    # output. Re-running the wrap lambda (as the after_initialize hook does) must
+    # cover the newly-added sink.
+    it "wraps a sink attached after boot when the wrap lambda re-runs", if: Rails.logger.respond_to?(:broadcast_to) do
+      extra = ActiveSupport::Logger.new(StringIO.new)
+      original_broadcasts = Rails.logger.broadcasts.dup
+
+      Rails.logger.broadcast_to(extra)
+      # Newly-attached sink starts with its own (non-scrubbing) formatter.
+      expect(extra.formatter).not_to be_a(AnonymityLogScrubber::Formatter)
+
+      AnonymityLogScrubber.wrap_logger_sinks.call
+
+      expect(extra.formatter).to be_a(AnonymityLogScrubber::Formatter)
+    ensure
+      Rails.logger.stop_broadcasting_to(extra) if defined?(extra) && extra
+      # Sanity: the broadcast list is restored for following examples.
+      expect(Rails.logger.broadcasts).to match_array(original_broadcasts) if defined?(original_broadcasts)
     end
   end
 end

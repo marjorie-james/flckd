@@ -55,6 +55,14 @@ fi
 country_resolve "${COUNTRY:-us}" || exit 1
 export COUNTRY="${COUNTRY_CODE}"
 
+# Provenance for geo-manifest.sh: without these it falls back to a hardcoded Iowa
+# region/source_url, so a whole-US (or any country) build would emit a manifest
+# claiming Iowa provenance with real sha256s (verify would pass and never surface
+# the mismatch). Export the actually-fetched country extract so `generate` records
+# correct provenance. REGION_URL only sets the default if not already overridden.
+export REGION="${REGION:-${COUNTRY_CODE}}"
+export REGION_URL="${REGION_URL:-${COUNTRY_EXTRACT_URL}}"
+
 # Default the Nominatim import (the long pole) to ALL cores; docker-compose
 # interpolates NOMINATIM_THREADS into the geocoder service (else it falls back to
 # 4). Override by exporting NOMINATIM_THREADS / NOMINATIM_SHM / GEO_BUILD_JOBS.

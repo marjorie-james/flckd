@@ -20,7 +20,8 @@
 #   -n, --dry-run     Print what would be removed without removing anything.
 #       --keep-data   Keep the downloaded/generated geo data on disk (only tear
 #                     down containers + volumes). Faster re-up, no re-download.
-#       --purge-region  Also delete infra/.region (forces a re-pick on next setup).
+#       --purge-region  Also delete infra/.region and infra/.env (forces a re-pick
+#                     on next setup; clears the stale geocoder scope).
 #   -h, --help        Show this help.
 #
 set -euo pipefail
@@ -62,6 +63,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${SCRIPT_DIR}/../docker-compose.yml"
 REGION_CONFIG="${SCRIPT_DIR}/../.region"
+# The geocoder-scope file written by setup.sh/build-geo.sh. A stale single-state
+# GEOCODER_REGION_STATE/VIEWBOX left here is interpolated by docker compose later,
+# so --purge-region must drop it alongside infra/.region.
+ENV_FILE="${SCRIPT_DIR}/../.env"
 
 # Generated, rebuildable geo data on disk (all gitignored — see .gitignore).
 DATA_PATHS=(
@@ -97,9 +102,9 @@ else
   done
 fi
 if [ "${PURGE_REGION}" = "true" ]; then
-  echo "    ${BOLD}4.${RESET} Delete ${BOLD}infra/.region${RESET} ${DIM}(you'll re-pick a state next setup)${RESET}"
+  echo "    ${BOLD}4.${RESET} Delete ${BOLD}infra/.region${RESET} + ${BOLD}infra/.env${RESET} ${DIM}(you'll re-pick a state next setup)${RESET}"
 else
-  echo "    ${BOLD}4.${RESET} ${DIM}Keep infra/.region (selected region preserved)${RESET}"
+  echo "    ${BOLD}4.${RESET} ${DIM}Keep infra/.region + infra/.env (selected region/scope preserved)${RESET}"
 fi
 echo
 divider
@@ -170,6 +175,12 @@ if [ "${PURGE_REGION}" = "true" ]; then
     success "Removed infra/.region"
   else
     info "infra/.region not present."
+  fi
+  if [ -f "${ENV_FILE}" ]; then
+    rm -f "${ENV_FILE}"
+    success "Removed infra/.env"
+  else
+    info "infra/.env not present."
   fi
 fi
 

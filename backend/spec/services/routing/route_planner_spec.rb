@@ -187,6 +187,37 @@ RSpec.describe Routing::RoutePlanner do
       expect(engine.exclude_calls).to eq(3)          # {a,b} fails, {a} routes, {a,b} fails again
     end
 
+    it "keeps trying avoidable segments past the first fan-out batch across passes" do
+      # FAST passes 9 cameras — one more than FALLBACK_FANOUT_LIMIT (8). Excluding
+      # them all at once is infeasible, and each of the first 8 is individually
+      # unavoidable too; only the 9th is excludable. The fallback fan-out is capped
+      # at 8 per pass, so the 9th is reached only on a *later* pass — which it must
+      # be (the bug: `break unless progressed` abandoned the whole avoid loop after
+      # the first all-unavoidable batch, returning the fastest route unchanged).
+      segs = build_stubbed_list(:monitored_segment, 9)
+      last = segs.last
+      clean = sample_route(distance_m: 6_000, duration_s: 800, geometry: "CLEAN")
+
+      # Call sequence across reroutes:
+      #   pass 1: exclude-all (1, fails) + first-8 one-at-a-time (8, all fail) = 9 :raise
+      #   pass 2: exclude the lone remaining 9th segment -> CLEAN
+      avoiding = ([ :raise ] * 9) + [ clean ]
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: avoiding, quiet: fastest)
+
+      result = planner(engine, segments: segs,
+                               passes: { "FAST" => segs, "CLEAN" => [] },
+                               costs: { "FAST" => 10.0, "CLEAN" => 0.0 })
+               .plan(origin: origin, destination: destination)
+
+      expect(result.distance_m).to eq(6_000)        # the later-pass avoiding route, not the fastest
+      expect(result.is_fully_clean).to be(true)
+      expect(result.cameras_avoided_count).to eq(9) # excluding seg 9 reroutes clear of all 9
+      expect(result.remaining_cameras).to be_empty
+      expect(engine.exclude_calls).to eq(10)        # 9 infeasible attempts, then the clean reroute
+      expect(engine.last_exclude_polygons).not_to be_empty # the final reroute excluded the 9th
+      expect(last.osm_way_id).to be_present          # (the 9th camera is the one that unlocks avoidance)
+    end
+
     it "falls back to the fastest route when every exclusion is impossible" do
       segs = build_stubbed_list(:monitored_segment, 3)
       engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, raise_on_exclude: true, quiet: fastest)

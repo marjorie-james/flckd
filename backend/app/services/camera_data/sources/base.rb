@@ -69,7 +69,10 @@ module CameraData
           return deg
         end
 
-        deg = Integer(value, exception: false) || Float(value, exception: false)&.round
+        # Float first so fractional bearings ROUND (359.9 -> 360 -> 0) rather than
+        # being truncated by Integer() short-circuiting the ||. String "90" still
+        # parses via Float and rounds to 90; nil/invalid fall through to nil.
+        deg = (Float(value, exception: false) || Integer(value, exception: false))&.round
         return nil if deg.nil?
 
         deg % 360
