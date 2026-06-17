@@ -90,6 +90,18 @@ mkdir -p "$HOME/.ssh" && touch "$HOME/.ssh/known_hosts"
 # KAMAL_SSH_AUTH_SOCK="$SSH_AUTH_SOCK" to forward the host's own agent instead.
 SSH_AUTH_SOURCE="${KAMAL_SSH_AUTH_SOCK:-/run/host-services/ssh-auth.sock}"
 
+# Preflight (soft): before a setup/deploy, sanity-check the host so environmental
+# traps — above all unresolvable container DNS — surface as a clear message HERE
+# instead of a cryptic "target failed to become healthy" 30s into the deploy. It
+# is read-only and NON-FATAL: it warns and proceeds (an operator who knows the
+# host is fine is never blocked). Skip with PREFLIGHT=skip.
+if [ "${PREFLIGHT:-}" != "skip" ] && { [ "${1:-}" = "setup" ] || [ "${1:-}" = "deploy" ]; }; then
+  "$REPO_ROOT/infra/scripts/preflight-host.sh" || {
+    echo "kamal-docker: preflight reported problems (see above) — proceeding anyway." >&2
+    echo "kamal-docker: fix them (often: infra/scripts/bootstrap-host.sh) or set PREFLIGHT=skip." >&2
+  }
+fi
+
 STATUS=0
 docker run --rm -i $TTY_FLAG \
   -v "$REPO_ROOT:/workdir" -w /workdir/backend \

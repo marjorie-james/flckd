@@ -29,6 +29,28 @@ load grows. Kamal addresses each by host.
 - **SSH access** for a single deploy key — the **public** key in each host's
   `~/.ssh/authorized_keys`; the **private** key goes to GitHub (step 5).
 - **Outbound network** so hosts can pull images from your registry.
+- **Container DNS that works.** Some providers (seen on Vultr) ship
+  `/etc/resolv.conf` with an **IPv6-only upstream resolver** that Docker containers
+  cannot reach. This breaks `kamal setup` in a maddening way: it fails with
+  `target failed to become healthy`, the app looks perfectly fine, and only the
+  kamal-proxy logs show the truth — `Healthcheck failed ... lookup <container> on
+  [2001:…::6]:53: ... network is unreachable` (kamal-proxy can't resolve the app
+  container because its DNS escapes to an unreachable upstream). Pin Docker to a
+  reachable IPv4 resolver before the first setup — run the bootstrap script, or do
+  it by hand:
+
+  ```bash
+  # automated (idempotent; restarts Docker only if it changed):
+  infra/scripts/bootstrap-host.sh deploy@<HOST>
+
+  # or by hand on the host (needs sudo):
+  echo '{ "dns": ["1.1.1.1", "8.8.8.8"] }' | sudo tee /etc/docker/daemon.json
+  sudo systemctl restart docker
+  ```
+
+  `infra/scripts/preflight-host.sh` (also run automatically by `bin/kamal-docker`
+  before setup/deploy) detects this condition and points you here, so you don't
+  burn a 30s health timeout chasing a ghost.
 - **DNS**: an `A`/`AAAA` record for your API domain → the web host. Kamal's proxy
   obtains a Let's Encrypt cert for it automatically.
 - A **container registry** you control (GHCR, Docker Hub, ECR, …) + a
@@ -52,10 +74,15 @@ ssh-keygen -t ed25519 -f kamal_deploy -C flckd-deploy   # add kamal_deploy.pub t
 - Copy the tracked template to your real (gitignored) config, then edit *that*:
   ```bash
   cp backend/config/deploy.example.yml backend/config/deploy.yml
+  # …or, if a Caddy edge fronts the box (single-origin /api + /tiles):
+  cp backend/config/deploy.caddy.example.yml backend/config/deploy.yml
   ```
   `deploy.yml` is gitignored so your host IPs / API domain / registry path never
-  get committed; `deploy.example.yml` stays the tracked template. Kamal reads
-  `config/deploy.yml` by default.
+  get committed; the `*.example.yml` files stay the tracked templates. Use the
+  `caddy` variant when Caddy owns :80/:443 (it sets `proxy.ssl: false` +
+  `proxy.run.publish: false`; see `frontend-caddy.md`); otherwise use the plain
+  one, where kamal-proxy is the public edge. Kamal reads `config/deploy.yml` by
+  default.
 - In `backend/config/deploy.yml`, replace every `<PLACEHOLDER>` —
   `<REGISTRY_HOST>`, `<WEB_HOST_1>`, `<JOB_HOST_1>`, `<API_DOMAIN>`, `<DB_HOST>`,
   `<ROUTING_HOST>`, `<GEOCODER_HOST>`, `<TILES_HOST>`.
