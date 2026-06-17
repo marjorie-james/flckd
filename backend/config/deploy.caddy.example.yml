@@ -1,0 +1,193 @@
+# Kamal 2 deployment for the Camera-Avoiding Route Planner backend —
+# CADDY-FRONTED, SINGLE-ORIGIN variant.
+#
+# Use THIS template (instead of deploy.example.yml) when a Caddy edge owns the
+# public :80/:443 and serves the frontend + reverse-proxies same-origin /api and
+# /tiles to the backend (see infra/scripts/deploy-frontend.sh and
+# docs/runbooks/frontend-caddy.md). It differs from deploy.example.yml in exactly
+# two lines, both in the `proxy:` block:
+#
+#   proxy.ssl: false          Caddy terminates TLS; kamal-proxy speaks plain HTTP.
+#   proxy.run.publish: false  kamal-proxy binds NO host ports (Caddy owns them);
+#                             Caddy reaches it at kamal-proxy:80 over the `kamal`
+#                             network. Durable across teardowns — Kamal re-applies
+#                             it on every proxy boot, so `kamal proxy remove
+#                             --force` can't leave the proxy fighting Caddy for :80.
+#
+# If you are NOT fronting with Caddy (kamal-proxy is the public edge and terminates
+# TLS itself), use deploy.example.yml instead.
+#
+# THIS IS A TRACKED TEMPLATE. Do not deploy from it directly and do not put real
+# hosts/domains in it. Instead:
+#
+#     cp config/deploy.caddy.example.yml config/deploy.yml
+#
+# then edit config/deploy.yml with your real values. deploy.yml is gitignored so
+# your environment-specific config (host IPs, API domain, registry path) is never
+# committed. When this template changes upstream, re-copy it and re-apply your
+# edits (or diff the two). Kamal reads config/deploy.yml by default.
+#
+# Anonymity model (Constitution / FR-012a): the routing, geocoding, and tile
+# services are deployed here as Kamal *accessories* on the SAME private network
+# as the app — they are our own infrastructure, never third parties. No user
+# origin/destination/route ever leaves this boundary. The app reaches each
+# accessory by its service name over the private Docker network.
+#
+# Fill in the bracketed placeholder values (or supply them via .kamal/secrets)
+# before a real deploy. Run with: `kamal setup` (first time) then `kamal deploy`.
+
+service: flckd-backend
+
+# Connect to all hosts as the non-root deploy user (Docker access, key-only SSH).
+ssh:
+  user: deploy
+
+# Container image repository, WITHOUT the registry host — registry.server (below)
+# is prepended automatically. e.g. for GHCR use just `<github-user>/flckd-backend`.
+image: <REGISTRY_NAMESPACE>/flckd-backend
+
+servers:
+  # HTTP app servers (Puma behind Thruster on port 80; see Dockerfile).
+  web:
+    - <WEB_HOST_1>
+  # Dedicated Solid Queue worker for the camera-data pipeline (import/snap/refresh).
+  job:
+    hosts:
+      - <JOB_HOST_1>
+    cmd: bin/jobs
+
+# Kamal's built-in proxy sits BEHIND the Caddy edge on this box: Caddy terminates
+# TLS on :443 and reverse-proxies same-origin /api to kamal-proxy over the `kamal`
+# Docker network (see infra/caddy/Caddyfile). So kamal-proxy speaks plain HTTP
+# (ssl: false) and must NOT publish host ports (run.publish: false) — Caddy owns
+# :80/:443 and reaches kamal-proxy at `kamal-proxy:80`. kamal-proxy stays only for
+# zero-downtime app version switching. It still routes by `host`, so Caddy sends
+# `Host: <API_DOMAIN>`.
+proxy:
+  ssl: false
+  host: <API_DOMAIN>            # e.g. api.flckd.example — the Host Caddy sets upstream
+  app_port: 80
+  run:
+    publish: false             # no host ports — Caddy owns :80/:443 (see header)
+  healthcheck:
+    path: /api/v1/health
+    interval: 10
+
+# Image registry (use your own — keeps the supply chain self-controlled).
+registry:
+  server: <REGISTRY_HOST>
+  username:
+    - KAMAL_REGISTRY_USERNAME
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+# Build the production image (multi-stage Dockerfile at backend/Dockerfile).
+builder:
+  arch: amd64
+
+env:
+  clear:
+    # Bind the app to the private geo accessories by service name.
+    DATABASE_HOST: flckd-backend-postgres
+    ROUTING_URL: http://flckd-backend-routing:8002
+    # Nominatim serves on 8080 (same engine/port as dev) — no dev/prod drift.
+    GEOCODER_URL: http://flckd-backend-geocoder:8080
+    # The configured country (CountryRegistry, default us): drives the geocoder
+    # viewbox (from the country bbox) and disables the single-state query
+    # workarounds, since the whole-country index disambiguates by state. Must
+    # match COUNTRY in infra/.region for this deployment.
+    GEOCODER_COUNTRY: us
+    TILES_URL: http://flckd-backend-tiles:8080
+    # Run Solid Queue inside Puma off (we run a dedicated job host above).
+    SOLID_QUEUE_IN_PUMA: false
+    WEB_CONCURRENCY: 2
+  secret:
+    - RAILS_MASTER_KEY
+    - SECRET_KEY_BASE
+    - DATABASE_PASSWORD
+    # Single-state map framing + geocoding scope (FR-007). Not secret, but injected
+    # from a file: bin/kamal-docker resolves the deploy scope (backend/.kamal/geo.env)
+    # into .kamal/deploy-scope.env, which .kamal/secrets reads. Both are empty for a
+    # whole-country deploy, so the app frames the entire country. Generated — do not
+    # set by hand; change the scope in backend/.kamal/geo.env instead.
+    - GEOCODER_REGION_STATE
+    - GEOCODER_VIEWBOX
+
+# Persist gem-free; logs go to the platform. Limit retained logs (anonymity:
+# the anonymity_logging init strips client IPs from the request "Started" line
+# and scrubs coordinates from log output).
+logging:
+  options:
+    max-size: 100m
+    max-file: 3
+
+# Self-hosted geo stack + database, all on the private network. Images are
+# pinned by digest and match the dev docker-compose stack exactly (Valhalla +
+# Nominatim + go-pmtiles), so what passes in dev is what runs in prod.
+#
+# Container healthchecks: only Postgres has a reliable in-image probe
+# (pg_isready). The minimal geo images ship no curl/wget, so their readiness is
+# observed end-to-end via the app's /api/v1/health (DB-gated) + the Telemetry
+# alert on degraded refresh runs, rather than per-container healthchecks.
+accessories:
+  postgres:
+    image: postgis/postgis:17-3.4
+    host: <DB_HOST>
+    port: "127.0.0.1:5432:5432"
+    env:
+      clear:
+        POSTGRES_USER: flckd
+        POSTGRES_DB: flckd_production
+      secret:
+        - POSTGRES_PASSWORD
+    options:
+      health-cmd: "pg_isready -U flckd"
+      health-interval: "10s"
+      health-timeout: "5s"
+      health-retries: "10"
+    directories:
+      - data:/var/lib/postgresql/data
+
+  routing:                       # Valhalla — segment-exclusion routing
+    image: ghcr.io/valhalla/valhalla:latest@sha256:a18ece289efc24a08818f2de9d07d49d0454b83aa574352ff1832e31b104d8a6
+    host: <ROUTING_HOST>
+    port: "127.0.0.1:8002:8002"
+    # Generate a default valhalla.json on first boot if the graph volume is still
+    # empty, so the service starts (fail-soft, no tiles yet) instead of crash-
+    # looping on an unparseable empty config. Once the graph is provisioned
+    # (build-routing-graph.sh / deploy-geo) its own valhalla.json is present and
+    # this guard is a no-op.
+    cmd: 'sh -c "if [ ! -s /data/valhalla.json ]; then valhalla_build_config --mjolnir-tile-extract /data/valhalla_tiles.tar > /data/valhalla.json; fi; exec valhalla_service /data/valhalla.json 1"'
+    directories:
+      - routing-data:/data       # prebuilt graph (see infra/scripts/build-routing-graph.sh)
+
+  geocoder:                      # Nominatim — forward/reverse geocoding (matches dev)
+    image: mediagis/nominatim:4.4@sha256:b772911424d31f8c36b337fe4b8d4ef3b93d4bf09f96407905a1e9d475d42632
+    host: <GEOCODER_HOST>
+    # Host port 8081 (container stays 8080) so a co-located single-box deploy
+    # doesn't collide with the tiles accessory's 127.0.0.1:8080. The app reaches
+    # the geocoder by container name (GEOCODER_URL=…-geocoder:8080), not this port.
+    port: "127.0.0.1:8081:8080"
+    env:
+      clear:
+        PBF_PATH: /nominatim/import/extract.osm.pbf
+        IMPORT_STYLE: address    # addresses/places only — faster import for autocomplete
+        # Import Wikipedia importance so place ranking reflects real-world
+        # prominence (without it, a county outranks the city inside it). Applied
+        # during the OSM import; matches dev (docker-compose.yml).
+        IMPORT_WIKIPEDIA: "true"
+      secret:
+        - NOMINATIM_PASSWORD
+    directories:
+      # Place the prebuilt OSM extract here (infra/scripts/fetch-extract.sh);
+      # Nominatim imports it on first boot and persists the index in the volume.
+      - nominatim-import:/nominatim/import
+      - nominatim-data:/var/lib/postgresql/14/main
+
+  tiles:                         # Self-hosted vector tiles (Protomaps PMTiles via go-pmtiles)
+    image: protomaps/go-pmtiles:latest@sha256:dfd5ce912b0f061002a853fef6dca87dcd3c21ee900c57a3e32bb974daa3e061
+    host: <TILES_HOST>
+    port: "127.0.0.1:8080:8080"
+    cmd: serve /data --port 8080 --cors=*
+    directories:
+      - tiles-data:/data         # prebuilt PMTiles (see infra/scripts/build-tiles.sh)

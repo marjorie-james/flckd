@@ -74,10 +74,15 @@ ssh-keygen -t ed25519 -f kamal_deploy -C flckd-deploy   # add kamal_deploy.pub t
 - Copy the tracked template to your real (gitignored) config, then edit *that*:
   ```bash
   cp backend/config/deploy.example.yml backend/config/deploy.yml
+  # …or, if a Caddy edge fronts the box (single-origin /api + /tiles):
+  cp backend/config/deploy.caddy.example.yml backend/config/deploy.yml
   ```
   `deploy.yml` is gitignored so your host IPs / API domain / registry path never
-  get committed; `deploy.example.yml` stays the tracked template. Kamal reads
-  `config/deploy.yml` by default.
+  get committed; the `*.example.yml` files stay the tracked templates. Use the
+  `caddy` variant when Caddy owns :80/:443 (it sets `proxy.ssl: false` +
+  `proxy.run.publish: false`; see `frontend-caddy.md`); otherwise use the plain
+  one, where kamal-proxy is the public edge. Kamal reads `config/deploy.yml` by
+  default.
 - In `backend/config/deploy.yml`, replace every `<PLACEHOLDER>` —
   `<REGISTRY_HOST>`, `<WEB_HOST_1>`, `<JOB_HOST_1>`, `<API_DOMAIN>`, `<DB_HOST>`,
   `<ROUTING_HOST>`, `<GEOCODER_HOST>`, `<TILES_HOST>`.

@@ -106,8 +106,12 @@ Both want host `:80/:443`. Kamal-proxy yields them:
 - **Caddy is not (yet) a Kamal accessory.** It's a standalone container managed by
   `deploy-frontend.sh`, deliberately decoupled from the app deploy. `caddy:2` is
   unpinned — pin a digest (`CADDY_IMAGE=`) for reproducibility if you care.
-- **`proxy.ssl: false` is specific to this Caddy-fronted box.** The tracked
-  `deploy.example.yml` keeps `ssl: true` for a standalone (no-Caddy) deploy.
+- **Use the Caddy template.** `proxy.ssl: false` + `proxy.run.publish: false` are
+  specific to this Caddy-fronted box, so they live in their own tracked template,
+  `backend/config/deploy.caddy.example.yml` — start from it
+  (`cp config/deploy.caddy.example.yml config/deploy.yml`). The plain
+  `deploy.example.yml` keeps `ssl: true` and publishes ports for a standalone
+  (no-Caddy) deploy where kamal-proxy is itself the public edge.
 - **Backend host allow-list:** the app must accept `Host: api.flckd.com` (it does;
   that's the kamal-proxy route). If you change `API_HOST`, keep them in sync.
 ```
