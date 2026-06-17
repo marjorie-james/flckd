@@ -81,15 +81,26 @@ sshx "set -e; \
   rm -rf '${DIST_DIR}.new'"
 tar -C "$(dirname "${CADDYFILE}")" -czf - "$(basename "${CADDYFILE}")" | sshx "tar -C '${CADDY_DIR}' -xzf -"
 
-# ── 3. Boot or reload Caddy ──────────────────────────────────────────────────
+# ── 3. Boot or (re)create Caddy ──────────────────────────────────────────────
+# The Caddyfile is bind-mounted into the container READ-ONLY (see boot_caddy), and
+# a running container is pinned to the file inode it was created with. That makes
+# the old in-place update — `docker cp …/Caddyfile flckd-caddy:/etc/caddy/Caddyfile`
+# — impossible: Docker cannot unlink a bind-mounted (let alone read-only) mount
+# point, so every reload failed with "device or resource busy" and the script
+# exited 1 even though dist/ had already been updated. Instead, compare the
+# just-streamed host Caddyfile against what the running container is actually
+# serving (both shas computed on the host, so one tool, no macOS/Linux skew) and:
+#   - unchanged → leave the running edge alone. The dist/ swap in step 2 is already
+#     live through its DIRECTORY bind mount, so a bundle-only deploy is zero-touch.
+#   - changed   → recreate the container so it re-binds the current Caddyfile. TLS
+#     certs persist in the flckd-caddy-data volume (re-used, never re-provisioned);
+#     the listener blip is a few seconds and Caddyfile changes are rare.
+# A host with no edge yet simply boots one.
 echo "==> [3/3] Booting/reloading Caddy…"
-if sshx "docker ps --format '{{.Names}}' | grep -qx flckd-caddy"; then
-  # Update the running edge in place (certs + listeners stay up).
-  sshx "docker cp '${CADDY_DIR}/Caddyfile' flckd-caddy:/etc/caddy/Caddyfile && \
-    docker exec -e FLCKD_DOMAIN='${FLCKD_DOMAIN}' -e ACME_EMAIL='${ACME_EMAIL}' -e API_HOST='${API_HOST}' \
-      flckd-caddy caddy reload --config /etc/caddy/Caddyfile"
-  echo "    reloaded."
-else
+
+# (Re)create the edge container from the current host files. Shared by the fresh
+# boot and the "Caddyfile changed" path so the run flags never drift between them.
+boot_caddy() {
   sshx "docker rm -f flckd-caddy 2>/dev/null; docker run -d --name flckd-caddy --restart unless-stopped \
     --network kamal -p 80:80 -p 443:443 \
     -e FLCKD_DOMAIN='${FLCKD_DOMAIN}' -e ACME_EMAIL='${ACME_EMAIL}' -e API_HOST='${API_HOST}' \
@@ -97,6 +108,22 @@ else
     -v '${CADDY_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro' \
     -v flckd-caddy-data:/data -v flckd-caddy-config:/config \
     ${CADDY_IMAGE}"
+}
+
+if sshx "docker ps --format '{{.Names}}' | grep -qx flckd-caddy"; then
+  host_sha="$(sshx "sha256sum '${CADDY_DIR}/Caddyfile' | cut -d' ' -f1")"
+  # `|| true`: if the container vanished between the ps check and here, cont_sha is
+  # empty → treated as "changed" → recreate, which is the safe outcome anyway.
+  cont_sha="$(sshx "docker exec flckd-caddy sha256sum /etc/caddy/Caddyfile 2>/dev/null | cut -d' ' -f1" || true)"
+  if [ -n "${cont_sha}" ] && [ "${host_sha}" = "${cont_sha}" ]; then
+    echo "    Caddyfile unchanged — dist/ update is already live; edge left running."
+  else
+    echo "    Caddyfile changed — recreating edge to apply it (TLS certs persist)…"
+    boot_caddy
+    echo "    recreated."
+  fi
+else
+  boot_caddy
   echo "    booted."
 fi
 
