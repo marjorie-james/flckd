@@ -33,4 +33,22 @@ export default defineConfig({
     host: true,
     port: 4173,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep the heavy, rarely-changing vendor libraries in their own chunks so
+        // a routine frontend code change (most of our deploys) doesn't bust them
+        // in users' caches. MapLibre alone is ~800 kB; isolating it means the map
+        // chunk is downloaded once and reused across deploys. The app's own MapView
+        // code is split out separately by the React.lazy import in PlanRoutePage.
+        // Vite 8 / rolldown only accepts the function form of manualChunks.
+        manualChunks(id) {
+          if (id.includes("node_modules/maplibre-gl")) return "maplibre";
+          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/")) {
+            return "react";
+          }
+        },
+      },
+    },
+  },
 })

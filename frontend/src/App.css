@@ -267,6 +267,14 @@ body {
   background: var(--bg);
 }
 
+/* Suspense placeholder while the lazy map chunk loads — fills the container so
+   the reserved map height never collapses or jumps. */
+.map-loading {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+
 /* ─── Responsive: two-pane desktop layout (≥900px) ───
    The map becomes the dominant surface (the 1fr column) with a bounded,
    independently-scrolling control rail beside it. `min(420px, 38%)` caps the

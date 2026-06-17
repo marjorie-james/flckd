@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MapView } from "../components/MapView";
+// The map (MapLibre GL + its WebGL stack and the camera layer) is by far the
+// heaviest dependency in the bundle. Load it as a separate chunk so the header,
+// route form, and turn-by-turn directions can paint and become interactive while
+// it downloads — the route is fully usable as text without the map (FR-012a).
+// Named export → default for React.lazy.
+const MapView = lazy(() =>
+  import("../components/MapView").then((m) => ({ default: m.MapView }))
+);
 import { RoutePanel } from "../components/RoutePanel";
 import { RouteResult } from "../components/RouteResult";
 import { RouteNotice } from "../components/RouteNotice";
@@ -118,12 +125,16 @@ export function PlanRoutePage() {
             (not role="img") because MapLibre renders interactive controls inside —
             an image must not contain focusable descendants. */}
         <div className="map-container" role="region" aria-label={t("map.ariaLabel")}>
-          <MapView
-            route={route}
-            origin={origin}
-            showComparison={showComparison}
-            regionBounds={coverage.data?.bounds ?? null}
-          />
+          {/* The fallback fills the container so its reserved height never jumps
+              while the map chunk loads. */}
+          <Suspense fallback={<div className="map-loading" aria-hidden="true" />}>
+            <MapView
+              route={route}
+              origin={origin}
+              showComparison={showComparison}
+              regionBounds={coverage.data?.bounds ?? null}
+            />
+          </Suspense>
         </div>
 
         <div className="content-pane">
