@@ -38,7 +38,7 @@ sed \
 
 # Fail loudly if any placeholder survived (typo, or a new <PLACEHOLDER> was added
 # to the template without a mapping here) — better than deploying a broken config.
-if grep -nE '<[A-Z_]+>' config/deploy.yml; then
+if grep -nE '<[A-Z0-9_]+>' config/deploy.yml; then
   echo "render-deploy-yml: unresolved placeholder(s) above — add a mapping" >&2
   rm -f config/deploy.yml
   exit 1

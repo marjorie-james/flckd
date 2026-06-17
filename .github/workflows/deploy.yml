@@ -6,10 +6,13 @@ name: Deploy
 # a merge to main must not ship to prod on its own.
 #
 # Required GitHub config before this can run:
-#   Secrets: KAMAL_REGISTRY_PASSWORD, RAILS_MASTER_KEY, DATABASE_PASSWORD,
-#            POSTGRES_PASSWORD, NOMINATIM_PASSWORD, SSH_PRIVATE_KEY
-#   Variables: API_DOMAIN (e.g. api.flckd.example)
-# And fill the <PLACEHOLDER> hosts/registry in backend/config/deploy.yml.
+#   Secrets: KAMAL_REGISTRY_USERNAME, KAMAL_REGISTRY_PASSWORD, RAILS_MASTER_KEY,
+#            SECRET_KEY_BASE, DATABASE_PASSWORD, POSTGRES_PASSWORD,
+#            NOMINATIM_PASSWORD, SSH_PRIVATE_KEY
+#   Variables (consumed by bin/render-deploy-yml, which rebuilds the gitignored
+#            config/deploy.yml in CI — every one is required or render aborts):
+#            REGISTRY_HOST, REGISTRY_NAMESPACE, API_DOMAIN, WEB_HOST, JOB_HOST,
+#            DB_HOST, ROUTING_HOST, GEOCODER_HOST, TILES_HOST
 
 on:
   workflow_dispatch:

@@ -140,8 +140,9 @@ wrapper, it runs `infra/scripts/provision-geo-host.sh` after a successful
 datacenter IPs, so it does *not* rely on the host reaching Geofabrik), streams it
 to the host, builds the routing graph + vector tiles **on the host** (native
 amd64) straight into the accessory dirs, places the geocoder extract, and reboots
-each accessory. It is **idempotent** — a no-op once the artifacts exist — so it is
-safe on every deploy. Skip it with `GEO_PROVISION=skip`; run it standalone with
+each accessory. It is **idempotent** — a no-op once each stage has completed
+(tracked via build-completion markers + geocoder readiness) — so it is safe on
+every deploy. Skip it with `GEO_PROVISION=skip`; run it standalone with
 `infra/scripts/provision-geo-host.sh [user@host]`. See
 [geo-provisioning.md](geo-provisioning.md) for the full rationale (why we build on
 the host, download locally, etc.) and caveats.

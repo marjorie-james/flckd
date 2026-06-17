@@ -8,7 +8,7 @@ nothing cross-site, and a user's route never leaves our box (FR-012a).
 ## Topology
 
 ```
-                  ┌──────────────── VPS 108.61.203.9 ────────────────┐
+                  ┌──────────────── VPS <VPS_IP> ────────────────┐
    flckd.com ──►  │  flckd-caddy  :80/:443   (auto-TLS, public edge)  │
    www  ─► apex   │   ├─ /api/*   → kamal-proxy:80  (Host api.flckd.com)│ ← zero-downtime
                   │   ├─ /tiles/* → flckd-backend-tiles:8080            │
@@ -31,8 +31,8 @@ nothing cross-site, and a user's route never leaves our box (FR-012a).
 
 | Type | Name | Value |
 |------|------|-------|
-| `A` | `flckd.com` (`@`) | `108.61.203.9` |
-| `A` | `www` | `108.61.203.9` |
+| `A` | `flckd.com` (`@`) | `<VPS_IP>` |
+| `A` | `www` | `<VPS_IP>` |
 
 - Caddy auto-provisions Let's Encrypt/ZeroSSL certs for both once the records
   resolve; `www` redirects to the apex.

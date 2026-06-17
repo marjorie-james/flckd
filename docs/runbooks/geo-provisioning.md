@@ -22,8 +22,10 @@ script:
    host**, straight into the accessory data dirs,
 3. places the extract for the geocoder and reboots it (Nominatim imports on boot).
 
-It is **idempotent** — a no-op once the artifacts exist — so it is safe to leave
-wired into every deploy. Skip it with `GEO_PROVISION=skip`. Run it standalone:
+It is **idempotent** — a no-op once each stage has actually completed (it tracks
+build-completion markers + geocoder readiness, not just whether a file exists) —
+so it is safe to leave wired into every deploy. Skip it with `GEO_PROVISION=skip`.
+Run it standalone:
 
 ```bash
 infra/scripts/provision-geo-host.sh [user@host]
@@ -150,9 +152,15 @@ app is already up); it warns and tells you to re-run.
 - **Single-box assumption.** The script targets one host (the routing accessory's
   host from `deploy.yml`) and assumes the other accessories are co-located. For
   split geo hosts, use `deploy-geo.yml`.
-- **Idempotency is artifact-presence based.** It skips when
-  `valhalla_tiles.tar` / `tiles.pmtiles` / the geocoder extract already exist.
-  Use `FORCE=1` to rebuild after a region change.
+- **Idempotency is completion-aware, not just file-presence.** Routing and tiles
+  skip on a completion marker (`.graph-complete` / `.tiles-complete` in the data
+  dir) written only after the build *and* the accessory restart succeed — so a
+  half-written/truncated artifact from an interrupted build is never mistaken for
+  a finished one, and a failed restart self-heals on the next run. The geocoder
+  skips on `status.php` **readiness**, so a completed import is detected while a
+  failed one isn't masked by the extract still on disk. An import that's merely
+  *in progress* is left running (never restarted mid-import). Use `FORCE=1` to
+  rebuild after a region change, or to force a stuck geocoder import to retry.
 
 ## Production bring-up fixes (what had to land first)
 
@@ -171,9 +179,14 @@ owned), so a full wipe needs a root helper container on the host:
 
 ```bash
 ssh deploy@<host> '
-  docker ps -aq --filter name=flckd-backend | xargs -r docker rm -f
-  docker rm -f kamal-proxy; docker network rm kamal
-  docker volume ls -q | grep -iE "flckd|kamal" | xargs -r docker volume rm
-  docker run --rm -v /home/deploy:/work alpine sh -c "rm -rf /work/flckd-backend-* /work/.kamal /work/geo-build"
+  # All flckd containers (backend accessories AND the flckd-caddy edge) + the proxy.
+  # Caddy must go before the network rm, or "network has active endpoints" fails.
+  docker ps -aq --filter name=flckd- | xargs -r docker rm -f
+  docker rm -f kamal-proxy 2>/dev/null
+  docker network rm kamal 2>/dev/null
+  # Anchored so we only remove OUR volumes, not any volume containing "kamal".
+  docker volume ls -q | grep -E "^(flckd-|kamal-proxy-)" | xargs -r docker volume rm
+  # $HOME (not a hardcoded /home/deploy) and flckd-* covers backend + frontend + caddy dirs.
+  docker run --rm -v "$HOME:/work" alpine sh -c "rm -rf /work/flckd-* /work/.kamal /work/geo-build"
 '
 ```
