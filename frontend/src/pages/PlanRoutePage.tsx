@@ -95,7 +95,17 @@ export function PlanRoutePage() {
           <span className="wordmark" aria-hidden="true">flckd</span>
           <h1 className="app-title">{t("app.title")}</h1>
         </div>
-        <LanguageSwitcher />
+        <div className="header-actions">
+          <a
+            className="header-repo-link"
+            href="https://github.com/marjorie-james/flckd"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t("app.getApp")}
+          </a>
+          <LanguageSwitcher />
+        </div>
       </header>
 
       {/* Two regions side by side on wide screens (map dominant + a scrollable

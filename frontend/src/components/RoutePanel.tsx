@@ -138,6 +138,7 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
       <AddressAutocomplete
         id="dest-input"
         required
+        reserveDropdownSpace
         label={t("form.destination")}
         value={destText}
         onValueChange={(v) => {

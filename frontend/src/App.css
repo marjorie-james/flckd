@@ -109,6 +109,22 @@ body {
   gap: 12px;
 }
 
+/* Right-side header cluster: the repo link sits to the left of the language
+   switcher, both pushed right by the header's space-between. */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The repo link is also in the footer; on narrow screens drop the header copy so
+   the brand + language switcher don't crowd, and let the footer carry it. */
+@media (max-width: 560px) {
+  .header-repo-link {
+    display: none;
+  }
+}
+
 /* Brand cluster: the wordmark over its descriptive, localized heading. */
 .brand {
   display: flex;
@@ -123,10 +139,12 @@ body {
 .wordmark {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 1.0625rem;
+  /* Scaled up so the brand fills the taller header (the language label now stacks
+     above its select). The sensor dot + title indent below scale to match. */
+  font-size: 1.375rem;
   letter-spacing: 0.01em;
   line-height: 1;
   color: var(--beam);
@@ -134,8 +152,8 @@ body {
 
 .wordmark::before {
   content: '';
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
   border-radius: 1px;
   background: var(--accent-hi);
   box-shadow: 0 0 0 3px var(--accent-muted);
@@ -147,13 +165,14 @@ body {
 .app-title {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--text-muted);
-  /* Sits under the wordmark, which is 15px tall; indent to align past the dot. */
-  padding-left: 15px;
+  /* Indent to align under the wordmark text, past the sensor dot (9px) + its
+     gap (9px). */
+  padding-left: 18px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -169,7 +188,8 @@ body {
   border-top: 1px solid var(--border);
 }
 
-.app-footer a {
+.app-footer a,
+.header-repo-link {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 500;
@@ -185,17 +205,37 @@ body {
   padding: 0 4px;
 }
 
-.app-footer a:hover {
+.app-footer a:hover,
+.header-repo-link:hover {
   color: var(--text);
 }
 
-.app-footer a:focus-visible {
+.app-footer a:focus-visible,
+.header-repo-link:focus-visible {
   outline: 2px solid var(--accent-hi);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
 
 /* ─── Language switcher ─── */
+.language-switcher {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Visible label, stacked above the select and matched to its mono/uppercase
+   treatment. */
+.language-switcher__label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .language-switcher select {
   appearance: none;
   background: var(--raised);
@@ -265,6 +305,11 @@ body {
   gap: 10px;
   padding: 16px;
   border-bottom: 1px solid var(--border);
+  /* Height of the suggestion dropdown; also the space reserved below the last
+     field so its dropdown never covers the submit button (see .reserve-dropdown).
+     ~4 rows tall — a longer result set scrolls within it. Shrink this to tighten
+     both the dropdown and the reserved gap together. */
+  --suggest-h: 9rem;
 }
 
 .input-group {
@@ -351,6 +396,19 @@ body {
   list-style: none;
   margin: 0;
   padding: 4px;
+  /* Bound the list to the reserved height so it stays a tidy dropdown and, for the
+     last field, never extends past the space reserved for it below. */
+  max-height: var(--suggest-h);
+  overflow-y: auto;
+}
+
+/* The destination is the last field, so its downward overlay would sit on top of
+   the "Plan route" button. Reserve a fixed gap below it so the list opens into that
+   gap and clears the button — without the button moving when the list opens/closes.
+   The gap is the dropdown's full footprint (its --suggest-h height plus the 6px it
+   sits below the field) plus a little breathing room beneath it. */
+.input-group.reserve-dropdown {
+  margin-bottom: calc(var(--suggest-h) + 6px + 0.75rem);
 }
 
 .suggestions li button {

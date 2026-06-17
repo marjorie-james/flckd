@@ -12,6 +12,11 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // In Docker on macOS, filesystem events don't propagate through the bind mount,
+    // so Vite's watcher misses edits and HMR goes silent. The compose `frontend`
+    // service sets VITE_USE_POLLING=true to fall back to polling; native (e.g. Linux)
+    // dev leaves it unset, since polling is CPU-heavier and unnecessary there.
+    watch: process.env.VITE_USE_POLLING === 'true' ? { usePolling: true, interval: 120 } : undefined,
     proxy: {
       '/api': {
         target: process.env.VITE_API_PROXY || 'http://backend:3000',
