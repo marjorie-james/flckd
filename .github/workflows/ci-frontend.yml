@@ -2,23 +2,48 @@ name: CI (frontend)
 
 # Frontend Quality Gates (ESLint, pnpm audit, tsc, Vitest).
 #
-# Minutes hygiene (private repo — Actions are metered): native `paths` filters
-# mean this runs ONLY when frontend/** (or this file) changes — docs-only and
-# backend-only changes cost zero frontend minutes. `concurrency` cancels a
-# superseded in-flight run when a new commit lands. The pnpm store is cached so
-# `install` doesn't re-download every run.
+# Required-check + minutes hygiene: `frontend` is a branch-protection required
+# context, so it must report on EVERY pull request — a top-level `paths:` filter
+# would skip the whole workflow on docs/backend PRs and leave the required check
+# pending forever (merge deadlock). Instead the workflow always runs, but only
+# the cheap `changes` detector and the `frontend` gate run on unrelated PRs; the
+# expensive `frontend-tests` job (pnpm install + lint/audit/tsc/Vitest) is gated
+# on frontend/** actually changing, so unrelated PRs cost ~seconds. `concurrency`
+# cancels a superseded in-flight run when a new commit lands.
 on:
   # Pull requests only — `main` lands via fast-forward of an already-tested PR
   # branch, so re-running CI post-merge would just re-test the same tree.
   pull_request:
-    paths: ["frontend/**", ".github/workflows/ci-frontend.yml"]
 
 concurrency:
   group: ci-frontend-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  frontend:
+  # Cheap path detector — decides whether the heavy job needs to run.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          if git diff --name-only "$base...$head" \
+               | grep -qE '^(frontend/|\.github/workflows/ci-frontend\.yml$)'; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  frontend-tests:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -50,3 +75,26 @@ jobs:
         run: pnpm exec tsc -b --noEmit
       - name: Tests (Vitest)
         run: pnpm exec vitest run
+
+  # Required branch-protection context. Always runs (a few seconds) and passes
+  # unless a real job failed — so unrelated PRs satisfy the check without
+  # running the heavy job, and a real failure still blocks the merge.
+  frontend:
+    needs: [changes, frontend-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Gate on frontend job results
+        run: |
+          changes='${{ needs.changes.result }}'
+          tests='${{ needs.frontend-tests.result }}'
+          echo "changes=${changes} frontend-tests=${tests}"
+          # Fail closed if the path detector itself broke.
+          if [ "${changes}" != "success" ]; then
+            echo "path detection did not succeed"; exit 1
+          fi
+          if [ "${tests}" = "failure" ] || [ "${tests}" = "cancelled" ]; then
+            exit 1
+          fi
+          exit 0
