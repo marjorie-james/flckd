@@ -59,6 +59,15 @@ country_resolve "${GEO_COUNTRY:-${COUNTRY:-us}}" || exit 1
 REGION_URL="${GEO_REGION_URL:-${REGION_URL:-${COUNTRY_EXTRACT_URL}}}"
 REGION_LABEL="${GEO_REGION_LABEL:-${REGION_LABEL:-${COUNTRY_NAME}}}"
 
+# Test seam: print the resolved deploy scope and exit BEFORE any host/SSH work, so
+# test/infra/deploy-scope-cross-check.bats can assert this build scope agrees with
+# what deploy-scope-env.sh frames (guards against the two resolvers drifting).
+if [ "${PROVISION_GEO_SELFTEST:-0}" = "1" ]; then
+  echo "REGION_URL=${REGION_URL}"
+  echo "REGION_LABEL=${REGION_LABEL}"
+  exit 0
+fi
+
 # ── Target host ──────────────────────────────────────────────────────────────
 # Default to the routing accessory's host from deploy.yml (single-box deploys use
 # the same host for every accessory).
