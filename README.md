@@ -43,8 +43,7 @@ If you're not comfortable in a terminal, this path needs **no typing**:
 
    The launcher checks Docker (and **opens the right download page / starts Docker for you**
    if needed), then runs the one-time setup. It downloads map data and starts everything —
-   ~25–30 min for a state, mostly unattended. A prompt asks for a state; just press Return
-   to accept the default (Iowa).
+   ~25–30 min for a state, mostly unattended. A prompt asks for a state.).
 4. **Open the app:** when it finishes it prints the URLs. Visit **<http://localhost:5173>**.
 
 ### The terminal way
@@ -60,8 +59,7 @@ Ruby, Node, or Postgres to install.
    cd flckd
    ```
 
-2. **Run the one-time setup wizard** from the repo root (accept the default state, or type
-   another **2-letter state** at the prompt):
+2. **Run the one-time setup wizard** from the repo root
 
    | OS | Command |
    |---|---|
@@ -188,7 +186,7 @@ running in the background):
 ./setup.sh
 ```
 
-At the prompt, accept the default state (**`IA`**) or type another **2-letter state**.
+At the prompt, Type a **2-letter state ID**.
 (`./setup.sh` is a thin wrapper around `infra/scripts/setup.sh` — either works, and both
 accept the same flags, e.g. `-v` for verbose or `--region CA` to skip the prompt.) To
 build the whole country instead, enter **`US`** at the prompt or pass `--region US` —
