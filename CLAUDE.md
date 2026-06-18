@@ -1,13 +1,15 @@
 <!-- SPECKIT START -->
-**Active feature**: [`013-printable-directions`](specs/013-printable-directions/plan.md)
-([spec](specs/013-printable-directions/spec.md)) — add an icon-only **print control** at the top
+**Active feature**: _none in progress_ — most recently shipped: `013-printable-directions` (below).
+
+Prior feature: [`013-printable-directions`](specs/013-printable-directions/plan.md)
+([spec](specs/013-printable-directions/spec.md)) — an icon-only **print control** at the top
 of the on-screen driving directions. Activating it opens the browser's native print dialog showing
 a dedicated, print-only view: heading, origin + destination labels, total time/distance, the full
 ordered turn-by-turn steps, and a brief "this page holds your route" privacy notice — large,
 high-contrast, cleanly paginated for reading while driving. Map, page chrome, and all controls are
 excluded; camera/coverage notices are deliberately omitted. Frontend-only and fully client-side
 (`window.print()` + `@media print`), no transmission (anonymity model intact). Main wiring change:
-**lift the geocoded origin/destination labels** from `RoutePanel` up to `PlanRoutePage` (the
+**lifted the geocoded origin/destination labels** from `RoutePanel` up to `PlanRoutePage` (the
 `Route` object has no address labels). Localized en + es; tests via Vitest with `window.print`
 stubbed.
 

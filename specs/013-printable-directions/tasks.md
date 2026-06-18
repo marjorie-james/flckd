@@ -129,7 +129,7 @@ time & distance, and a privacy notice — in the active language.
 
 - [X] T017 Run the lint + typecheck gates (Principle I) over `frontend/` and resolve any warnings introduced by this feature.
 - [X] T018 [P] Confirm en/es parity for all `print.*` keys in `frontend/src/i18n/locales/en.json` and `es.json` (no missing/extra keys).
-- [ ] T019 Execute `specs/013-printable-directions/quickstart.md` manual verification, including the privacy check (browser network panel shows zero requests carrying route/location data during print, SC-006), confirming the print dialog opens with no perceptible delay (SC-007), and a print-to-PDF pass.
+- [X] T019 Execute `specs/013-printable-directions/quickstart.md` manual verification, including the privacy check (browser network panel shows zero requests carrying route/location data during print, SC-006), confirming the print dialog opens with no perceptible delay (SC-007), and a print-to-PDF pass.
 
 ---
 
