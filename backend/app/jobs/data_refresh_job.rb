@@ -145,6 +145,16 @@ class DataRefreshJob < ApplicationJob
       finalized = true
     end
 
+    # The run just bulk-inserted/updated/retired large swaths of cameras and their
+    # monitored_segments. Until autovacuum catches up, the planner serves viewport
+    # (cameras#index) and routing (SegmentExclusionBuilder/ProximityScorer) queries
+    # off stale row estimates and can mis-cost the GiST/index scans. A manual ANALYZE
+    # is cheap (lightweight lock, no rewrite) and makes the fresh data queryable with
+    # accurate stats immediately. Outside the transaction: ANALYZE's new statistics
+    # only take effect on commit, and it shouldn't share finalize's rollback fate.
+    # Gated on `finalized` so a crash-retry re-entry (a no-op finalize) doesn't repeat it.
+    analyze_spatial_tables if finalized
+
     return unless finalized && result.status != "success"
 
     # Surface degraded/failed runs to telemetry (per_source carries only
@@ -153,6 +163,13 @@ class DataRefreshJob < ApplicationJob
       "camera_data refresh finished status=#{result.status}",
       run_id: run.id, status: result.status, per_source: result.per_source
     )
+  end
+
+  # Refresh planner statistics for the two tables the refresh churns, so the next
+  # API request plans against accurate row counts rather than waiting on autovacuum.
+  # One ANALYZE covers both tables. Table names are static literals (no interpolation).
+  def analyze_spatial_tables
+    ActiveRecord::Base.connection.execute("ANALYZE cameras, monitored_segments")
   end
 
   # Set data_freshness_at ONLY on the data-regions that overlap a tile that

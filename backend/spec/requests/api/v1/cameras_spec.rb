@@ -27,6 +27,32 @@ RSpec.describe "GET /api/v1/cameras", type: :request do
     expect(cam["segment"]).to eq([ [ -104.991, 39.74 ], [ -104.989, 39.74 ] ])
   end
 
+  it "displays the closest monitored segment when a camera has several" do
+    camera = create(:camera, location: "SRID=4326;POINT(-104.99 39.74)", confidence: 0.9)
+    # Farther segment (larger snap_distance_m) — should be the loser.
+    create(:monitored_segment, camera: camera, osm_way_id: 1, snap_distance_m: 9.0,
+                               geometry: "SRID=4326;LINESTRING(-104.992 39.741, -104.990 39.741)")
+    # Closest segment — should win the per-camera DISTINCT ON tie-break.
+    create(:monitored_segment, camera: camera, osm_way_id: 2, snap_distance_m: 1.0,
+                               geometry: "SRID=4326;LINESTRING(-104.991 39.74, -104.989 39.74)")
+
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8", zoom: "16" }
+
+    cam = response.parsed_body["cameras"].find { |c| c["id"] == camera.id }
+    expect(cam["segment"]).to eq([ [ -104.991, 39.74 ], [ -104.989, 39.74 ] ])
+  end
+
+  it "rounds segment geometry to 6 decimals to keep the payload light" do
+    camera = create(:camera, location: "SRID=4326;POINT(-104.99 39.74)", confidence: 0.9)
+    create(:monitored_segment, camera: camera,
+                               geometry: "SRID=4326;LINESTRING(-104.9912345678 39.7400000001, -104.989 39.74)")
+
+    get "/api/v1/cameras", params: { bbox: "-105.0,39.7,-104.9,39.8", zoom: "16" }
+
+    cam = response.parsed_body["cameras"].find { |c| c["id"] == camera.id }
+    expect(cam["segment"]).to eq([ [ -104.991235, 39.74 ], [ -104.989, 39.74 ] ])
+  end
+
   it "omits segment fields for a camera that has not been snapped" do
     camera = create(:camera, location: "SRID=4326;POINT(-104.99 39.74)", confidence: 0.9)
 

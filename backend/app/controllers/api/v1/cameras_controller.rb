@@ -51,17 +51,31 @@ module Api
       def segment_display(camera_ids)
         return {} if camera_ids.empty?
 
+        # Pick the one segment to display per camera (closest by snap_distance_m)
+        # FIRST, on the cheap ordering columns only — no geometry projection, no
+        # cameras join. DISTINCT ON over this narrow set keeps the sort small and,
+        # critically, avoids computing ST_AsGeoJSON/ST_ClosestPoint on the ~60% of
+        # candidate segments that lose the per-camera tie and get discarded.
+        closest = MonitoredSegment
+                  .select("DISTINCT ON (camera_id) camera_id, direction, geometry")
+                  .where(camera_id: camera_ids)
+                  .order("camera_id, snap_distance_m")
+
+        # Project the heavy geometry only on the surviving one-row-per-camera set,
+        # joining cameras for the snap origin. ST_AsGeoJSON at 6 decimals (~0.1 m) —
+        # ample for map display, and a smaller payload to encode and send than the
+        # 9-digit default.
         relation = MonitoredSegment
-                   .joins(:camera)
-                   .where(camera_id: camera_ids)
+                   .with(closest: closest)
+                   .from("closest")
+                   .joins("JOIN cameras ON cameras.id = closest.camera_id")
                    .select(
-                     "DISTINCT ON (monitored_segments.camera_id) monitored_segments.camera_id AS camera_id",
-                     "monitored_segments.direction AS direction",
-                     "ST_AsGeoJSON(monitored_segments.geometry) AS segment_geojson",
-                     "ST_X(ST_ClosestPoint(monitored_segments.geometry, cameras.location)) AS snap_lng",
-                     "ST_Y(ST_ClosestPoint(monitored_segments.geometry, cameras.location)) AS snap_lat"
+                     "closest.camera_id AS camera_id",
+                     "closest.direction AS direction",
+                     "ST_AsGeoJSON(closest.geometry, 6) AS segment_geojson",
+                     "ST_X(ST_ClosestPoint(closest.geometry, cameras.location)) AS snap_lng",
+                     "ST_Y(ST_ClosestPoint(closest.geometry, cameras.location)) AS snap_lat"
                    )
-                   .order("monitored_segments.camera_id, monitored_segments.snap_distance_m")
 
         MonitoredSegment.connection.select_all(relation.to_sql).each_with_object({}) do |row, acc|
           acc[row["camera_id"].to_i] = {

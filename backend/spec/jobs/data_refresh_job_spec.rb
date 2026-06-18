@@ -141,6 +141,25 @@ RSpec.describe DataRefreshJob, type: :job do
     expect(iowa_region.reload.data_freshness_at).to be_within(1.second).of(5.days.ago)
   end
 
+  it "refreshes planner statistics for cameras + monitored_segments after a finalized run" do
+    conn = ActiveRecord::Base.connection
+    allow(conn).to receive(:execute).and_call_original
+
+    run!
+
+    expect(conn).to have_received(:execute).with(/\AANALYZE cameras, monitored_segments\z/i)
+  end
+
+  it "skips the ANALYZE when no run is finalized (another run already in progress)" do
+    RefreshRun.create!(trigger: "manual", started_at: Time.current)
+    conn = ActiveRecord::Base.connection
+    allow(conn).to receive(:execute).and_call_original
+
+    expect(run!).to eq(:skipped)
+
+    expect(conn).not_to have_received(:execute).with(/ANALYZE/i)
+  end
+
   it "does not start while another run is in progress (FR-014)" do
     RefreshRun.create!(trigger: "manual", started_at: Time.current)
     expect { expect(run!).to eq(:skipped) }.not_to change(Camera, :count)
