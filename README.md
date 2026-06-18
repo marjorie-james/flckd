@@ -21,9 +21,37 @@ wizard defaults to one (**Iowa**), so you can just accept the default and go. Sc
 to a whole country (the production scope) is a heavier, larger-machine job —
 see [Whole-country / whole-US deployments](#whole-country--whole-us-deployments) below.
 
-You only need **[Docker Desktop](https://docs.docker.com/get-docker/)** (give it
-≥ 6 GB memory and ~10 GB free disk for a state build), **git**, and **curl**. Everything
-else runs in containers — no Ruby, Node, or Postgres to install.
+### The easy way (no command line) 🐣
+
+If you're not comfortable in a terminal, this path needs **no typing**:
+
+1. **Install [Docker Desktop](https://docs.docker.com/get-docker/)** for your OS and open
+   it once. Give it **≥ 6 GB memory** (Docker Desktop → Settings → Resources → Memory).
+   - **Windows only:** also install **[Git for Windows](https://git-scm.com/download/win)**
+     (accept the defaults). It provides "Git Bash", which runs the wizard — this is a tiny
+     one-click installer, **not** the heavy WSL2 setup.
+2. **Get the code** — click **Code → Download ZIP** on the
+   [repo page](https://github.com/marjorie-james/flckd), then unzip it. *(Or `git clone`
+   if you have git — that path keeps the launcher ready to double-click on macOS.)*
+3. **Double-click the launcher** for your platform in the unzipped folder:
+
+   | OS | Double-click |
+   |---|---|
+   | **macOS** | **`Start flckd (Mac).command`** — first time from a ZIP, right-click it → **Open** → **Open** to get past macOS's "unidentified developer" prompt (Gatekeeper, not an error). |
+   | **Windows** | **`Start flckd (Windows).bat`** |
+   | **Linux** | run `./setup.sh` in a terminal (see below) |
+
+   The launcher checks Docker (and **opens the right download page / starts Docker for you**
+   if needed), then runs the one-time setup. It downloads map data and starts everything —
+   ~25–30 min for a state, mostly unattended. A prompt asks for a state; just press Return
+   to accept the default (Iowa).
+4. **Open the app:** when it finishes it prints the URLs. Visit **<http://localhost:5173>**.
+
+### The terminal way (developers)
+
+You need **[Docker Desktop](https://docs.docker.com/get-docker/)** (≥ 6 GB memory, ~10 GB
+free disk for a state), **git**, and **curl**. Everything else runs in containers — no
+Ruby, Node, or Postgres to install.
 
 1. **Get the code:**
 
@@ -32,15 +60,14 @@ else runs in containers — no Ruby, Node, or Postgres to install.
    cd flckd
    ```
 
-2. **Run the one-time setup wizard** (downloads map data and starts everything; for a
-   state it takes ~25–30 min, mostly unattended). Run it from the repo root and accept
-   the default state (or type another **2-letter state** at the prompt):
+2. **Run the one-time setup wizard** from the repo root (accept the default state, or type
+   another **2-letter state** at the prompt):
 
    | OS | Command |
    |---|---|
    | **macOS** | `./setup.sh` |
    | **Linux** | `./setup.sh` |
-   | **Windows** | Open **WSL2** (Ubuntu), `cd` into the repo, then `./setup.sh` |
+   | **Windows** | run `./infra/scripts/setup.sh` from **Git Bash** (Git for Windows) — no WSL2 needed |
 
    It's safe to re-run if a step fails — completed work is reused.
 
