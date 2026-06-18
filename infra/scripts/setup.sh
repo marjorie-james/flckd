@@ -429,6 +429,20 @@ fi
     return 0
   }
 
+  # ── Interactive Docker preflight (before the build UI) ───────────────────────
+  # Make Docker turnkey for a non-technical user: open the download page if it's
+  # missing, auto-start it (and wait) if it's installed-but-stopped, and flag a
+  # low memory allotment. Run BEFORE the panel/verbose flow so these messages
+  # aren't buried inside the backgrounded "Check prerequisites" step. That step
+  # (_check_prereqs) still runs below as the fast, final gate.
+  # shellcheck source=infra/scripts/preflight.sh
+  . "${SCRIPT_DIR}/preflight.sh"
+  if ! pf_ensure_docker; then
+    echo
+    error "Docker isn't ready yet (see above). Re-run ./setup.sh once Docker Desktop is running."
+    exit 1
+  fi
+
   # ── Verbose mode: stream all output directly ─────────────────────────────────
   if [ "${VERBOSE}" = "true" ]; then
     echo
