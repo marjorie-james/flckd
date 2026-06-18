@@ -275,6 +275,9 @@ open a public issue** — see [SECURITY.md](SECURITY.md).
 
 - [docs/runbooks/provisioning.md](docs/runbooks/provisioning.md) — one-time
   production setup: hosts, secrets, DNS, GitHub Actions config, first bring-up.
+- [docs/runbooks/prod-setup-example.md](docs/runbooks/prod-setup-example.md) — the
+  **as-built** snapshot of the live deploy (Vultr single host, Caddy edge, Kamal,
+  Iowa scope) — concrete values as a worked example of the generic provisioning docs.
 - [docs/runbooks/refresh-ops.md](docs/runbooks/refresh-ops.md) — the daily 08:00
   UTC camera-data refresh: manual triggers, status, telemetry, stale→retire.
 - [docs/runbooks/geo-stack.md](docs/runbooks/geo-stack.md) — building/rebuilding
