@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-11
 
-**Status**: Draft
+**Status**: Completed
 
 **Input**: User description: "the map shows the chosen, flock-avoiding route with time to travel, but it also shows the fastest path not avoiding flock cameras as a comparison to surface additional travel time required for the flock-less route"
 

@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-01
 
-**Status**: Draft
+**Status**: Completed
 
 **Input**: User description: "use all the Flock camera location sources, including DeFlock and others, and aggregate the data so our database is the source of truth. refresh our data periodically in the background at whatever 4am central time is in UTC"
 

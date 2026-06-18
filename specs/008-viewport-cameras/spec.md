@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-11
 
-**Status**: Draft
+**Status**: Completed
 
 **Input**: User description: "The app renders camera locations in the current viewport"
 

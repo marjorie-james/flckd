@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-15
 
-**Status**: Draft
+**Status**: Completed
 
 **Input**: User description: "user can click print icon by top of driving directions, and the print styles allow it to be displayed in a simple, easily readable format while driving"
 

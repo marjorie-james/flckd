@@ -14,7 +14,7 @@
 
 **Created**: 2026-06-10
 
-**Status**: Draft
+**Status**: Superseded
 
 **Input**: User description: "the app downloads TIGER data from Census Bureau in parallel"
 
