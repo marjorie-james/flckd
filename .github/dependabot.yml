@@ -29,6 +29,14 @@ updates:
       frontend-deps:
         patterns: ["*"]
         update-types: [minor, patch]
+    # @types/node must track the Node RUNTIME major, not the latest release. The
+    # runtime is Node 22 (Dockerfile.dev `node:22-slim`); pulling @types/node 25.x
+    # describes APIs that don't exist on 22, so code can typecheck yet crash at
+    # runtime. Block major bumps; patch/minor within the line still come through.
+    # Bump it deliberately in lockstep when the Node runtime major moves.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
