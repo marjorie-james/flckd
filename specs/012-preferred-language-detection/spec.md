@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-15
 
-**Status**: Draft
+**Status**: Completed
 
 **Input**: User description: "user's preferred language is derived from available environment/other info"
 

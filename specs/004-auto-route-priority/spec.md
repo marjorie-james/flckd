@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-09
 
-**Status**: Draft
+**Status**: Completed
 
 **Input**: User description: "the app has no options for routing, and instead shows no cam path > fewest cam path in priority, meaning if the routing can't find a zero cam path, it will choose the path that has the fewest"
 

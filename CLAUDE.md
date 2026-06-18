@@ -1,6 +1,11 @@
 <!-- SPECKIT START -->
 **Active feature**: _none in progress_ — most recently shipped: `013-printable-directions` (below).
 
+> **Consolidated memory**: all shipped specs (002–013) are archived into
+> [`.specify/memory/`](.specify/memory/) — `spec.md` (per-feature requirements + a Superseded/Evolved
+> section authoritative for the current state), `plan.md` (implemented architecture, endpoints, config,
+> and a Known Issues & Gotchas digest), and `changelog.md`. Consult these for cross-feature context.
+
 Prior feature: [`013-printable-directions`](specs/013-printable-directions/plan.md)
 ([spec](specs/013-printable-directions/spec.md)) — an icon-only **print control** at the top
 of the on-screen driving directions. Activating it opens the browser's native print dialog showing

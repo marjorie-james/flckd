@@ -8,7 +8,7 @@ description: "Specification for an anonymous, mobile-first, multi-lingual route 
 
 **Created**: 2026-05-31
 
-**Status**: Draft
+**Status**: Completed
 
 **Input**: User description: "build a multi-lingual web application highly tailored to mobile with a focus on anonymity that allows a user to plan a driving route that explicitly avoids Flock cameras"
 
