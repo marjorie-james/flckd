@@ -21,7 +21,7 @@ wizard defaults to one (**Iowa**), so you can just accept the default and go. Sc
 to a whole country (the production scope) is a heavier, larger-machine job —
 see [Whole-country / whole-US deployments](#whole-country--whole-us-deployments) below.
 
-### The easy way (no command line) 🐣
+### The simple way (no command line)
 
 If you're not comfortable in a terminal, this path needs **no typing**:
 
@@ -29,7 +29,7 @@ If you're not comfortable in a terminal, this path needs **no typing**:
    it once. Give it **≥ 6 GB memory** (Docker Desktop → Settings → Resources → Memory).
    - **Windows only:** also install **[Git for Windows](https://git-scm.com/download/win)**
      (accept the defaults). It provides "Git Bash", which runs the wizard — this is a tiny
-     one-click installer, **not** the heavy WSL2 setup.
+     one-click installer.
 2. **Get the code** — click **Code → Download ZIP** on the
    [repo page](https://github.com/marjorie-james/flckd), then unzip it. *(Or `git clone`
    if you have git — that path keeps the launcher ready to double-click on macOS.)*
@@ -47,7 +47,7 @@ If you're not comfortable in a terminal, this path needs **no typing**:
    to accept the default (Iowa).
 4. **Open the app:** when it finishes it prints the URLs. Visit **<http://localhost:5173>**.
 
-### The terminal way (developers)
+### The terminal way
 
 You need **[Docker Desktop](https://docs.docker.com/get-docker/)** (≥ 6 GB memory, ~10 GB
 free disk for a state), **git**, and **curl**. Everything else runs in containers — no
