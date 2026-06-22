@@ -27,7 +27,7 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
         with:
           fetch-depth: 0
       - id: filter
@@ -50,7 +50,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.3
       # pnpm must be set up BEFORE setup-node so its cache backend resolves.
       - uses: pnpm/action-setup@v6.0.8
         with:
