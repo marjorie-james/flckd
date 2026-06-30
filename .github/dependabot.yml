@@ -1,5 +1,13 @@
-# Keep dependencies patched. Weekly PRs, grouped to reduce noise; security
-# updates always come through regardless of schedule.
+# Keep dependencies CURRENT, not just patched. Weekly version-update PRs for
+# every ecosystem regardless of whether a CVE exists. minor + patch bumps are
+# grouped per ecosystem to reduce noise; MAJOR bumps fall outside the groups so
+# Dependabot raises them as individual PRs (each breaking-change reviewed on its
+# own). Dependabot security updates come through immediately, regardless of
+# schedule or cooldown.
+#
+# The only versions deliberately held back are two MAJOR bumps below
+# (@types/node, ruby) — runtime-compatibility guards, NOT CVE gating. Lift them
+# in lockstep when the corresponding runtime major actually moves.
 #
 # `cooldown` holds back version-update PRs until a release has aged past the
 # given number of days — a supply-chain guard so we don't pull a version that
