@@ -46,7 +46,7 @@ jobs:
       # (those are the operator's one-command full provisioning via build-geo.sh).
       GEO_ARTIFACTS_ONLY: "1"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build geo artifacts + manifest
         run: infra/scripts/build-geo.sh
