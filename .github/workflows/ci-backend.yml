@@ -1,6 +1,7 @@
 name: CI (backend)
 
-# Backend Quality Gates (RuboCop, Brakeman, bundler-audit, RSpec).
+# Backend Quality Gates (RuboCop, Brakeman, RSpec) + a non-blocking dependency
+# audit (bundler-audit).
 #
 # Required-check + minutes hygiene: `backend` is a branch-protection required
 # context, so it must report on EVERY pull request — a top-level `paths:` filter
@@ -9,6 +10,13 @@ name: CI (backend)
 # only the cheap `changes` detector and the `backend` gate run on unrelated PRs;
 # the expensive `backend-tests` job (Postgres service + RSpec) is gated on
 # backend/** actually changing, so unrelated PRs cost ~seconds.
+#
+# Dependency audit is deliberately NOT part of the `backend` gate: `bundler-audit
+# check --update` pulls the Ruby advisory DB at runtime, so a newly-published
+# advisory for a gem already on `main` can turn it red with zero code change.
+# Gating merges on that produced spurious deadlocks, so it runs as its own
+# `dependency-audit` job — a failure surfaces as a visible ❌ for triage (bump
+# the gem to clear it) but does not block unrelated merges.
 on:
   # Pull requests only — `main` lands via fast-forward of an already-tested PR
   # branch, so re-running CI post-merge would just re-test the same tree.
@@ -78,14 +86,36 @@ jobs:
       - name: Security (Brakeman)
         # Static analysis; fail the build on any new warning or scan error.
         run: bundle exec brakeman -q --no-pager --exit-on-warn --exit-on-error
-      - name: Dependency audit (bundler-audit)
-        # Audit gems against the Ruby advisory DB (config/bundler-audit.yml).
-        run: bundle exec bundler-audit check --update
       - name: DB setup
         run: bin/rails db:migrate
       - name: Tests (RSpec)
         # COVERAGE=1 enforces the SimpleCov line floor (spec/spec_helper.rb).
         run: COVERAGE=1 bundle exec rspec
+
+  # Dependency audit — bundler-audit against the live Ruby advisory DB. Split
+  # out of `backend-tests` and intentionally kept OUT of the `backend` required
+  # gate (see header): `--update` fetches the advisory DB at runtime, so this can
+  # go red without any code change. A red result is a visible triage signal, not
+  # a merge blocker. Gated on backend/** like the other heavy jobs for minutes
+  # hygiene (the audit only reads backend/Gemfile.lock).
+  dependency-audit:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ruby/setup-ruby@v1.314.0
+        with:
+          ruby-version: "3.4.9"
+          bundler-cache: true
+          working-directory: backend # Gemfile lives in backend/, not repo root
+      - name: Dependency audit (bundler-audit)
+        # Audit gems against the Ruby advisory DB (config/bundler-audit.yml).
+        run: bundle exec bundler-audit check --update
 
   # Production image smoke: build the Kamal/production Dockerfile (no push) so a
   # build-breaking change is caught in PR CI rather than at `kamal deploy` time.
