@@ -252,6 +252,17 @@ function overrides don't intercept subshells. **Prevention:** indexed PID array 
 `-f`, use `--write-out "%{http_code}"`; PATH-prepend stubs intercept at the OS level; one marker file
 per failure (no concurrent writes). [005, 006, 011]
 
+### ⚠️ `bundler-audit` on the required gate deadlocks merges
+**Issue:** `bundler-audit check --update` fetches the Ruby advisory DB at runtime, so a newly-published
+advisory for a gem *already on `main`* turns CI red with **no code change** — and while it ran as a step
+inside `backend-tests` (feeding the branch-protection–required `backend` gate) that spontaneously blocked
+every open PR (hit real-world with the `json`/`websocket-driver` advisories, PRs #63/#64/#66). **Root
+Cause:** a live-updating audit gating merges. **Prevention:** `bundler-audit` runs as its own standalone
+**`dependency-audit`** job that is intentionally **not** in the `backend` gate's `needs` — a failure is a
+visible ❌ for triage (bump the gem to clear it) but no longer blocks merges. RuboCop/Brakeman/RSpec stay
+blocking in `backend-tests`; the audit stays gated on `backend/**` for minutes hygiene. **Tradeoff:** a
+serious advisory now flags rather than blocks. See `.github/workflows/ci-backend.yml` header. [PR #67]
+
 ## Revision Log
 
 - **2026-06-18** — Bootstrapped from `013-printable-directions`.
@@ -259,3 +270,5 @@ per failure (no concurrent writes). [005, 006, 011]
   dependencies, project structure, endpoints, config, testing strategy, and a Known Issues & Gotchas
   section harvested from all feature research docs. Reflects the implemented state (preference UI and
   external-maps handoff removed; country-scale geo provisioning; React 19 / PostgreSQL 17).
+- **2026-07-08** — Added Known Issue: `bundler-audit` split into a non-blocking `dependency-audit` CI
+  job so live advisory-DB updates no longer deadlock merges (PR #67).
