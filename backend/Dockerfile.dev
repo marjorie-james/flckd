@@ -1,7 +1,7 @@
 # Development image for the Camera-Avoiding Route Planner backend.
 # Runs Rails inside a container to sidestep host native-extension build issues.
 # Source is bind-mounted via docker-compose; this image only provides the toolchain + gems.
-FROM ruby:3.4.9-slim
+FROM ruby:3.4.10-slim
 
 ENV LANG=C.UTF-8 \
     BUNDLE_PATH=/usr/local/bundle \
