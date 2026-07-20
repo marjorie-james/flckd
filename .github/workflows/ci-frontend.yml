@@ -55,7 +55,7 @@ jobs:
       - uses: pnpm/action-setup@v6.0.9
         with:
           version: 11.5.2
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # Pinned to the 22.22 LTS minor to match .tool-versions (22.22.3): pnpm
           # 11.5.2 (above) requires Node >= 22.13, and the bare "22" range was
