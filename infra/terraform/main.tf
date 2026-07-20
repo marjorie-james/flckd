@@ -49,15 +49,40 @@ resource "vultr_firewall_rule" "https" {
   notes             = "HTTPS"
 }
 
-# Boot-time script: format + mount the NVMe block volume and point Docker's
-# data-root at it BEFORE Docker is installed, so the whole-US Nominatim import
-# (250-350 GB) lands on the big NVMe instead of the small bundled disk. It is
-# idempotent (boot scripts re-run every boot) and never reformats a volume that
-# already holds data. Provider requires the script base64-encoded.
-resource "vultr_startup_script" "mount_docker_volume" {
-  name   = "${var.hostname}-mount-docker-volume"
+# Boot-time script. Vultr attaches exactly ONE startup script per instance, so we
+# assemble every boot-time concern into a single script here:
+#   1. mount-docker-volume.sh — format + mount the NVMe block volume and point
+#      Docker's data-root at it BEFORE Docker is installed, so the whole-US
+#      Nominatim import (250-350 GB) lands on the big NVMe, not the small bundled
+#      disk.
+#   2. harden-host.sh — OS-level hardening (sshd key-only, fail2ban, unattended
+#      security upgrades, sysctl) complementing the Vultr firewall group. Gated by
+#      var.enable_hardening.
+#
+# Each phase is wrapped in a `( … )` subshell so its `set -euo pipefail`/`exit`
+# is isolated and one phase's failure cannot abort the others. Both scripts are
+# idempotent (boot scripts re-run every boot) and never destroy existing data.
+# Provider requires the script base64-encoded.
+locals {
+  boot_phases = compact([
+    file("${path.module}/scripts/mount-docker-volume.sh"),
+    var.enable_hardening ? file("${path.module}/scripts/harden-host.sh") : "",
+  ])
+
+  boot_script = join("\n", concat(
+    [
+      "#!/usr/bin/env bash",
+      "# Assembled by Terraform (infra/terraform/main.tf). Do not edit on the host.",
+      "set +e",
+    ],
+    flatten([for phase in local.boot_phases : ["(", phase, ")"]]),
+  ))
+}
+
+resource "vultr_startup_script" "boot" {
+  name   = "${var.hostname}-boot"
   type   = "boot"
-  script = base64encode(file("${path.module}/scripts/mount-docker-volume.sh"))
+  script = base64encode(local.boot_script)
 }
 
 resource "vultr_instance" "flckd" {
@@ -70,7 +95,7 @@ resource "vultr_instance" "flckd" {
   backups           = var.enable_backups
   ssh_key_ids       = [vultr_ssh_key.deploy.id]
   firewall_group_id = vultr_firewall_group.flckd.id
-  script_id         = vultr_startup_script.mount_docker_volume.id
+  script_id         = vultr_startup_script.boot.id
 
   # NOTE: Vultr plan resizes are UPGRADE-ONLY and reboot the box. Upgrading to
   # Option A is just var.instance_plan = "vhp-8c-32gb-amd" + apply (see README).
