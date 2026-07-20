@@ -36,8 +36,12 @@ _deploy_yml_host() {  # <block-key>
 # read the same value from secrets.env so `host:` parsing never leaks the ERB tag.
 _load_flckd_host_from_secrets() {
   [ -n "${FLCKD_HOST:-}" ] && return 0
+  # Build the path with dirname only (no `cd ... && pwd`): a failing `cd` inside a
+  # command substitution makes the enclosing assignment non-zero, which aborts the
+  # sourcing script under `set -e`. dirname never fails, and the shell resolves the
+  # `../` when the path is used.
   local _sf
-  _sf="$(cd "$(dirname "${DEPLOY_YML}")/../.kamal" 2>/dev/null && pwd)/secrets.env"
+  _sf="$(dirname "${DEPLOY_YML}")/../.kamal/secrets.env"
   [ -f "${_sf}" ] || return 0
   # Grab only FLCKD_HOST; do not source the whole secrets file into these scripts.
   FLCKD_HOST="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?FLCKD_HOST=["'\'']?([^"'\''[:space:]]+).*/\2/p' "${_sf}" | tail -1)"
