@@ -164,10 +164,20 @@ accessories:
     # doesn't collide with the tiles accessory's 127.0.0.1:8080. The app reaches
     # the geocoder by container name (GEOCODER_URL=…-geocoder:8080), not this port.
     port: "127.0.0.1:8081:8080"
+    # WHOLE-US import tuning (mirrors dev docker-compose shm_size/THREADS). The
+    # default 64 MB /dev/shm makes the US osm2pgsql/Postgres index build fail
+    # ("could not resize shared memory segment"); raise it. A single US state is
+    # fine on the default, so this is only required at country scale.
+    #   options:
+    #     shm-size: 4g           # was the dev NOMINATIM_SHM knob
     env:
       clear:
         PBF_PATH: /nominatim/import/extract.osm.pbf
         IMPORT_STYLE: address    # addresses/places only — faster import for autocomplete
+        # osm2pgsql/Nominatim import threads (dev NOMINATIM_THREADS). The import
+        # is the long pole of a whole-US build; set ~#cores on the provisioning
+        # box. Omit for the image default. e.g. for an 8-vCPU box:
+        #   THREADS: "8"
         # Import Wikipedia importance so place ranking reflects real-world
         # prominence (without it, a county outranks the city inside it). Applied
         # during the OSM import; matches dev (docker-compose.yml).

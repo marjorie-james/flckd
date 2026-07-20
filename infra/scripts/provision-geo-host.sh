@@ -200,10 +200,16 @@ echo "==> [2/5] Vector tiles (Planetiler → PMTiles)"
 # encodes REGION_URL so a deploy-scope change rebuilds the tiles for the new region.
 if [ -n "${TILES_DIR}" ] && { [ "${FORCE:-0}" = "1" ] || ! sshx "test -f '${TILES_DIR}/.tiles-complete' && [ \"\$(cat '${TILES_DIR}/.tiles-complete')\" = '${REGION_URL}' ]"; }; then
   echo "    building tiles.pmtiles…"
+  # Whole-US tiles OOM the JVM at the default heap and saturate all cores. Honor
+  # PLANETILER_XMX (JVM heap, e.g. 16g) and GEO_BUILD_JOBS (thread cap) from the
+  # deploy scope (backend/.kamal/geo.env, sourced above) — unset leaves the JVM
+  # default heap + all cores (fine for a single state). Mirrors build-tiles.sh.
+  _pl_jvm=""; [ -n "${PLANETILER_XMX:-}" ] && _pl_jvm="-e JAVA_TOOL_OPTIONS=-Xmx${PLANETILER_XMX}"
+  _pl_threads=""; [ -n "${GEO_BUILD_JOBS:-}" ] && _pl_threads="--threads=${GEO_BUILD_JOBS}"
   sshx "set -e; \
     rm -f '${TILES_DIR}/.tiles-complete'; \
-    docker run --rm -v '${TILES_DIR}:/data' -v '${BUILD_DIR}:/src' ${PLANETILER_IMAGE} \
-      --osm-path=/src/extract.osm.pbf --output=/data/tiles.pmtiles \
+    docker run --rm ${_pl_jvm} -v '${TILES_DIR}:/data' -v '${BUILD_DIR}:/src' ${PLANETILER_IMAGE} \
+      --osm-path=/src/extract.osm.pbf --output=/data/tiles.pmtiles ${_pl_threads} \
       --download --download-dir=/src/sources --tmpdir=/src/tmp --force; \
     docker run --rm -v '${BUILD_DIR}:/src' --entrypoint sh ${PLANETILER_IMAGE} -c 'rm -rf /src/tmp /src/sources' || true; \
     docker restart flckd-backend-tiles >/dev/null; \
