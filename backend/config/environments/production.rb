@@ -81,10 +81,34 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts is left open intentionally: this is an API-only app deployed
-  # behind Kamal/Thruster which validates the Host header at the proxy layer.
-  # Enable this once you have a stable domain, e.g.:
-  #   config.hosts = [ENV.fetch("API_DOMAIN")]
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  # Spoof-resistant client IP + Host validation at the app layer (defense in depth
+  # behind the Kamal/Thruster edge). Both are wired from the environment so the
+  # deployment topology is not hardcoded; when the vars are unset the behavior is
+  # unchanged (empty allow-lists), preserving the prior deploy-contract-only model.
+  require_relative "../../lib/edge_config"
+
+  # TRUSTED_PROXIES (e.g. "10.0.0.0/8, 172.16.0.0/12"): CIDRs of our reverse-proxy
+  # tier. ActionDispatch::RemoteIp strips these from X-Forwarded-For so an
+  # anonymous client cannot forge its throttle-bucket identity by appending fake
+  # XFF hops (finding M1).
+  #
+  # IMPORTANT: assigning config.action_dispatch.trusted_proxies REPLACES Rails'
+  # built-in trusted ranges (loopback + RFC1918) rather than extending them (see
+  # ActionDispatch::RemoteIp#initialize). We prepend the defaults so the
+  # Thruster/Kamal loopback hop stays trusted; otherwise remote_ip could resolve
+  # to the proxy or raise IpSpoofAttackError.
+  trusted_proxies = EdgeConfig.trusted_proxies
+  if trusted_proxies.any?
+    config.action_dispatch.trusted_proxies =
+      ActionDispatch::RemoteIp::TRUSTED_PROXIES + trusted_proxies
+  end
+
+  # Enable DNS-rebinding / Host-header protection once a stable domain exists.
+  # Set APP_HOSTS (comma-separated) or the legacy single-value API_DOMAIN; the
+  # /up health check stays excluded so load-balancer probes are never rejected.
+  allowed_hosts = EdgeConfig.allowed_hosts
+  if allowed_hosts.any?
+    config.hosts = allowed_hosts
+    config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  end
 end

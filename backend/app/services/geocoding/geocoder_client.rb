@@ -86,6 +86,11 @@ module Geocoding
     # trimmed list still holds that many *distinct* places instead of one road
     # repeated.
     def search(text, lang: "en", limit: 5)
+      # Guard: a non-positive limit would reach fetch_limit (limit * 4) and
+      # Array#first(negative) below and raise ArgumentError -> 500. The controller
+      # already clamps, but this keeps the shared client safe for any caller
+      # (defense in depth — the real crash site is here, not the boundary).
+      limit = [ limit.to_i, 1 ].max
       typed_house_number = leading_house_number(text)
       params = { q: normalize_query(text), format: "jsonv2", addressdetails: 1,
                  limit: fetch_limit(limit), "accept-language": lang }
