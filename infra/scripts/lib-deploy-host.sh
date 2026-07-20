@@ -30,11 +30,36 @@ _deploy_yml_host() {  # <block-key>
 # ssh.user, or $SSH_USER, default "deploy") when the value carries no `user@`.
 # deploy.yml host values are bare addresses; Kamal adds the user via ssh.user, but
 # our own ssh/scp calls must include it.
+# Load FLCKD_HOST from .kamal/secrets.env (gitignored) when it isn't already in the
+# environment. The host IP is kept OUT of git: deploy.yml references it as
+# `<%= ENV.fetch("FLCKD_HOST") %>`, and these shell scripts (which don't render ERB)
+# read the same value from secrets.env so `host:` parsing never leaks the ERB tag.
+_load_flckd_host_from_secrets() {
+  [ -n "${FLCKD_HOST:-}" ] && return 0
+  # Build the path with dirname only (no `cd ... && pwd`): a failing `cd` inside a
+  # command substitution makes the enclosing assignment non-zero, which aborts the
+  # sourcing script under `set -e`. dirname never fails, and the shell resolves the
+  # `../` when the path is used.
+  local _sf
+  _sf="$(dirname "${DEPLOY_YML}")/../.kamal/secrets.env"
+  [ -f "${_sf}" ] || return 0
+  # Grab only FLCKD_HOST; do not source the whole secrets file into these scripts.
+  FLCKD_HOST="$(sed -nE 's/^[[:space:]]*(export[[:space:]]+)?FLCKD_HOST=["'\'']?([^"'\''[:space:]]+).*/\2/p' "${_sf}" | tail -1)"
+  [ -n "${FLCKD_HOST}" ] && export FLCKD_HOST || true
+}
+
 resolve_target_host() {  # [user@host]
-  TARGET_HOST="${1:-${TARGET_HOST:-${GEO_HOST:-}}}"
-  [ -n "${TARGET_HOST}" ] || TARGET_HOST="$(_deploy_yml_host routing)"
+  _load_flckd_host_from_secrets
+  TARGET_HOST="${1:-${TARGET_HOST:-${GEO_HOST:-${FLCKD_HOST:-}}}}"
+  # Never fall back to the deploy.yml host when it is the un-rendered ERB tag.
+  case "${TARGET_HOST}" in *'<%'*) TARGET_HOST="";; esac
+  if [ -z "${TARGET_HOST}" ]; then
+    local _parsed; _parsed="$(_deploy_yml_host routing)"
+    case "${_parsed}" in *'<%'*) _parsed="";; esac
+    TARGET_HOST="${_parsed}"
+  fi
   [ -n "${TARGET_HOST}" ] || {
-    echo "lib-deploy-host: could not determine the target host (pass user@host or set it in deploy.yml)" >&2
+    echo "lib-deploy-host: could not determine the target host (pass user@host, export FLCKD_HOST, or set it in .kamal/secrets.env)" >&2
     return 1
   }
   if [ "${TARGET_HOST}" = "${TARGET_HOST#*@}" ]; then

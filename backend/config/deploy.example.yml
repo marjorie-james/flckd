@@ -29,14 +29,22 @@ ssh:
 # is prepended automatically. e.g. for GHCR use just `<github-user>/flckd-backend`.
 image: <REGISTRY_NAMESPACE>/flckd-backend
 
+# Host addresses: keep real IPs OUT of the file. deploy.yml is ERB-rendered, so a
+# host can be sourced from the environment instead of hardcoded:
+#   web:
+#     - <%= ENV.fetch("FLCKD_HOST") %>
+# Export the value in .kamal/secrets.env (gitignored) as `export FLCKD_HOST=...`;
+# bin/kamal-docker forwards it into Kamal, and the infra/scripts helpers read the
+# same var. ENV.fetch (no default) fails fast rather than deploying to a blank
+# host. The single-host whole-US deploy uses one FLCKD_HOST for every host below.
 servers:
   # HTTP app servers (Puma behind Thruster on port 80; see Dockerfile).
   web:
-    - <WEB_HOST_1>
+    - <WEB_HOST_1>            # or: <%= ENV.fetch("FLCKD_HOST") %>
   # Dedicated Solid Queue worker for the camera-data pipeline (import/snap/refresh).
   job:
     hosts:
-      - <JOB_HOST_1>
+      - <JOB_HOST_1>          # or: <%= ENV.fetch("FLCKD_HOST") %>
     cmd: bin/jobs
 
 # Kamal's built-in proxy terminates TLS and routes to the app's port 80.
