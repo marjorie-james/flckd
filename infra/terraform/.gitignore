@@ -1,0 +1,15 @@
+# Terraform state may contain sensitive values — never commit it.
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local provider cache.
+.terraform/
+
+# Real variable values (may hold the API key / IPs).
+terraform.tfvars
+*.auto.tfvars
+
+# Keep the provider lock committed:
+!.terraform.lock.hcl
