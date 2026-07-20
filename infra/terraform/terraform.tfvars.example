@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored — never
+# commit real values. The API key is best provided via the environment instead:
+#   export VULTR_API_KEY=...
+
+region            = "ewr"
+hostname          = "flckd-us"
+
+# Contents of your SSH public key (e.g. ~/.ssh/id_ed25519.pub).
+ssh_public_key    = "ssh-ed25519 AAAA...replace-me... you@host"
+
+# CIDRs allowed to SSH. Lock to your admin + CI egress IPs. NOT 0.0.0.0/0.
+ssh_allowed_cidrs = ["203.0.113.5/32"]
+
+# ── Option B defaults (16 GB + 200 GB NVMe block, ~$116/mo) ──────────────────
+# instance_plan    = "vhp-4c-16gb-amd"   # default
+# block_storage_gb = 200                 # default
+
+# ── Upgrade to Option A later (32 GB single disk, ~$190/mo) ──────────────────
+# See README.md "Upgrading to Option A". In short: bump the plan (an in-place,
+# reboot-only upgrade) — the block volume can stay attached as bonus disk.
+# instance_plan = "vhp-8c-32gb-amd"
