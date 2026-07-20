@@ -27,12 +27,20 @@ module CameraData
       end
 
       def fetch
-        data = JSON.parse(File.read(@path))
-        features = data.is_a?(Hash) ? Array(data["features"]) : []
-        features.filter_map { |feature| normalize(feature) }
+        parse_features(File.read(@path))
       end
 
       private
+
+      # Parses an already-read GeoJSON FeatureCollection document into normalized
+      # records. Split out from #fetch so the HTTP open-data source
+      # (OpenDataGeojson) can reuse the exact same normalization over a body it
+      # fetched over the network instead of from disk.
+      def parse_features(raw)
+        data = JSON.parse(raw)
+        features = data.is_a?(Hash) ? Array(data["features"]) : []
+        features.filter_map { |feature| normalize(feature) }
+      end
 
       def normalize(feature)
         geometry = feature["geometry"] || {}

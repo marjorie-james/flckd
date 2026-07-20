@@ -3,14 +3,17 @@ module CameraData
     # Pulls ALPR/Flock camera nodes from OpenStreetMap via an Overpass API
     # endpoint and normalizes them for the Importer.
     #
-    # OSM tagging convention (see research R5):
-    #   man_made=surveillance + surveillance:type=ALPR
-    #   man_made=surveillance + camera:type~alpr/anpr
-    #   man_made=surveillance + brand/operator~Flock
+    # OSM tagging convention (see research R5; selectors live in OsmTagging so the
+    # QL and the PBF-file predicate stay in lockstep):
+    #   man_made=surveillance + surveillance:type|camera:type ~ alpr|anpr
+    #   man_made=surveillance + brand|operator|manufacturer ~ an ALPR vendor
+    #     (Flock, Vigilant, ELSAG, AutoVu, Rekor, Neology)
     #
     # This is the canonical ALPR substrate. Community projects like DeFlock
-    # contribute their locations *into* OSM, so querying OSM already covers that
-    # data — there is no separate DeFlock fetch (ADR 0001).
+    # contribute their locations *into* OSM (DeFlock has no separate API of its
+    # own), so querying OSM already covers that data — there is no separate
+    # DeFlock fetch (ADR 0001). Broadening the selectors above is how we capture
+    # more of the DeFlock/community tagging variants.
     #
     # Provenance/legitimacy notes:
     #   * OSM data is ODbL-licensed; we record that license and attribute it.
@@ -150,13 +153,16 @@ module CameraData
 
         bbox = coords.join(",")
         diff_directive = diff_since ? %([diff:"#{diff_since}"]) : ""
+        types = OsmTagging::ALPR_TYPE_PATTERN
+        vendors = OsmTagging::ALPR_VENDOR_PATTERN
         <<~QL
           [out:json][timeout:#{@timeout}]#{diff_directive};
           (
-            node["man_made"="surveillance"]["surveillance:type"~"^ALPR$",i](#{bbox});
-            node["man_made"="surveillance"]["camera:type"~"alpr|anpr",i](#{bbox});
-            node["man_made"="surveillance"]["brand"~"flock",i](#{bbox});
-            node["man_made"="surveillance"]["operator"~"flock",i](#{bbox});
+            node["man_made"="surveillance"]["surveillance:type"~"#{types}",i](#{bbox});
+            node["man_made"="surveillance"]["camera:type"~"#{types}",i](#{bbox});
+            node["man_made"="surveillance"]["brand"~"#{vendors}",i](#{bbox});
+            node["man_made"="surveillance"]["operator"~"#{vendors}",i](#{bbox});
+            node["man_made"="surveillance"]["manufacturer"~"#{vendors}",i](#{bbox});
           );
           out body;
         QL

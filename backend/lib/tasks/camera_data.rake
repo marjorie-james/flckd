@@ -1,5 +1,5 @@
 namespace :camera_data do
-  desc "Import camera data from a source (SOURCE=fixture|pbf|overpass|geojson|aggregate)"
+  desc "Import camera data from a source (SOURCE=fixture|pbf|overpass|geojson|opendata|aggregate)"
   task import: :environment do
     source = ENV.fetch("SOURCE", "fixture")
     road_lookup = CameraData::ValhallaRoadLookup.new
@@ -33,19 +33,28 @@ namespace :camera_data do
       report CameraData::AggregateImport.new(sources: [ overpass_source ], road_lookup: road_lookup).call
 
     when "geojson"
-      # Generic open-data / FOIA / community export.
+      # Generic open-data / FOIA / community export from a FILE on disk.
       # GEOJSON_PATH=... NAME="City Open Data" [URL=...] [LICENSE=...] [KIND=community|internal]
       report CameraData::AggregateImport.new(sources: [ geojson_source ], road_lookup: road_lookup).call
 
+    when "opendata"
+      # Official municipal / open-data ALPR dataset published as GeoJSON over HTTP
+      # (Socrata `resource/<id>.geojson`, ArcGIS FeatureServer `?f=geojson`, ...).
+      # OPENDATA_URL=... NAME="City Open Data" LICENSE="..." [KIND=open-data]
+      report CameraData::AggregateImport.new(sources: [ opendata_source ], road_lookup: road_lookup).call
+
     when "aggregate"
       # Run the live OpenStreetMap source (US-wide; DeFlock feeds this same OSM
-      # substrate) plus an optional open-data file into the source-of-truth table.
+      # substrate) plus optional open-data file/HTTP sources into the
+      # source-of-truth table. Each additional source is purely additive
+      # (AggregateImport de-dups + attributes per source).
       sources = [ overpass_source ]
       sources << geojson_source if ENV["GEOJSON_PATH"].present?
+      sources << opendata_source if ENV["OPENDATA_URL"].present?
       report CameraData::AggregateImport.new(sources: sources, road_lookup: road_lookup).call
 
     else
-      abort "Unknown SOURCE=#{source}. Supported: fixture, pbf, overpass, geojson, aggregate."
+      abort "Unknown SOURCE=#{source}. Supported: fixture, pbf, overpass, geojson, opendata, aggregate."
     end
   end
 
@@ -102,6 +111,15 @@ def geojson_source
     name: ENV.fetch("NAME"),
     kind: ENV.fetch("KIND", "community"),
     url: ENV["URL"],
+    license: ENV["LICENSE"]
+  )
+end
+
+def opendata_source
+  CameraData::Sources::OpenDataGeojson.new(
+    url: ENV.fetch("OPENDATA_URL"),
+    name: ENV.fetch("NAME"),
+    kind: ENV.fetch("KIND", "open-data"),
     license: ENV["LICENSE"]
   )
 end

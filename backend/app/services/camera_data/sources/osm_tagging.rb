@@ -18,17 +18,39 @@ module CameraData
         license: "ODbL-1.0"
       }.freeze
 
+      # ALPR selectors, kept in ONE place so the live Overpass QL (server-side
+      # filter) and the PBF-file predicate (osm_alpr?) select the SAME nodes
+      # (ADR 0002 lockstep). Exposed as Overpass-QL regex strings; the Ruby
+      # predicate compiles them case-insensitively below.
+      #
+      # These are broadened from the original (surveillance:type=ALPR exact,
+      # brand|operator~flock) to capture the tagging variants DeFlock contributors
+      # and municipal mappers actually use — DeFlock publishes INTO OSM (it has no
+      # separate API), so widening the net here is how we ingest more of its data:
+      #   * surveillance:type / camera:type ~ alpr|anpr  (ANPR in surveillance:type
+      #     was previously missed; only camera:type=ANPR matched)
+      #   * brand | operator | MANUFACTURER ~ a vendor token (manufacturer=Flock
+      #     with no brand/operator was previously missed)
+      #
+      # The vendor list is deliberately narrow to ALPR-SPECIFIC product/brand
+      # tokens (Flock, Vigilant, ELSAG, AutoVu, Rekor, Neology). Generic CCTV
+      # makers (Motorola, Genetec, Leonardo) are excluded on purpose so we never
+      # dilute the avoidance layer with non-ALPR surveillance cameras.
+      ALPR_TYPE_PATTERN = "alpr|anpr".freeze
+      ALPR_VENDOR_PATTERN = "flock|vigilant|elsag|autovu|rekor|neology".freeze
+      ALPR_TYPE_RE = /#{ALPR_TYPE_PATTERN}/i
+      ALPR_VENDOR_RE = /#{ALPR_VENDOR_PATTERN}/i
+
       private
 
-      # True for an OSM surveillance node that is ALPR/ANPR/Flock-flavored — the
-      # exact set the Overpass QL selects: man_made=surveillance AND one of
-      # surveillance:type=ALPR, camera:type~alpr|anpr, brand|operator~flock.
+      # True for an OSM surveillance node that is ALPR/ANPR-flavored. Selects the
+      # SAME set as the Overpass QL (via the shared ALPR_* patterns above).
       def osm_alpr?(tags)
         return false unless tags["man_made"] == "surveillance"
 
-        "#{tags['surveillance:type']}".casecmp?("ALPR") ||
-          "#{tags['camera:type']}".downcase.match?(/alpr|anpr/) ||
-          "#{tags['brand']} #{tags['operator']}".downcase.include?("flock")
+        "#{tags['surveillance:type']}".match?(ALPR_TYPE_RE) ||
+          "#{tags['camera:type']}".match?(ALPR_TYPE_RE) ||
+          "#{tags['brand']} #{tags['operator']} #{tags['manufacturer']}".match?(ALPR_VENDOR_RE)
       end
 
       # Maps an OSM node (id + coords + tags) to the Importer record shape. Calls
