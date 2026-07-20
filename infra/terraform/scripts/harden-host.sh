@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Host hardening — complements the Vultr network firewall (vultr_firewall_group
+# Host hardening - complements the Vultr network firewall (vultr_firewall_group
 # in main.tf) with OS-level defenses. Runs as part of the combined Vultr "boot"
 # startup script (assembled in main.tf), so it MUST be IDEMPOTENT and boot-safe:
 # it re-runs on every boot and must be a near no-op once applied.
@@ -8,16 +8,16 @@
 # Scope (deliberately conservative to avoid ever locking yourself out):
 #   1. sshd: key-only auth (no passwords), but KEEP key-based root login so the
 #      documented `ssh root@<ip>` + infra/scripts/bootstrap-host.sh flow still
-#      works (outputs.tf → next_steps). Never disables root outright.
+#      works (outputs.tf -> next_steps). Never disables root outright.
 #   2. fail2ban: ban brute-forcers hitting sshd.
 #   3. unattended-upgrades: apply security patches automatically.
 #   4. sysctl: standard network-stack hardening.
 #
 # NOT done here: host ufw/iptables. The Vultr firewall group already filters at
-# the network edge (SSH → admin CIDRs only; 80/443 open). A second host firewall
+# the network edge (SSH -> admin CIDRs only; 80/443 open). A second host firewall
 # is redundant and a lockout hazard, so it is intentionally omitted.
 #
-# NOTE: this script is spliced into the boot script inside a `( … )` subshell, so
+# NOTE: this script is spliced into the boot script inside a `( ... )` subshell, so
 # its `set -euo pipefail` and any `exit` are isolated to this phase and cannot
 # abort the mount phase (see main.tf local.boot_script).
 set -euo pipefail
@@ -25,11 +25,16 @@ export DEBIAN_FRONTEND=noninteractive
 
 log() { echo "[harden-host] $*"; }
 
-# ── 1. SSH hardening (drop-in; base sshd_config untouched) ───────────────────
-SSHD_DROPIN="/etc/ssh/sshd_config.d/60-flckd-hardening.conf"
+# -- 1. SSH hardening (drop-in; base sshd_config untouched) -------------------
+# Ubuntu ships /etc/ssh/sshd_config.d/50-cloud-init.conf with
+# `PasswordAuthentication yes`. sshd uses FIRST-match-wins, so our drop-in must
+# sort BEFORE 50-cloud-init.conf or our `PasswordAuthentication no` is ignored.
+# Use a 00- prefix and remove any legacy 60- file from earlier boots.
+SSHD_DROPIN="/etc/ssh/sshd_config.d/00-flckd-hardening.conf"
 mkdir -p /etc/ssh/sshd_config.d
+rm -f /etc/ssh/sshd_config.d/60-flckd-hardening.conf
 read -r -d '' SSHD_WANT <<'EOF' || true
-# Managed by infra/terraform/scripts/harden-host.sh — do not edit by hand.
+# Managed by infra/terraform/scripts/harden-host.sh - do not edit by hand.
 # Key-only auth. Root stays reachable BY KEY for the bootstrap flow.
 PermitRootLogin prohibit-password
 PubkeyAuthentication yes
@@ -44,7 +49,7 @@ EOF
 
 if [ ! -f "$SSHD_DROPIN" ] || [ "$(cat "$SSHD_DROPIN")" != "$SSHD_WANT" ]; then
   printf '%s\n' "$SSHD_WANT" >"${SSHD_DROPIN}.tmp"
-  # Validate the FULL merged config before adopting the drop-in — a bad sshd
+  # Validate the FULL merged config before adopting the drop-in - a bad sshd
   # config that survives a reload can lock you out.
   if sshd -t -f /etc/ssh/sshd_config >/dev/null 2>&1 && \
      mv "${SSHD_DROPIN}.tmp" "$SSHD_DROPIN" && \
@@ -53,13 +58,13 @@ if [ ! -f "$SSHD_DROPIN" ] || [ "$(cat "$SSHD_DROPIN")" != "$SSHD_WANT" ]; then
     log "sshd hardening applied + reloaded"
   else
     rm -f "${SSHD_DROPIN}.tmp" "$SSHD_DROPIN"
-    log "WARN: sshd config validation failed — left sshd untouched"
+    log "WARN: sshd config validation failed - left sshd untouched"
   fi
 else
   log "sshd hardening already in place"
 fi
 
-# ── 2. fail2ban (install once; jail sshd) ────────────────────────────────────
+# -- 2. fail2ban (install once; jail sshd) ------------------------------------
 if ! command -v fail2ban-client >/dev/null 2>&1; then
   log "installing fail2ban"
   apt-get update -qq && apt-get install -y -qq fail2ban || log "WARN: fail2ban install failed"
@@ -85,7 +90,7 @@ if command -v fail2ban-client >/dev/null 2>&1; then
   fi
 fi
 
-# ── 3. Automatic security updates ────────────────────────────────────────────
+# -- 3. Automatic security updates --------------------------------------------
 if ! dpkg -s unattended-upgrades >/dev/null 2>&1; then
   log "installing unattended-upgrades"
   apt-get update -qq && apt-get install -y -qq unattended-upgrades || log "WARN: unattended-upgrades install failed"
@@ -103,7 +108,7 @@ else
   log "unattended-upgrades already configured"
 fi
 
-# ── 4. Kernel / network sysctl hardening ─────────────────────────────────────
+# -- 4. Kernel / network sysctl hardening -------------------------------------
 SYSCTL="/etc/sysctl.d/60-flckd-hardening.conf"
 read -r -d '' SYSCTL_WANT <<'EOF' || true
 # Managed by infra/terraform/scripts/harden-host.sh.
@@ -129,4 +134,4 @@ else
   log "sysctl hardening already in place"
 fi
 
-log "done — host hardening complete"
+log "done - host hardening complete"
