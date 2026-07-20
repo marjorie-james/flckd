@@ -12,8 +12,12 @@ ssh_public_key    = "ssh-ed25519 AAAA...replace-me... you@host"
 ssh_allowed_cidrs = ["203.0.113.5/32"]
 
 # ── Option B defaults (16 GB + 200 GB NVMe block, ~$116/mo) ──────────────────
-# instance_plan    = "vhp-4c-16gb-amd"   # default
+# instance_plan    = "vhp-8c-16gb-amd"   # default (16 GB HP is 8 vCPU in Vultr's catalog)
 # block_storage_gb = 200                 # default
+
+# Host hardening: sshd key-only, fail2ban, auto security upgrades, sysctl.
+# On by default; complements the Vultr firewall group. Set false only to debug.
+# enable_hardening = true                # default
 
 # ── Upgrade to Option A later (32 GB single disk, ~$190/mo) ──────────────────
 # See README.md "Upgrading to Option A". In short: bump the plan (an in-place,

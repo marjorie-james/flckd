@@ -11,5 +11,8 @@ crash.*.log
 terraform.tfvars
 *.auto.tfvars
 
+# Local, personal resume/preflight notes (never committed).
+*.local.md
+
 # Keep the provider lock committed:
 !.terraform.lock.hcl

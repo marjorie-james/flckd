@@ -15,9 +15,11 @@ variable "instance_plan" {
   description = <<-EOT
     Vultr plan ID.
 
-    DEFAULT = Option B: 4 vCPU / 16 GB RAM High Performance (~320 GB bundled NVMe),
-    ~$96/mo. Hits the 16 GB RAM floor; the separate NVMe block volume (below) carries
-    the heavy geo data so we do not pay for a 32 GB tier just to get disk.
+    DEFAULT = Option B: 8 vCPU / 16 GB RAM High Performance (350 GB bundled NVMe),
+    $96/mo. Hits the 16 GB RAM floor; the separate NVMe block volume (below) carries
+    the heavy geo data so we do not pay for a 32 GB tier just to get disk. (Vultr no
+    longer offers a 4-vCPU 16 GB HP tier — 16 GB HP is 8 vCPU as of the last catalog
+    check via the API.)
 
     VERIFY the exact plan ID and its bundled-disk size on Vultr's pricing page before
     apply — bundled disk varies by plan and region.
@@ -26,7 +28,7 @@ variable "instance_plan" {
     See README.md "Upgrading to Option A".
   EOT
   type        = string
-  default     = "vhp-4c-16gb-amd"
+  default     = "vhp-8c-16gb-amd"
 }
 
 variable "os_id" {
@@ -65,6 +67,18 @@ variable "ssh_allowed_cidrs" {
     condition     = length(var.ssh_allowed_cidrs) > 0 && !contains(var.ssh_allowed_cidrs, "0.0.0.0/0")
     error_message = "Set ssh_allowed_cidrs to specific admin/CI CIDRs; refusing an empty list or 0.0.0.0/0 (open SSH)."
   }
+}
+
+variable "enable_hardening" {
+  description = <<-EOT
+    Fold infra/terraform/scripts/harden-host.sh into the boot startup script:
+    sshd key-only auth (root stays reachable BY KEY for the bootstrap flow),
+    fail2ban, unattended security upgrades, and sysctl network hardening. This
+    COMPLEMENTS the Vultr firewall group; it does not enable a host firewall.
+    Idempotent + boot-safe. Default true. Set false only to debug a bare host.
+  EOT
+  type        = bool
+  default     = true
 }
 
 variable "enable_backups" {
