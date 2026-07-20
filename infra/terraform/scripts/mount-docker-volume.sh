@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# Vultr Option B (docs/runbooks/vultr-whole-us.md §2.2), automated.
+# Vultr Option B (docs/runbooks/vultr-whole-us.md sec 2.2), automated.
 #
 # Format + mount the attached NVMe block volume and point Docker's data-root at
 # it BEFORE Docker is installed, so the whole-US Nominatim import (250-350 GB)
-# lands on the big NVMe block volume instead of the small bundled disk — the #1
+# lands on the big NVMe block volume instead of the small bundled disk - the #1
 # failure mode the runbook warns about.
 #
 # Runs as a Vultr "boot" startup script, so it MUST be idempotent (re-runs on
@@ -24,16 +24,16 @@ for _ in $(seq 1 30); do
   sleep 5
 done
 if [ ! -b "$DEVICE" ]; then
-  log "ERROR: $DEVICE never appeared — is the block volume attached? (see README)"
+  log "ERROR: $DEVICE never appeared - is the block volume attached? (see README)"
   exit 1
 fi
 
 # 2. Format ONCE. Guard on an existing filesystem so a reboot never wipes data.
 if ! blkid "$DEVICE" >/dev/null 2>&1; then
-  log "no filesystem on $DEVICE — creating ext4 (first run)"
+  log "no filesystem on $DEVICE - creating ext4 (first run)"
   mkfs.ext4 -F "$DEVICE"
 else
-  log "$DEVICE already has a filesystem — skipping mkfs"
+  log "$DEVICE already has a filesystem - skipping mkfs"
 fi
 
 # 3. Persist the mount by UUID (device names can renumber across reboots).
@@ -80,4 +80,4 @@ if command -v docker >/dev/null 2>&1 && systemctl is-active --quiet docker; then
   fi
 fi
 
-log "done — Docker data-root -> $DOCKER_ROOT on $DEVICE (mounted at $MOUNT)"
+log "done - Docker data-root -> $DOCKER_ROOT on $DEVICE (mounted at $MOUNT)"
