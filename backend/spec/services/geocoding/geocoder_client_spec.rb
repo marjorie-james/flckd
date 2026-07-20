@@ -320,6 +320,21 @@ RSpec.describe Geocoding::GeocoderClient do
       bounded.search("Springfield, IL")
       expect(stub).to have_been_requested
     end
+
+    # Defense in depth: a non-positive limit reaches fetch_limit (limit * 4) and
+    # Array#first(negative), which raises ArgumentError. The client must floor it
+    # to 1 so no caller can turn a bad limit into a 500, independent of the
+    # controller's own clamp.
+    [ -999, -1, 0 ].each do |raw|
+      it "floors a non-positive limit (#{raw}) to 1 instead of raising" do
+        stub = stub_request(:get, "#{base_url}/search")
+          .with(query: hash_including("limit" => "4"))
+          .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
+
+        expect { client.search("des moines", limit: raw) }.not_to raise_error
+        expect(stub).to have_been_requested
+      end
+    end
   end
 
   describe ".build" do

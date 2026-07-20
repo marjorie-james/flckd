@@ -99,4 +99,15 @@ RSpec.describe "GET /api/v1/geocode/search", type: :request do
     get "/api/v1/geocode/search", params: { q: "des moines" }
     expect(geocoder).to have_received(:search).with("des moines", lang: anything, limit: 5)
   end
+
+  # A non-positive limit would otherwise reach Array#first(negative) downstream
+  # and raise ArgumentError -> unhandled 500. It must be floored to a positive
+  # value and the request must still succeed.
+  [ -999, -1, 0 ].each do |raw|
+    it "clamps a non-positive limit (#{raw}) up to 1 instead of 500ing" do
+      get "/api/v1/geocode/search", params: { q: "des moines", limit: raw }
+      expect(response).to have_http_status(:ok)
+      expect(geocoder).to have_received(:search).with("des moines", lang: anything, limit: 1)
+    end
+  end
 end

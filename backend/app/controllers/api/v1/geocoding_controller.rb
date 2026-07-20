@@ -22,8 +22,11 @@ module Api
         @geocoder ||= Geocoding::GeocoderClient.build
       end
 
+      # Clamp to a POSITIVE range. A negative value would otherwise reach
+      # Array#first(negative) downstream and raise ArgumentError -> unhandled 500
+      # (finding: geocode-negative-limit). Floor at 1, ceil at 10.
       def limit
-        [ (params[:limit] || 5).to_i, 10 ].min
+        (params[:limit] || 5).to_i.clamp(1, 10)
       end
     end
   end
