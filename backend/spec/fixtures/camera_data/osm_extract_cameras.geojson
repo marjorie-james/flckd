@@ -21,9 +21,33 @@
     },
     {
       "type": "Feature",
+      "id": "n1004",
+      "geometry": { "type": "Point", "coordinates": [-93.7000, 41.7000] },
+      "properties": { "man_made": "surveillance", "manufacturer": "Flock Safety" }
+    },
+    {
+      "type": "Feature",
+      "id": "n1005",
+      "geometry": { "type": "Point", "coordinates": [-92.4000, 41.9000] },
+      "properties": { "man_made": "surveillance", "operator": "Vigilant Solutions" }
+    },
+    {
+      "type": "Feature",
+      "id": "n1006",
+      "geometry": { "type": "Point", "coordinates": [-90.1800, 41.4800] },
+      "properties": { "man_made": "surveillance", "surveillance:type": "ANPR" }
+    },
+    {
+      "type": "Feature",
       "id": "n2001",
       "geometry": { "type": "Point", "coordinates": [-93.6000, 41.6000] },
       "properties": { "man_made": "surveillance", "surveillance:type": "public", "camera:type": "fixed" }
+    },
+    {
+      "type": "Feature",
+      "id": "n2002",
+      "geometry": { "type": "Point", "coordinates": [-93.5500, 41.6500] },
+      "properties": { "man_made": "surveillance", "brand": "Hikvision", "camera:type": "fixed" }
     },
     {
       "type": "Feature",

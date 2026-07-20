@@ -31,6 +31,19 @@ RSpec.describe CameraData::Sources::Overpass do
     }
   end
 
+  it "selects the broadened ALPR tag set server-side (lockstep with the PBF predicate)" do
+    stub_overpass
+    source.fetch
+
+    expect(WebMock).to have_requested(:post, endpoint).with { |req|
+      ql = CGI.unescape(req.body)
+      # Broadened beyond the original (surveillance:type=^ALPR$, brand|operator~flock):
+      ql.include?(%("surveillance:type"~"#{CameraData::Sources::OsmTagging::ALPR_TYPE_PATTERN}")) &&
+        ql.include?(%("manufacturer"~"#{CameraData::Sources::OsmTagging::ALPR_VENDOR_PATTERN}")) &&
+        ql.include?("vigilant") # a non-Flock ALPR vendor is now queried
+    }
+  end
+
   it "normalizes ALPR nodes and skips non-nodes" do
     stub_overpass
     records = source.fetch
@@ -97,9 +110,10 @@ RSpec.describe CameraData::Sources::Overpass do
 
     it "builds a case-insensitive surveillance:type clause in the Overpass QL" do
       ql = source.send(:query_for, bbox)
-      # ALPR-but-lowercase must be matchable: regex anchored, case-insensitive (,i),
-      # not the old exact ="ALPR" form that dropped lowercase nodes.
-      expect(ql).to include(%(["surveillance:type"~"^ALPR$",i]))
+      # ALPR-but-lowercase must be matchable: regex, case-insensitive (,i), not the
+      # old exact ="ALPR" form that dropped lowercase nodes. Broadened to alpr|anpr
+      # so ANPR tagged in surveillance:type is caught too (lockstep with osm_alpr?).
+      expect(ql).to include(%(["surveillance:type"~"alpr|anpr",i]))
       expect(ql).not_to include(%(["surveillance:type"="ALPR"]))
     end
   end
