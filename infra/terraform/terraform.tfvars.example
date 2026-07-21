@@ -3,7 +3,6 @@
 #   export VULTR_API_KEY=...
 
 region            = "ewr"
-hostname          = "flckd-us"
 
 # Contents of your SSH public key (e.g. ~/.ssh/id_ed25519.pub).
 ssh_public_key    = "ssh-ed25519 AAAA...replace-me... you@host"
@@ -11,15 +10,31 @@ ssh_public_key    = "ssh-ed25519 AAAA...replace-me... you@host"
 # CIDRs allowed to SSH. Lock to your admin + CI egress IPs. NOT 0.0.0.0/0.
 ssh_allowed_cidrs = ["203.0.113.5/32"]
 
-# ── Option B defaults (16 GB + 200 GB NVMe block, ~$116/mo) ──────────────────
-# instance_plan    = "vhp-8c-16gb-amd"   # default (16 GB HP is 8 vCPU in Vultr's catalog)
-# block_storage_gb = 200                 # default
+# ── deploy_scope = "state" (DEFAULT) ──────────────────────────────────────────
+# A small single-state host — 4 vCPU / 8 GB, bundled disk only, no NVMe block
+# volume (mirrors docs/runbooks/cheap-deploy.md sizing). Requires state_code.
+# deploy_scope   = "state"          # default, can be omitted
+state_code       = "IA"             # USPS 2-letter code — see infra/scripts/state-registry.sh
+# hostname       = "flckd-ia"       # auto-derived from state_code if unset
+# instance_plan  = "vc2-4c-8gb"     # default (4 vCPU / 8 GB)
+
+# ── deploy_scope = "country" (whole-US, ~$116/mo) ─────────────────────────────
+# Uncomment these three and comment out state_code above to provision the
+# whole-US host instead — 8 vCPU / 16 GB + a 200 GB NVMe block volume for the
+# Nominatim import. See README.md "Option B" / docs/runbooks/vultr-whole-us.md.
+# deploy_scope     = "country"
+# hostname         = "flckd-us"       # auto-derived if unset
+# instance_plan    = "vhp-8c-16gb-amd" # default for country scope
+# block_storage_gb = 200               # default
 
 # Host hardening: sshd key-only, fail2ban, auto security upgrades, sysctl.
 # On by default; complements the Vultr firewall group. Set false only to debug.
 # enable_hardening = true                # default
 
-# ── Upgrade to Option A later (32 GB single disk, ~$190/mo) ──────────────────
+# ── Upgrade a country box later (32 GB single disk, ~$190/mo) ────────────────
 # See README.md "Upgrading to Option A". In short: bump the plan (an in-place,
 # reboot-only upgrade) — the block volume can stay attached as bonus disk.
 # instance_plan = "vhp-8c-32gb-amd"
+
+# A state box that outgrows the default (a big state like CA/TX) can likewise
+# just override instance_plan to something larger.
