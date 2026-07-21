@@ -76,7 +76,7 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
-      - uses: ruby/setup-ruby@v1.316.0
+      - uses: ruby/setup-ruby@v1.317.0
         with:
           ruby-version: "3.4.9"
           bundler-cache: true
@@ -108,7 +108,7 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
-      - uses: ruby/setup-ruby@v1.316.0
+      - uses: ruby/setup-ruby@v1.317.0
         with:
           ruby-version: "3.4.9"
           bundler-cache: true
