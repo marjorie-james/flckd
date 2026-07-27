@@ -29,13 +29,17 @@ services:
   postgres:
     image: postgis/postgis:17-3.4
     # Backend reaches it as postgres:5432 over the compose network; the host port
-    # is published only for ad-hoc DB tools.
+    # is published only for ad-hoc DB tools. Export POSTGRES_HOST_PORT (e.g.
+    # 55432) when another project already owns 5432 on this machine — only the
+    # host-side publish moves; the backend still reaches postgres:5432 over the
+    # compose network. Export it in your shell, not infra/.env: setup.sh
+    # regenerates that file wholesale and would drop the line.
     environment:
       POSTGRES_USER: flckd
       POSTGRES_PASSWORD: flckd
       POSTGRES_DB: flckd_development
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT-5432}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
