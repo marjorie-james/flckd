@@ -79,7 +79,7 @@ export function RouteExport({ route }: Props) {
 
   if (!confirming) {
     return (
-      <button ref={triggerRef} type="button" className="export-gpx-btn" onClick={() => setConfirming(true)}>
+      <button ref={triggerRef} type="button" className="export-gpx-btn no-print" onClick={() => setConfirming(true)}>
         {t("result.exportGpx")}
       </button>
     );
@@ -88,7 +88,7 @@ export function RouteExport({ route }: Props) {
   return (
     <div
       ref={dialogRef}
-      className="export-warning"
+      className="export-warning no-print"
       role="alertdialog"
       aria-labelledby={warningId}
       aria-describedby={howtoId}
@@ -100,7 +100,7 @@ export function RouteExport({ route }: Props) {
       <button type="button" className="export-confirm" onClick={download}>
         {t("gpx.download")}
       </button>
-      <button type="button" onClick={() => setConfirming(false)}>
+      <button type="button" className="export-cancel" onClick={() => setConfirming(false)}>
         {t("gpx.cancel")}
       </button>
     </div>

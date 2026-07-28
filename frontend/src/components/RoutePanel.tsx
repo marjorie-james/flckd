@@ -88,7 +88,7 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
 
   return (
     <form
-      className="route-panel"
+      className="route-panel no-print"
       onSubmit={(e) => {
         e.preventDefault();
         // The button stays enabled, so the handler is what refuses an incomplete
@@ -121,7 +121,7 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
         trailing={
           <button
             type="button"
-            className="geo-btn"
+            className="icon-btn geo-btn"
             onClick={geo.request}
             disabled={geo.loading}
             aria-label={t("form.useMyLocation")}
@@ -163,7 +163,7 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
           left the "pick a suggestion" requirement with no carrier at all (the
           per-field hint in AddressAutocomplete now carries it). aria-disabled keeps
           the state announced while the button stays focusable. */}
-      <button type="submit" aria-disabled={!canPlan} aria-busy={planning}>
+      <button type="submit" className="btn-plan" aria-disabled={!canPlan} aria-busy={planning}>
         {planning ? t("form.planning") : t("form.plan")}
       </button>
     </form>

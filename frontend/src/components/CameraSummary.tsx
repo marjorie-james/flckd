@@ -16,14 +16,14 @@ export function CameraSummary({ route }: Props) {
   const { t } = useTranslation();
   const status = routeStatus(route);
   return (
-    <div className="camera-summary">
+    <div className="camera-summary no-print">
       {status === "avoided" && (
         <span className="avoided-badge">
           {t("result.avoided", { count: route.cameras_avoided_count })}
         </span>
       )}
       {status === "alreadyClean" && (
-        <span className="avoided-badge clean">{t("result.alreadyClean")}</span>
+        <span className="avoided-badge">{t("result.alreadyClean")}</span>
       )}
       {route.remaining_cameras.length > 0 && (
         <details>

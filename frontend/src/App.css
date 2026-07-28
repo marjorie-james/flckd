@@ -18,9 +18,7 @@
 
   --text:        #e6e9ec;
   --text-muted:  #9aa3ad;
-  --text-faint:  #2a2e34;
-  /* Meets WCAG AA (4.5:1) on the dark input/panel backgrounds. --text-faint is
-     decorative only; --placeholder is for any text a user must read. */
+  /* Meets WCAG AA (4.5:1) on the dark input/panel backgrounds. */
   --placeholder: #8b939d;
 
   /* Brand hue accent — steel-teal (sensor/scan/focus). Replaces the former
@@ -33,7 +31,6 @@
 
   /* Hard light — the near-white "beam": the wordmark and the primary action. */
   --beam:        #e9eef0;
-  --beam-edge:   #c2cace;
 
   --green:       #34d399;
   --green-bg:    rgba(52, 211, 153, 0.08);
@@ -64,9 +61,49 @@
 
   --r-sm:  6px;
   --r:     10px;
-  --r-lg:  14px;
   --shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
-  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.4);
+
+  /* Spacing scale. 1px borders and component-specific sizes (9px, 13px, etc.)
+     stay as literals until snapping is a deliberate visual decision. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+
+  /* Type scale (screen). 1.125rem (popup close) is a one-off. */
+  --t-xs:   0.625rem;   /* 10px  instrument labels, step counters */
+  --t-sm:   0.6875rem;  /* 11px  controls, badges, captions */
+  --t-base: 0.75rem;    /* 12px  secondary text */
+  --t-md:   0.8125rem;  /* 13px  body content, suggestions */
+  --t-lg:   0.875rem;   /* 14px  primary text, verdicts, inputs */
+  --t-xl:   1.375rem;   /* 22px  wordmark */
+
+  /* Duration */
+  --dur-fast: 150ms;
+  --dur-slow: 280ms;
+
+  /* Focus ring (outline pattern). Box-shadow focus variants keep their own
+     values inline because the mechanism differs. */
+  --focus-ring: 2px solid var(--accent-hi);
+  --focus-offset: 2px;
+
+  /* Stacking. Only one z-index in the codebase; named so its relationship to
+     MapLibre's internal z-indices is documented in one place. */
+  --z-dropdown: 200;
+
+  /* Letter-spacing. --track-caption for mono/uppercase instrument labels;
+     --track-data for data readouts. Other one-off trackings (0.01em, 0.02em,
+     0.05em, 0.06em, 0.08em) stay as literals. */
+  --track-caption: 0.09em;
+  --track-data:    0.04em;
+
+  /* Hard-light hover for the primary action button. */
+  --beam-hi: #fff;
+
+  /* Component-level sizes referenced from multiple rules. */
+  --icon-btn: 26px;
+  --tap-min:  24px;
 
   /* Plex Sans carries body/UI; Plex Mono carries the wordmark, the uppercase
      instrument labels, and route data (times, distances, step numbers). Both are
@@ -78,14 +115,21 @@
 /* ─── Reset ─── */
 *, *::before, *::after { box-sizing: border-box; }
 
+#root {
+  min-height: 100svh;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
   color: var(--text);
   background: var(--bg);
-  font-size: 0.875rem;
+  font-size: var(--t-lg);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 /* ─── Page shell (responsive) ───
@@ -121,9 +165,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--s-3) var(--s-4);
   border-bottom: 1px solid var(--border);
-  gap: 12px;
+  gap: var(--s-3);
 }
 
 /* Right-side header cluster: the repo link sits to the left of the language
@@ -131,28 +175,10 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-3);
 }
 
-/* The repo link is also in the footer; on narrow screens drop the header copy so
-   the brand + language switcher don't crowd, and let the footer carry it. */
-@media (max-width: 560px) {
-  .header-repo-link {
-    display: none;
-  }
 
-  /* Show the full descriptive title on narrow screens rather than truncating it
-     to an ellipsis: step the size down and tighten the tracking so it fits, and
-     allow it to wrap instead of clip if a very narrow viewport still can't hold
-     one line. The wordmark stays the prominent brand mark above it. */
-  .app-title {
-    font-size: 0.6875rem;
-    letter-spacing: 0.06em;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-  }
-}
 
 /* Brand cluster: the wordmark over its descriptive, localized heading. */
 .brand {
@@ -173,7 +199,7 @@ body {
   font-weight: 700;
   /* Scaled up so the brand fills the taller header (the language label now stacks
      above its select). The sensor dot + title indent below scale to match. */
-  font-size: 1.375rem;
+  font-size: var(--t-xl);
   letter-spacing: 0.01em;
   line-height: 1;
   color: var(--beam);
@@ -191,20 +217,33 @@ body {
 
 /* The real page heading — kept as the localized descriptive title (the i18n
    contract asserts its exact text). Styled as a quiet instrument caption. */
+/* Mobile-first: sized small with relaxed overflow so the full descriptive title
+   wraps rather than clips on narrow viewports. On wider screens (≥561px) the
+   title tightens to one truncated line. */
 .app-title {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
   /* Indent to align under the wordmark text, past the sensor dot (9px) + its
      gap (9px). */
   padding-left: 18px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+@media (min-width: 561px) {
+  .app-title {
+    font-size: var(--t-base);
+    letter-spacing: var(--track-caption);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* ─── Footer ───
@@ -213,25 +252,43 @@ body {
 .app-footer {
   display: flex;
   justify-content: center;
-  padding: 13px 16px;
+  padding: 13px var(--s-4);
   border-top: 1px solid var(--border);
 }
 
 .app-footer a,
 .header-repo-link {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
   text-decoration: none;
-  /* Standalone link (not inline in a sentence), so it needs its own ≥24px target
-     rather than relying on the inline exception (WCAG 2.5.8). */
-  display: inline-flex;
+  /* Standalone link (not inline in a sentence), so it needs its own minimum
+     target rather than relying on the inline exception (WCAG 2.5.8). */
   align-items: center;
-  min-height: 24px;
-  padding: 0 4px;
+  min-height: var(--tap-min);
+  padding: 0 var(--s-1);
+}
+
+/* The footer link is always visible; the header copy hides on narrow screens
+   (mobile-first, shown by the min-width:561px rule above). display must be set
+   per-element so the header copy's hide/show does not fight a shared rule. */
+.app-footer a {
+  display: inline-flex;
+}
+
+/* Mobile-first: on narrow screens the header repo link is hidden (the footer
+   carries it instead). On wider screens (≥561px) it shows. */
+.header-repo-link {
+  display: none;
+}
+
+@media (min-width: 561px) {
+  .header-repo-link {
+    display: inline-flex;
+  }
 }
 
 .app-footer a:hover,
@@ -241,8 +298,8 @@ body {
 
 .app-footer a:focus-visible,
 .header-repo-link:focus-visible {
-  outline: 2px solid var(--accent-hi);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
   border-radius: var(--r-sm);
 }
 
@@ -259,19 +316,20 @@ body {
 .language-switcher__label {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   line-height: 1.2;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.language-switcher select {
+/* Component-owned: the select carries .lang-select. */
+.lang-select {
   appearance: none;
   background: var(--raised);
   border: 1px solid var(--border-interactive);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 5px 9px;
@@ -283,7 +341,7 @@ body {
 /* Same as the inputs: a visible focus ring (a subtle border change alone falls
    under the 3:1 minimum). accent-hi gives a clearly visible indicator.
    (WCAG 1.4.11 / 2.4.11.) */
-.language-switcher select:focus {
+.lang-select:focus {
   border-color: var(--accent-hi);
   box-shadow: 0 0 0 2px var(--accent-hi);
 }
@@ -303,6 +361,13 @@ body {
   height: 100%;
   background: var(--bg);
 }
+
+/* ─── Breakpoints ───
+   Both mobile-first (min-width). Custom properties cannot appear in media
+   conditions, so the values are documented here and referenced from both blocks.
+     561px — header repo-link + app-title truncation
+     900px — two-pane layout switch
+*/
 
 /* ─── Responsive: two-pane desktop layout (≥900px) ───
    The map becomes the dominant surface (the 1fr column) with a bounded,
@@ -340,7 +405,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px;
+  padding: var(--s-4);
   border-bottom: 1px solid var(--border);
   /* Height of the suggestion dropdown — ~4 rows tall; a longer result set scrolls
      within it. The dropdown is an overlay (position: absolute), so it doesn't
@@ -355,13 +420,14 @@ body {
   gap: 5px;
 }
 
-/* Instrument labels — mono, uppercase, micro. */
-.route-panel label {
+/* Instrument labels — mono, uppercase, micro. Component-owned: the label
+   carries .field-label so it renders correctly outside .route-panel. */
+.field-label {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: var(--t-xs);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
+  letter-spacing: var(--track-caption);
   color: var(--text-muted);
 }
 
@@ -371,51 +437,63 @@ body {
   align-items: center;
 }
 
-.route-panel input[inputmode="search"] {
+/* Component-owned: the input carries .field-input so it renders correctly
+   outside .route-panel. inputmode="search" stays for the mobile keyboard. */
+.field-input {
   width: 100%;
-  padding: 10px 40px 10px 12px;
-  font-size: 0.875rem;
+  padding: 10px 40px 10px var(--s-3);
+  font-size: var(--t-lg);
   font-family: var(--font-sans);
   color: var(--text);
   background: var(--input-bg);
   border: 1px solid var(--border-interactive);
   border-radius: var(--r);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 
-.route-panel input[inputmode="search"]::placeholder {
+.field-input::placeholder {
   color: var(--placeholder);
 }
 
 /* The focus ring must be visible: a faint glow ring falls below the 3:1 minimum
    (WCAG 1.4.11 / 2.4.11 Focus Appearance). A solid 2px accent-hi ring meets the
    indicator-area requirement on the dark field. */
-.route-panel input[inputmode="search"]:focus {
+.field-input:focus {
   border-color: var(--accent-hi);
   box-shadow: 0 0 0 2px var(--accent-hi);
 }
 
-/* geo / location pin icon button inside input */
-.geo-btn {
-  position: absolute;
-  right: 8px;
-  width: 26px;
-  height: 26px;
+/* Icon-only control: a transparent square that lights up on hover. Shared by
+   .geo-btn (location pin inside the input) and .print-btn (directions header). */
+.icon-btn {
+  width: var(--icon-btn);
+  height: var(--icon-btn);
   border: none;
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: color 0.15s, background 0.15s;
   flex-shrink: 0;
+  transition: color var(--dur-fast), background var(--dur-fast);
 }
 
-.geo-btn:hover { color: var(--accent-hi); background: var(--accent-muted); }
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  color: var(--accent-hi);
+  background: var(--accent-muted);
+}
+
+/* .geo-btn modifier: positioned inside the input wrap. */
+.geo-btn {
+  position: absolute;
+  right: var(--s-2);
+}
+
 .geo-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ─── Suggestion dropdown ─── */
@@ -434,10 +512,10 @@ body {
   border: 1px solid var(--border-interactive);
   border-radius: var(--r);
   box-shadow: var(--shadow);
-  z-index: 200;
+  z-index: var(--z-dropdown);
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: var(--s-1);
   /* Bound the list to the reserved height so it stays a tidy dropdown and, for the
      last field, never extends past the space reserved for it below. */
   max-height: var(--suggest-h);
@@ -451,7 +529,7 @@ body {
   background: none;
   border: none;
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   font-family: var(--font-sans);
   cursor: pointer;
   border-radius: var(--r-sm);
@@ -482,7 +560,7 @@ body {
    above so the text sits where an option label would. */
 .suggestion-status {
   padding: 9px 11px;
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -494,42 +572,17 @@ body {
 /* Inline field-level error (e.g. geolocation denied/unavailable). */
 .field-error {
   margin: 2px 0 0;
-  font-size: 0.75rem;
+  font-size: var(--t-base);
   color: var(--red);
-}
-
-/* ─── Preference segmented control ─── */
-.preference,
-.avoidance-control {
-  border: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.preference legend,
-.avoidance-control legend {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--text-muted);
-  float: none;
-  padding: 0;
-  width: 100%;
-  margin-bottom: 0;
 }
 
 
 /* ─── Plan button — the primary action is hard light: a near-white "beam" with
    ink text, the one bright surface in the rail. ─── */
-.route-panel button[type="submit"] {
-  padding: 12px;
-  font-size: 0.875rem;
+/* Component-owned: the submit button carries .btn-plan. */
+.btn-plan {
+  padding: var(--s-3);
+  font-size: var(--t-lg);
   font-weight: 600;
   font-family: var(--font-sans);
   color: var(--bg);
@@ -538,25 +591,25 @@ body {
   border-radius: var(--r);
   cursor: pointer;
   letter-spacing: 0.02em;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
   margin-top: 2px;
 }
 
-.route-panel button[type="submit"]:hover:not([aria-disabled="true"]) {
-  background: #fff;
+.btn-plan:hover:not([aria-disabled="true"]) {
+  background: var(--beam-hi);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
-.route-panel button[type="submit"]:focus-visible {
-  outline: 2px solid var(--accent-hi);
-  outline-offset: 2px;
+.btn-plan:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 /* The button is never natively disabled: a control that disables itself while it
    holds focus drops focus to <body>, and a disabled button is skipped by
    screen-reader form navigation. aria-disabled carries the state, so it has to
    carry the styling too. */
-.route-panel button[type="submit"][aria-disabled="true"] {
+.btn-plan[aria-disabled="true"] {
   background: var(--border-hi);
   color: var(--text-muted);
   cursor: not-allowed;
@@ -574,23 +627,23 @@ body {
 .camera-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: var(--s-2);
+  padding: 10px var(--s-4);
   background: var(--raised);
   border-bottom: 1px solid var(--border);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   color: var(--text-muted);
 }
 
-.camera-summary .avoided-badge {
+.avoided-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
   color: var(--green);
   background: var(--green-bg);
   border: 1px solid var(--green-ring);
@@ -600,11 +653,11 @@ body {
 
 .camera-summary .exposed {
   color: var(--amber);
-  font-size: 0.75rem;
+  font-size: var(--t-base);
 }
 
 .camera-summary details {
-  font-size: 0.75rem;
+  font-size: var(--t-base);
 }
 
 /* 12px text at line-height 1.5 is an 18px-tall box. Pad to clear the 24px
@@ -613,22 +666,22 @@ body {
 .camera-summary summary {
   cursor: pointer;
   color: var(--amber);
-  min-height: 24px;
+  min-height: var(--tap-min);
   padding: 3px 0;
 }
 
 .camera-summary ul {
-  margin: 4px 0 0;
-  padding-left: 16px;
+  margin: var(--s-1) 0 0;
+  padding-left: var(--s-4);
   color: var(--text-muted);
 }
 
 /* ─── Route result ─── */
 .route-result {
-  padding: 16px;
+  padding: var(--s-4);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--s-4);
 }
 
 /* ─── The verdict stamp (signature) ───
@@ -636,18 +689,31 @@ body {
    cameras? — so it leads the result as a full-width classification banner, not a
    pill. A state-colored status LED (the same sensor-square motif as the wordmark)
    and a colored left edge carry the state; the sentence stays in hard light so the
-   longer copy reads cleanly. The clean/already-clean states use `.status`; the
-   minimum-exposure state is the `.route-notice` banner below. */
-.status {
+   longer copy reads cleanly. .verdict is the shared base; .status and .route-notice
+   are the two mutually exclusive modifiers (must follow .verdict in source order
+   so their overrides win at equal specificity). */
+.verdict {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  align-self: stretch;
+  gap: var(--s-3);
   font-family: var(--font-sans);
-  font-size: 0.875rem;
+  font-size: var(--t-lg);
   font-weight: 600;
-  line-height: 1.45;
   color: var(--text);
+}
+
+.verdict::before {
+  content: '';
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+/* Clean/already-clean state: inset panel with a green left edge. */
+.status {
+  align-self: stretch;
+  line-height: 1.45;
   background: var(--panel);
   padding: 13px 15px 13px 13px;
   border: 1px solid var(--border);
@@ -655,14 +721,8 @@ body {
   border-radius: var(--r);
 }
 
-/* Status LED — a small rounded square with a faint halo, echoing the wordmark. */
 .status::before {
-  content: '';
-  flex-shrink: 0;
-  width: 9px;
-  height: 9px;
   margin-top: 5px;
-  border-radius: 2px;
 }
 
 .status.clean {
@@ -676,17 +736,6 @@ body {
   box-shadow: 0 0 0 3px var(--green-bg);
 }
 
-.status.exposed {
-  background: var(--amber-bg);
-  border-color: var(--amber-ring);
-  border-left-color: var(--amber);
-}
-
-.status.exposed::before {
-  background: var(--amber);
-  box-shadow: 0 0 0 3px var(--amber-bg);
-}
-
 /* Route data — read as an instrument HUD: mono, uppercase, tight. */
 .stats {
   list-style: none;
@@ -696,7 +745,7 @@ body {
   flex-wrap: wrap;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
 }
 
 .stats li {
@@ -706,7 +755,7 @@ body {
   padding: 5px 9px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
 }
 
 /* The trip's own time and distance are the headline figures — brighten them. */
@@ -725,18 +774,18 @@ body {
    swatch mirrors the comparison line drawn on the map. */
 .comparison-toggle {
   align-self: flex-start;
-  margin-top: 8px;
-  padding: 6px 12px;
+  margin-top: var(--s-2);
+  padding: 6px var(--s-3);
   background: var(--raised);
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 
 .comparison-toggle::before {
@@ -755,12 +804,13 @@ body {
   border-color: var(--accent);
 }
 
-.route-result h3 {
+/* Component-owned: the h3 carries .section-heading. */
+.section-heading {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: var(--t-xs);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
+  letter-spacing: var(--track-caption);
   color: var(--text-muted);
   margin: 0;
 }
@@ -775,7 +825,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   counter-reset: step;
 }
 
@@ -786,14 +836,14 @@ body {
   counter-increment: step;
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--s-3);
   line-height: 1.5;
 }
 
 .directions li::before {
   content: counter(step, decimal-leading-zero);
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: var(--t-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--accent-hi);
@@ -815,8 +865,8 @@ body {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 0.8125rem;
+  gap: var(--s-2);
+  font-size: var(--t-md);
   color: var(--amber);
 }
 
@@ -824,34 +874,36 @@ body {
 .export-warning .export-risk { font-weight: 500; }
 .export-warning .export-howto { color: var(--text-muted); }
 
-.export-warning .export-confirm {
-  padding: 9px 12px;
+/* Component-owned: both buttons carry their own class. The confirm and cancel
+   buttons are independent rules (no cascade dependency). */
+.export-confirm {
+  padding: 9px var(--s-3);
   background: var(--raised);
   border: 1px solid var(--border-hi);
   border-radius: var(--r-sm);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   font-weight: 500;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 
-.export-warning .export-confirm:hover { border-color: var(--accent); }
+.export-confirm:hover { border-color: var(--accent); }
 
-.export-warning button {
-  padding: 8px;
+.export-cancel {
+  padding: var(--s-2);
   background: none;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text-muted);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 
-.export-warning button:hover { color: var(--text); border-color: var(--border-hi); }
+.export-cancel:hover { color: var(--text); border-color: var(--border-hi); }
 
 /* GPX export trigger button */
 .export-gpx-btn {
@@ -861,11 +913,11 @@ body {
   border-radius: var(--r);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
   align-self: flex-start;
 }
 
@@ -873,16 +925,16 @@ body {
 
 /* ─── Coverage warning ─── */
 .coverage-warning {
-  font-size: 0.75rem;
+  font-size: var(--t-base);
   color: var(--amber);
   margin: 0;
 }
 
 /* ─── Error ─── */
 .error {
-  padding: 12px 16px;
+  padding: var(--s-3) var(--s-4);
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   color: var(--red);
   background: var(--red-bg);
   border-top: 1px solid var(--red-ring);
@@ -899,8 +951,8 @@ body {
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   box-shadow: var(--shadow);
-  padding: 12px 14px;
-  font-size: 0.8125rem;
+  padding: var(--s-3) 14px;
+  font-size: var(--t-md);
 }
 .camera-popup-shell.maplibregl-popup-anchor-top .maplibregl-popup-tip,
 .camera-popup-shell.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
@@ -923,9 +975,9 @@ body {
   font-size: 1.125rem;
   /* MapLibre's default close button is content-sized (~22px tall); enforce the
      24×24 minimum touch target (WCAG 2.5.8). */
-  min-width: 24px;
-  min-height: 24px;
-  padding: 2px 8px;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: 2px var(--s-2);
 }
 .camera-popup-shell .maplibregl-popup-close-button:hover {
   color: var(--text);
@@ -934,13 +986,13 @@ body {
 .camera-popup__title {
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 8px;
-  padding-right: 12px;
+  margin-bottom: var(--s-2);
+  padding-right: var(--s-3);
 }
 .camera-popup__row {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--s-4);
   line-height: 1.7;
 }
 .camera-popup__k { color: var(--text-muted); }
@@ -951,28 +1003,19 @@ body {
    fewest-cameras route. Deliberately prominent — a full-bleed banner in the amber
    caution palette with the field-of-view wedge — so the user can't miss that the
    route still passes within view of some cameras. */
+/* Minimum-exposure state: full-bleed amber banner. */
 .route-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
   margin: 0;
-  padding: 13px 16px;
-  font-size: 0.875rem;
-  font-weight: 600;
+  padding: 13px var(--s-4);
   line-height: 1.5;
-  color: var(--text);
   background: var(--amber-bg);
   border-top: 1px solid var(--amber-ring);
   border-bottom: 1px solid var(--amber-ring);
   border-left: 3px solid var(--amber);
 }
+
 .route-notice::before {
-  content: '';
-  flex-shrink: 0;
-  width: 9px;
-  height: 9px;
   margin-top: 6px;
-  border-radius: 2px;
   background: var(--amber);
   box-shadow: 0 0 0 3px var(--amber-bg);
 }
@@ -982,7 +1025,7 @@ body {
 @media (prefers-reduced-motion: no-preference) {
   .status,
   .route-notice {
-    animation: verdict-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation: verdict-in var(--dur-slow) cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
   @keyframes verdict-in {
     from { opacity: 0; transform: translateY(-4px); }
@@ -1013,16 +1056,16 @@ body {
    ever reached by keyboard, and it must show for every engine. */
 .skip-link {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: var(--s-2);
+  left: var(--s-2);
   z-index: 1000;
   transform: translateY(-300%);
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 0 12px;
+  min-height: var(--tap-min);
+  padding: 0 var(--s-3);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1034,8 +1077,8 @@ body {
 
 .skip-link:focus {
   transform: translateY(0);
-  outline: 2px solid var(--accent-hi);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 /* ─── Printable directions ─── */
@@ -1044,32 +1087,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--s-2);
 }
 
-/* Icon-only print trigger — mirrors the .geo-btn affordance (transparent square
-   that lights up on hover). The accessible name is provided via aria-label. */
-.print-btn {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  flex-shrink: 0;
-  transition: color 0.15s, background 0.15s;
-}
+/* .print-btn is an .icon-btn with no modifier properties of its own.
+   The class exists for the .no-print print-hide and for test hooks. */
 
-.print-btn:hover,
-.print-btn:focus-visible {
-  color: var(--accent-hi);
-  background: var(--accent-muted);
-}
+/* Print control: .no-print hides elements from the printed sheet (applied in
+   JSX). Consumed only by the @media print block below. */
 
 /* The print sheet exists only when printing. */
 .printable-directions {
@@ -1077,33 +1102,13 @@ body {
 }
 
 @media print {
-  /* Hide all on-screen chrome and the camera-aware UI; the printed sheet is a
-     clean driving aid (no map, no controls, no camera/coverage notices). That
-     includes the screen-only banners above the sheet: without .error here,
-     printing while a plan has failed puts the red error text on paper as the
-     whole page. */
-  .app-header,
-  .app-footer,
-  .map-container,
-  .route-panel,
-  .route-notice,
-  .camera-summary,
-  .route-result .status,
-  .route-result .stats,
-  .comparison-toggle,
-  .coverage-warning,
-  .export-gpx-btn,
-  .export-warning,
-  .route-result h3,
-  .directions,
-  .print-btn,
-  .error,
-  .skip-link {
+  /* Allow-list approach: every non-printable element carries .no-print in the
+     JSX, so new components print by default (safe side). The old deny-list was
+     a maintenance hazard because new elements fell through. */
+  .no-print {
     display: none !important;
   }
 
-  /* Printer default margins are inconsistent and often near-zero; fix them so
-     the sheet isn't printed to the edge. */
   @page {
     margin: 15mm;
   }
@@ -1119,6 +1124,14 @@ body {
     background: #fff !important;
     color: #000 !important;
     box-shadow: none !important;
+  }
+
+  /* Reset the route-result box model so screen spacing does not leak onto the
+     printed sheet. The 16px padding and flex gap are screen layout. */
+  .route-result {
+    padding: 0 !important;
+    display: block !important;
+    gap: 0 !important;
   }
 
   /* The header is a flex row on screen; with its h3 and print button hidden, the

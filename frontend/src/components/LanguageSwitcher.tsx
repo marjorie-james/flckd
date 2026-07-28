@@ -31,7 +31,7 @@ export function LanguageSwitcher() {
   return (
     <label className="language-switcher">
       <span className="language-switcher__label">{t("language")}</span>
-      <select value={value} onChange={onChange}>
+      <select className="lang-select" value={value} onChange={onChange}>
         <option value={AUTOMATIC}>{t("languageAuto")}</option>
         {SUPPORTED_LOCALES.map((l) => (
           // lang marks each native language name (e.g. "Español") in its own

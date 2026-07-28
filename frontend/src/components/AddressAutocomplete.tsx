@@ -143,7 +143,7 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
 
   return (
     <div className="input-group" onBlur={onBlur}>
-      <label htmlFor={id}>{label}</label>
+      <label className="field-label" htmlFor={id}>{label}</label>
       <div className="input-wrap">
         <input
           id={id}
@@ -171,6 +171,7 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
           // the user retypes or presses an arrow key.
           onFocus={() => { if (open && hasOptions) setDismissed(false); }}
           onKeyDown={onKeyDown}
+          className="field-input"
           inputMode="search"
           autoComplete="off"
         />

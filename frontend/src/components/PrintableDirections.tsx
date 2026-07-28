@@ -29,7 +29,7 @@ export function PrintableDirections({ route, originLabel, destinationLabel }: Pr
     <>
       <button
         type="button"
-        className="print-btn"
+        className="icon-btn print-btn no-print"
         onClick={() => window.print()}
         aria-label={t("print.action")}
         title={t("print.action")}

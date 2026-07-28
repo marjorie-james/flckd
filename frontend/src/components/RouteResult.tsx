@@ -53,10 +53,10 @@ export function RouteResult({
 
   return (
     <section className="route-result">
-      {status === "avoided" && <p className="status clean">{t("result.fullyClean")}</p>}
-      {status === "alreadyClean" && <p className="status clean">{t("result.alreadyClean")}</p>}
+      {status === "avoided" && <p className="verdict status clean no-print">{t("result.fullyClean")}</p>}
+      {status === "alreadyClean" && <p className="verdict status clean no-print">{t("result.alreadyClean")}</p>}
 
-      <ul className="stats">
+      <ul className="stats no-print">
         <li>{t("result.travelTime", { minutes: travelMin })}</li>
         <li>{t("result.distance", { km })}</li>
         {status === "avoided" && (
@@ -77,7 +77,7 @@ export function RouteResult({
       {hasCost && (
         <button
           type="button"
-          className="comparison-toggle"
+          className="comparison-toggle no-print"
           aria-pressed={showComparison}
           onClick={onToggleComparison}
         >
@@ -85,19 +85,19 @@ export function RouteResult({
         </button>
       )}
 
-      {coverageWarning && <p className="coverage-warning">{coverageWarning}</p>}
+      {coverageWarning && <p className="coverage-warning no-print">{coverageWarning}</p>}
 
       <RouteExport route={route} />
 
       <div className="directions-header">
-        <h3>{t("result.directions")}</h3>
+        <h3 className="section-heading no-print">{t("result.directions")}</h3>
         <PrintableDirections
           route={route}
           originLabel={originLabel}
           destinationLabel={destinationLabel}
         />
       </div>
-      <ol className="directions">
+      <ol className="directions no-print">
         {route.maneuvers.map((m, i) => (
           <li key={i}>{m.localized_text}</li>
         ))}
