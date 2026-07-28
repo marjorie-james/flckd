@@ -14,12 +14,24 @@ test("mobile first-contentful-paint is under 2.5 s", async ({ page }) => {
   await mockApi(page);
   await page.goto("/", { waitUntil: "load" });
 
-  const fcp = await page.evaluate(() => {
-    const entry = performance.getEntriesByName("first-contentful-paint")[0] as
-      | PerformanceEntry
-      | undefined;
-    return entry ? entry.startTime : null;
-  });
+  // The paint-timing entry is buffered asynchronously after the first
+  // contentful paint. A single synchronous read right after `load` can
+  // miss it in headless Chromium. Use a PerformanceObserver with
+  // `buffered: true` to pick up already-recorded entries and wait for
+  // late ones, with a 5 s ceiling so the test fails cleanly if FCP
+  // genuinely never fires.
+  const fcp = await page.evaluate(() =>
+    new Promise<number | null>((resolve) => {
+      const existing = performance.getEntriesByName("first-contentful-paint")[0];
+      if (existing) return resolve(existing.startTime);
+      const observer = new PerformanceObserver((list) => {
+        const e = list.getEntriesByName("first-contentful-paint")[0];
+        if (e) { observer.disconnect(); resolve(e.startTime); }
+      });
+      observer.observe({ type: "paint", buffered: true });
+      setTimeout(() => { observer.disconnect(); resolve(null); }, 5_000);
+    })
+  );
 
   expect(fcp, "first-contentful-paint entry should be recorded").not.toBeNull();
   expect(fcp!).toBeLessThan(2500);

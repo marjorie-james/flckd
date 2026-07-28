@@ -73,7 +73,13 @@ test("opens a details popup on camera click and dismisses it via Esc (FR-006/SC-
 
   const popup = page.locator(".maplibregl-popup");
   await expect(popup).toBeVisible();
-  await expect(popup).toContainText("Status: disputed");
+  // Assert on the structured label/value markup, not concatenated textContent
+  // (the row() helper renders separate spans with no colon separator).
+  // Labels come from the en locale file; this test runs in the default English locale.
+  const statusRow = popup.locator('.camera-popup__row', {
+    has: page.locator('.camera-popup__k', { hasText: /^Status$/ }),
+  });
+  await expect(statusRow.locator('.camera-popup__v')).toHaveText('disputed');
 
   await page.keyboard.press("Escape");
   await expect(popup).toHaveCount(0);
