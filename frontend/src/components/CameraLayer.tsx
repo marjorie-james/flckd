@@ -5,6 +5,15 @@ import { useCameras, type CameraPin } from "../services/cameraApi";
 import { useDebounce } from "../hooks/useDebounce";
 import { prefersReducedMotion } from "../utils/reducedMotion";
 import { escapeHtml } from "../lib/escapeHtml";
+import {
+  CAMERA_CONFIRMED_COLOR,
+  CAMERA_SUSPECT_COLOR,
+  CLUSTER_COLOR,
+  CONE_CONFIRMED_COLOR,
+  CONE_SUSPECT_COLOR,
+  MARKER_STROKE_COLOR,
+  TRANSPARENT,
+} from "../lib/mapPalette";
 
 // Renders the known cameras in the current viewport, clustered. Reference data
 // only — never user data. Self-contained: given the live map it computes its own
@@ -48,13 +57,6 @@ const SERVER_CAP = 5_000;
 const SEGMENT_MIN_ZOOM = 14;
 // A camera is "suspect" (styled distinctly) when disputed or low-confidence (FR-008).
 const LOW_CONFIDENCE = 0.5;
-
-const CONFIRMED_COLOR = "#c0392b";
-const SUSPECT_COLOR = "#f59e0b";
-// Brighter than the dot/segment so the vision cone stands out against both the
-// dark map and the (same-hue) watched-stretch line.
-const CONE_CONFIRMED_COLOR = "#ff5a4d";
-const CONE_SUSPECT_COLOR = "#fbbf24";
 
 function isSuspect(c: CameraPin): boolean {
   return c.verification_status === "disputed" || c.confidence < LOW_CONFIDENCE;
@@ -266,7 +268,7 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
           minzoom: SEGMENT_MIN_ZOOM,
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": ["case", ["get", "suspect"], SUSPECT_COLOR, CONFIRMED_COLOR],
+            "line-color": ["case", ["get", "suspect"], CAMERA_SUSPECT_COLOR, CAMERA_CONFIRMED_COLOR],
             "line-width": 4,
             "line-opacity": 0.35,
           },
@@ -282,9 +284,9 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
           filter: ["all", ["!", ["has", "point_count"]], ["!", ["get", "directional"]]],
           paint: {
             "circle-radius": 11,
-            "circle-color": "rgba(0,0,0,0)",
+            "circle-color": TRANSPARENT,
             "circle-stroke-width": 2,
-            "circle-stroke-color": ["case", ["get", "suspect"], SUSPECT_COLOR, CONFIRMED_COLOR],
+            "circle-stroke-color": ["case", ["get", "suspect"], CAMERA_SUSPECT_COLOR, CAMERA_CONFIRMED_COLOR],
             "circle-stroke-opacity": 0.7,
           },
         },
@@ -293,19 +295,19 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
       map.addLayer(
         {
           id: CLUSTER_LAYER, type: "circle", source: SOURCE_ID, filter: ["has", "point_count"],
-          paint: { "circle-color": "#2563eb", "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 50, 24], "circle-stroke-width": 2, "circle-stroke-color": "#fff" },
+          paint: { "circle-color": CLUSTER_COLOR, "circle-radius": ["step", ["get", "point_count"], 14, 10, 18, 50, 24], "circle-stroke-width": 2, "circle-stroke-color": MARKER_STROKE_COLOR },
         }, beforeId);
       map.addLayer(
         {
           id: CLUSTER_COUNT_LAYER, type: "symbol", source: SOURCE_ID, filter: ["has", "point_count"],
           layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 },
-          paint: { "text-color": "#fff" },
+          paint: { "text-color": MARKER_STROKE_COLOR },
         }, beforeId);
       map.addLayer(
         {
           id: POINT_LAYER, type: "circle", source: SOURCE_ID, filter: ["!", ["has", "point_count"]],
           // Disputed / low-confidence (suspect) render amber; confirmed render red (FR-008).
-          paint: { "circle-radius": 6, "circle-color": ["case", ["get", "suspect"], SUSPECT_COLOR, CONFIRMED_COLOR], "circle-stroke-width": 1.5, "circle-stroke-color": "#fff" },
+          paint: { "circle-radius": 6, "circle-color": ["case", ["get", "suspect"], CAMERA_SUSPECT_COLOR, CAMERA_CONFIRMED_COLOR], "circle-stroke-width": 1.5, "circle-stroke-color": MARKER_STROKE_COLOR },
         }, beforeId);
       // Vision cone for directional cameras, rotated to the bearing they face.
       map.addLayer(
@@ -365,24 +367,34 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
         .catch(() => {});
     };
 
+    // Esc dismisses an open popup, so it can be closed by keyboard and not
+    // pointer only (FR-015 / SC-010). The built-in close button stays
+    // keyboard-focusable too.
+    //
+    // The listener is attached only while a popup is actually open (a11y L6).
+    // Held for the layer's whole lifetime it would swallow nothing but still
+    // meant one Esc press could dismiss two things at once, since it neither
+    // stops propagation nor checks whether anything of ours is open.
+    const closeOnEsc = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") popupRef.current?.remove();
+    };
+    const detachEsc = () => document.removeEventListener("keydown", closeOnEsc);
+
     const onPointClick = (e: maplibregl.MapLayerMouseEvent) => {
       const f = e.features?.[0];
       if (!f) return;
       const center = (f.geometry as GeoJSON.Point).coordinates.slice() as [number, number];
       popupRef.current?.remove();
-      popupRef.current = new maplibregl.Popup({ closeOnClick: true, className: "camera-popup-shell" })
+      const popup = new maplibregl.Popup({ closeOnClick: true, className: "camera-popup-shell" })
         .setLngLat(center)
         .setHTML(popupHtml(f.properties as Record<string, unknown>, t))
         .addTo(map);
+      // "close" covers every way the popup goes away: Esc, the close button,
+      // closeOnClick, a replacement popup, and unmount.
+      popup.on("close", detachEsc);
+      popupRef.current = popup;
+      document.addEventListener("keydown", closeOnEsc);
     };
-
-    // One document listener for the layer's lifetime dismisses the open popup via
-    // keyboard (Esc), not pointer only (FR-015 / SC-010). The built-in close
-    // button stays keyboard-focusable too.
-    const closeOnEsc = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") popupRef.current?.remove();
-    };
-    document.addEventListener("keydown", closeOnEsc);
 
     // Both the dot and its cone open the same popup.
     map.on("click", CLUSTER_LAYER, onClusterClick);
@@ -392,8 +404,8 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
       map.off("click", CLUSTER_LAYER, onClusterClick);
       map.off("click", POINT_LAYER, onPointClick);
       map.off("click", CONE_LAYER, onPointClick);
-      document.removeEventListener("keydown", closeOnEsc);
       popupRef.current?.remove();
+      detachEsc();
     };
     // `t` is in deps so popups rebind to the active language after a language switch.
   }, [map, t]);

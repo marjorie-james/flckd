@@ -226,6 +226,34 @@ describe("CameraLayer inspect + dismiss (T009)", () => {
     expect(H.popups[0].removed).toBe(true);
   });
 
+  it("installs the document Escape handler only while a popup is open (a11y L6)", () => {
+    H.data = { cameras: [VERIFIED] };
+    const map = makeFakeMap();
+    const add = vi.spyOn(document, "addEventListener");
+    const remove = vi.spyOn(document, "removeEventListener");
+    const keydownAdds = () => add.mock.calls.filter(([type]) => type === "keydown").length;
+    const keydownRemoves = () => remove.mock.calls.filter(([type]) => type === "keydown").length;
+
+    const { unmount } = render(<CameraLayer map={map as never} />);
+    // Nothing is open, so nothing is listening on the document.
+    expect(keydownAdds()).toBe(0);
+
+    act(() => map.fireLayer("click", "camera-points", {
+      features: [{ geometry: { type: "Point", coordinates: [-93.61, 41.61] }, properties: { camera_type: "flock", confidence: 0.9, verification_status: "verified" } }],
+    }));
+    expect(keydownAdds()).toBe(1);
+    expect(keydownRemoves()).toBe(0);
+
+    // Closing the popup by any route (here the close button / closeOnClick path)
+    // takes the listener back off the document.
+    act(() => H.popups[0].remove());
+    expect(keydownRemoves()).toBe(1);
+
+    unmount();
+    add.mockRestore();
+    remove.mockRestore();
+  });
+
   it("escapes HTML in camera fields — no markup injection in the popup", () => {
     H.data = { cameras: [VERIFIED] };
     const map = makeFakeMap();

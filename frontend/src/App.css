@@ -45,6 +45,23 @@
   --red-bg:      rgba(248, 113, 113, 0.08);
   --red-ring:    rgba(248, 113, 113, 0.2);
 
+  /* Map overlay roles. MapLibre paints the overlay from JS and cannot read
+     custom properties, so src/lib/mapPalette.ts mirrors this block value for
+     value and tests/unit/map-palette.test.ts fails if either side is edited
+     alone. Each role points at an existing token (noted per line) so the overlay
+     and the UI can no longer drift; the -hi cone variants are one step brighter
+     than their dot so a cone reads against both the dark basemap and the
+     same-hue watched-stretch line under it. */
+  --map-route:               #6fc6cb; /* = --accent-hi (was indigo-400) */
+  --map-route-comparison:    #9aa3ad; /* = --text-muted */
+  --map-origin:              #34d399; /* = --green */
+  --map-cluster:             #3f9aa0; /* = --accent */
+  --map-camera-confirmed:    #f87171; /* = --red */
+  --map-camera-suspect:      #fbbf24; /* = --amber */
+  --map-camera-confirmed-hi: #fca5a5;
+  --map-camera-suspect-hi:   #fcd34d;
+  --map-marker-stroke:       #ffffff;
+
   --r-sm:  6px;
   --r:     10px;
   --r-lg:  14px;
