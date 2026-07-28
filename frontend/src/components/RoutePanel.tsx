@@ -69,6 +69,9 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
     setDestination({ lat: r.lat, lng: r.lng });
   };
 
+  // Whether a submit should actually do anything. The button is never natively
+  // disabled, so this gates the handler instead of the control (see the submit
+  // button below).
   const canPlan = Boolean(origin && destination) && !planning;
   const originSuggestions = originResults.data?.results ?? [];
   const destSuggestions = destResults.data?.results ?? [];
@@ -88,8 +91,10 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
       className="route-panel"
       onSubmit={(e) => {
         e.preventDefault();
-        if (origin && destination)
-          onPlan(origin, destination, { origin: originText, destination: destText });
+        // The button stays enabled, so the handler is what refuses an incomplete
+        // or already-running submit.
+        if (!canPlan || !origin || !destination) return;
+        onPlan(origin, destination, { origin: originText, destination: destText });
       }}
     >
       <AddressAutocomplete
@@ -151,7 +156,14 @@ export function RoutePanel({ onPlan, planning, onOriginChange }: Props) {
         error={destResults.isError}
       />
 
-      <button type="submit" disabled={!canPlan}>
+      {/* Not `disabled`. `planning` flips true synchronously on submit, and every
+          browser blurs a focused control that becomes disabled, so the native
+          attribute threw focus to <body> on the app's primary action every time.
+          A disabled button is also skipped by screen-reader form navigation, which
+          left the "pick a suggestion" requirement with no carrier at all (the
+          per-field hint in AddressAutocomplete now carries it). aria-disabled keeps
+          the state announced while the button stays focusable. */}
+      <button type="submit" aria-disabled={!canPlan} aria-busy={planning}>
         {planning ? t("form.planning") : t("form.plan")}
       </button>
     </form>

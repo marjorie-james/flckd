@@ -27,10 +27,10 @@ interface Props {
 }
 
 // An accessible address field: an ARIA 1.2 combobox whose suggestions are a
-// listbox. Keyboard — ArrowUp/Down move the active option, Enter selects it,
-// Escape dismisses the list. Focus stays on the input; the active option is
-// conveyed via aria-activedescendant (the combobox pattern), and a polite live
-// region announces how many suggestions are available.
+// listbox. Keyboard — ArrowUp/Down move the active option, Home/End jump to the
+// first/last, Enter selects it, Escape dismisses the list. Focus stays on the
+// input; the active option is conveyed via aria-activedescendant (the combobox
+// pattern), and a polite live region announces how many suggestions are available.
 export function AddressAutocomplete({ id, label, value, onValueChange, suggestions, onSelect, open, loading = false, error = false, describedById, required = false, trailing }: Props) {
   const { t } = useTranslation();
   const [active, setActive] = useState(-1);
@@ -53,7 +53,7 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
   }
 
   const hasOptions = suggestions.length > 0;
-  // A non-option status row to show when there are no selectable results yet:
+  // Status text to show when there are no selectable results yet:
   // searching, request failed, or a completed search with zero matches. Without
   // this, a network failure or empty result silently rendered nothing.
   const statusMessage = hasOptions
@@ -66,35 +66,41 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
           ? t("form.noMatches")
           : null;
 
-  const expanded = open && !dismissed && (hasOptions || statusMessage !== null);
+  // Two mutually exclusive popovers. The listbox is mounted only when there is at
+  // least one real option: a listbox that owns no options is announced as an empty
+  // list, and status text parked inside it as a presentational row is unreachable
+  // by list navigation. The status text is a plain element outside the listbox, and
+  // the polite live region below already speaks it.
+  const listboxOpen = open && !dismissed && hasOptions;
+  const statusOpen = open && !dismissed && !hasOptions && statusMessage !== null;
   const listId = `${id}-listbox`;
   const statusId = `${id}-status`;
+  const hintId = `${id}-hint`;
   const optionId = (i: number) => `${id}-opt-${i}`;
 
   // Tie any active error to the input so a screen reader announces it on focus,
   // not just as a transient live-region message (WCAG 3.3.1). On a failed search
   // the status region holds the error text; an external describedById (e.g. a
-  // geolocation error) is merged in too. References are dropped when absent so no
-  // dangling id is left on the input.
-  const describedBy = [error ? statusId : null, describedById].filter(Boolean).join(" ") || undefined;
+  // geolocation error) is merged in too. The hint is always present: picking a
+  // suggestion is the only way to confirm an address, and nothing else in the form
+  // says so to someone who can't see the submit button's state (WCAG 3.3.2).
+  const describedBy = [error ? statusId : null, hintId, describedById].filter(Boolean).join(" ");
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!expanded) {
+    if (!listboxOpen) {
       // Re-open a list dismissed via Escape: per the ARIA combobox pattern,
       // Arrow keys bring the listbox back (and move to the first/last option)
       // without the user having to retype. Guarded on `open` + suggestions so
       // we only re-open when the parent would otherwise show the list.
-      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && open && suggestions.length > 0) {
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && open && hasOptions) {
         e.preventDefault();
         setDismissed(false);
         setActive(e.key === "ArrowDown" ? 0 : suggestions.length - 1);
+        return;
       }
-      return;
-    }
-    // Only a status row is showing (no selectable options): nothing to navigate,
-    // but Escape can still dismiss it.
-    if (!hasOptions) {
-      if (e.key === "Escape") { e.preventDefault(); setDismissed(true); }
+      // Only a status panel is showing: nothing to navigate, but Escape can
+      // still dismiss it.
+      if (statusOpen && e.key === "Escape") { e.preventDefault(); setDismissed(true); }
       return;
     }
     switch (e.key) {
@@ -106,11 +112,21 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
         e.preventDefault();
         setActive((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
         break;
+      case "Home":
+        e.preventDefault();
+        setActive(0);
+        break;
+      case "End":
+        e.preventDefault();
+        setActive(suggestions.length - 1);
+        break;
       case "Enter":
         if (active >= 0) { e.preventDefault(); onSelect(suggestions[active]); }
         break;
       case "Escape":
-        if (expanded) { e.preventDefault(); setDismissed(true); setActive(-1); }
+        e.preventDefault();
+        setDismissed(true);
+        setActive(-1);
         break;
     }
   };
@@ -132,19 +148,28 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
         <input
           id={id}
           role="combobox"
-          aria-expanded={expanded}
+          // Gated on there being real options, not merely on a popover being
+          // visible: claiming a popup opened and then owning nothing is what
+          // produces the "list box, 0 items" announcement.
+          aria-expanded={listboxOpen}
           // Only reference the listbox while it actually exists in the DOM
-          // (it's rendered only when expanded) — a dangling id is invalid.
-          aria-controls={expanded ? listId : undefined}
+          // (it's rendered only when there are options) — a dangling id is invalid.
+          aria-controls={listboxOpen ? listId : undefined}
           aria-autocomplete="list"
-          // Both the listbox and its options exist only while expanded, so these
+          // Both the listbox and its options exist only while it is open, so these
           // references must clear when collapsed (a dangling id is invalid ARIA).
-          aria-activedescendant={expanded && active >= 0 ? optionId(active) : undefined}
+          aria-activedescendant={listboxOpen && active >= 0 ? optionId(active) : undefined}
           aria-describedby={describedBy}
           aria-required={required || undefined}
+          // Flag the field itself, not just the error text, when its lookup failed.
+          aria-invalid={error || undefined}
           value={value}
           // Typing after an Escape dismissal re-opens the list.
           onChange={(e) => { setDismissed(false); onValueChange(e.target.value); }}
+          // Blur dismisses the list so it can't linger over the next control.
+          // Without this reset, returning to the field leaves it collapsed until
+          // the user retypes or presses an arrow key.
+          onFocus={() => { if (open && hasOptions) setDismissed(false); }}
           onKeyDown={onKeyDown}
           inputMode="search"
           autoComplete="off"
@@ -152,38 +177,39 @@ export function AddressAutocomplete({ id, label, value, onValueChange, suggestio
         {trailing}
       </div>
 
-      {expanded && (
+      {listboxOpen && (
         <ul className="suggestions" role="listbox" id={listId} aria-label={label}>
-          {hasOptions
-            ? suggestions.map((r, i) => (
-                // li is presentational so the listbox's only semantic children are options.
-                // Keyed by index too: the geocoder can return several results sharing a
-                // label (e.g. multiple points on one street), so the label alone isn't unique.
-                <li key={`${r.label}-${i}`} role="presentation">
-                  <button
-                    type="button"
-                    role="option"
-                    id={optionId(i)}
-                    aria-selected={i === active}
-                    tabIndex={-1}
-                    // Keep focus on the input (combobox pattern) so the group's
-                    // blur-dismiss doesn't fire before the click selects.
-                    onMouseDown={(e) => e.preventDefault()}
-                    onMouseMove={() => setActive(i)}
-                    onClick={() => onSelect(r)}
-                  >
-                    {r.label}
-                  </button>
-                </li>
-              ))
-            : (
-                // Non-interactive status row (searching / no matches / error).
-                <li role="presentation" className={`suggestion-status${error ? " error" : ""}`}>
-                  {statusMessage}
-                </li>
-              )}
+          {suggestions.map((r, i) => (
+            // li is presentational so the listbox's only semantic children are options.
+            // Keyed by index too: the geocoder can return several results sharing a
+            // label (e.g. multiple points on one street), so the label alone isn't unique.
+            <li key={`${r.label}-${i}`} role="presentation">
+              <button
+                type="button"
+                role="option"
+                id={optionId(i)}
+                aria-selected={i === active}
+                tabIndex={-1}
+                // Keep focus on the input (combobox pattern) so the group's
+                // blur-dismiss doesn't fire before the click selects.
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseMove={() => setActive(i)}
+                onClick={() => onSelect(r)}
+              >
+                {r.label}
+              </button>
+            </li>
+          ))}
         </ul>
       )}
+
+      {statusOpen && (
+        // Standalone status panel (searching / no matches / error). Deliberately
+        // not a listbox and not inside one.
+        <div className={`suggestion-status${error ? " error" : ""}`}>{statusMessage}</div>
+      )}
+
+      <span id={hintId} className="visually-hidden">{t("form.suggestionHint")}</span>
 
       <span id={statusId} className="visually-hidden" role="status" aria-live="polite">
         {(hasOptions

@@ -67,11 +67,13 @@ function routeFixture(overrides: Partial<Route> = {}): Route {
 }
 
 describe("RoutePanel", () => {
-  it("renders origin/destination inputs and disables Plan until both are set", () => {
+  it("renders origin/destination inputs and marks Plan unavailable until both are set", () => {
     render(<RoutePanel onPlan={() => {}} planning={false} />);
     expect(screen.getByText(/start/i)).toBeInTheDocument();
     expect(screen.getByText(/destination/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /plan route/i })).toBeDisabled();
+    // aria-disabled, not the native attribute: the button has to stay focusable
+    // and reachable by screen-reader form navigation.
+    expect(screen.getByRole("button", { name: /plan route/i })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("selects origin and destination from autocomplete, then plans the route", () => {
@@ -88,7 +90,7 @@ describe("RoutePanel", () => {
     fireEvent.click(screen.getByRole("option", { name: "Iowa City, IA" })); // destination
 
     const plan = screen.getByRole("button", { name: /plan route/i });
-    expect(plan).toBeEnabled();
+    expect(plan).toHaveAttribute("aria-disabled", "false");
     fireEvent.click(plan);
 
     // The confirmed address labels ride along with the coordinates (013) so the

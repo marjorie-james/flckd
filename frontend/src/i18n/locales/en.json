@@ -13,7 +13,8 @@
     "suggestionsAvailable_other": "{{count}} suggestions available",
     "searching": "Searching…",
     "noMatches": "No matches found",
-    "searchError": "Search unavailable — check your connection"
+    "searchError": "Search unavailable — check your connection",
+    "suggestionHint": "Choose a suggestion to confirm this address"
   },
   "status": {
     "planning": "Planning your route…",

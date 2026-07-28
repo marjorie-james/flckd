@@ -13,7 +13,8 @@
     "suggestionsAvailable_other": "{{count}} sugerencias disponibles",
     "searching": "Buscando…",
     "noMatches": "No se encontraron coincidencias",
-    "searchError": "Búsqueda no disponible: revisa tu conexión"
+    "searchError": "Búsqueda no disponible: revisa tu conexión",
+    "suggestionHint": "Elige una sugerencia para confirmar esta dirección"
   },
   "status": {
     "planning": "Planificando tu ruta…",

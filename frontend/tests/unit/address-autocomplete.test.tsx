@@ -47,6 +47,15 @@ describe("AddressAutocomplete combobox", () => {
     expect(input).toHaveAttribute("aria-activedescendant", "origin-input-opt-1");
   });
 
+  it("jumps to the first option with Home and the last with End", () => {
+    const { input } = setup();
+    fireEvent.keyDown(input, { key: "End" });
+    expect(input).toHaveAttribute("aria-activedescendant", "origin-input-opt-1");
+
+    fireEvent.keyDown(input, { key: "Home" });
+    expect(input).toHaveAttribute("aria-activedescendant", "origin-input-opt-0");
+  });
+
   it("wraps from the last option back to the first", () => {
     const { input } = setup();
     fireEvent.keyDown(input, { key: "ArrowUp" }); // -1 → last
@@ -84,6 +93,19 @@ describe("AddressAutocomplete combobox", () => {
     fireEvent.keyDown(input, { key: "ArrowUp" });
     expect(input).toHaveAttribute("aria-expanded", "true");
     expect(input).toHaveAttribute("aria-activedescendant", "origin-input-opt-1");
+  });
+
+  // Blur dismisses the list so it can't hang over the next control. Nothing used
+  // to undo that, so tabbing away and back left a field with live suggestions
+  // silently collapsed until the user retyped or pressed an arrow key.
+  it("re-opens a list dismissed by blur when the field is refocused", () => {
+    const { input } = setup();
+    fireEvent.blur(input);
+    expect(input).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.focus(input);
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 
   it("announces the suggestion count in a polite live region", () => {
