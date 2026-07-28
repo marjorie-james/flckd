@@ -10,7 +10,7 @@ export function RouteNotice({ route }: { route: Route }) {
   if (route.is_fully_clean) return null;
 
   return (
-    <p className="route-notice" role="alert">
+    <p className="verdict route-notice no-print" role="alert">
       {t("result.notCameraFree")}
     </p>
   );

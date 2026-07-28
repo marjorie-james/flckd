@@ -178,25 +178,7 @@ body {
   gap: var(--s-3);
 }
 
-/* The repo link is also in the footer; on narrow screens drop the header copy so
-   the brand + language switcher don't crowd, and let the footer carry it. */
-@media (max-width: 560px) {
-  .header-repo-link {
-    display: none;
-  }
 
-  /* Show the full descriptive title on narrow screens rather than truncating it
-     to an ellipsis: step the size down and tighten the tracking so it fits, and
-     allow it to wrap instead of clip if a very narrow viewport still can't hold
-     one line. The wordmark stays the prominent brand mark above it. */
-  .app-title {
-    font-size: var(--t-sm);
-    letter-spacing: 0.06em;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-  }
-}
 
 /* Brand cluster: the wordmark over its descriptive, localized heading. */
 .brand {
@@ -235,20 +217,33 @@ body {
 
 /* The real page heading — kept as the localized descriptive title (the i18n
    contract asserts its exact text). Styled as a quiet instrument caption. */
+/* Mobile-first: sized small with relaxed overflow so the full descriptive title
+   wraps rather than clips on narrow viewports. On wider screens (≥561px) the
+   title tightens to one truncated line. */
 .app-title {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--t-base);
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: var(--track-caption);
+  letter-spacing: 0.06em;
   color: var(--text-muted);
   /* Indent to align under the wordmark text, past the sensor dot (9px) + its
      gap (9px). */
   padding-left: 18px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+@media (min-width: 561px) {
+  .app-title {
+    font-size: var(--t-base);
+    letter-spacing: var(--track-caption);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* ─── Footer ───
@@ -272,10 +267,28 @@ body {
   text-decoration: none;
   /* Standalone link (not inline in a sentence), so it needs its own minimum
      target rather than relying on the inline exception (WCAG 2.5.8). */
-  display: inline-flex;
   align-items: center;
   min-height: var(--tap-min);
   padding: 0 var(--s-1);
+}
+
+/* The footer link is always visible; the header copy hides on narrow screens
+   (mobile-first, shown by the min-width:561px rule above). display must be set
+   per-element so the header copy's hide/show does not fight a shared rule. */
+.app-footer a {
+  display: inline-flex;
+}
+
+/* Mobile-first: on narrow screens the header repo link is hidden (the footer
+   carries it instead). On wider screens (≥561px) it shows. */
+.header-repo-link {
+  display: none;
+}
+
+@media (min-width: 561px) {
+  .header-repo-link {
+    display: inline-flex;
+  }
 }
 
 .app-footer a:hover,
@@ -309,7 +322,8 @@ body {
   letter-spacing: 0.05em;
 }
 
-.language-switcher select {
+/* Component-owned: the select carries .lang-select. */
+.lang-select {
   appearance: none;
   background: var(--raised);
   border: 1px solid var(--border-interactive);
@@ -327,7 +341,7 @@ body {
 /* Same as the inputs: a visible focus ring (a subtle border change alone falls
    under the 3:1 minimum). accent-hi gives a clearly visible indicator.
    (WCAG 1.4.11 / 2.4.11.) */
-.language-switcher select:focus {
+.lang-select:focus {
   border-color: var(--accent-hi);
   box-shadow: 0 0 0 2px var(--accent-hi);
 }
@@ -347,6 +361,13 @@ body {
   height: 100%;
   background: var(--bg);
 }
+
+/* ─── Breakpoints ───
+   Both mobile-first (min-width). Custom properties cannot appear in media
+   conditions, so the values are documented here and referenced from both blocks.
+     561px — header repo-link + app-title truncation
+     900px — two-pane layout switch
+*/
 
 /* ─── Responsive: two-pane desktop layout (≥900px) ───
    The map becomes the dominant surface (the 1fr column) with a bounded,
@@ -399,8 +420,9 @@ body {
   gap: 5px;
 }
 
-/* Instrument labels — mono, uppercase, micro. */
-.route-panel label {
+/* Instrument labels — mono, uppercase, micro. Component-owned: the label
+   carries .field-label so it renders correctly outside .route-panel. */
+.field-label {
   font-family: var(--font-mono);
   font-size: var(--t-xs);
   font-weight: 500;
@@ -415,7 +437,9 @@ body {
   align-items: center;
 }
 
-.route-panel input[inputmode="search"] {
+/* Component-owned: the input carries .field-input so it renders correctly
+   outside .route-panel. inputmode="search" stays for the mobile keyboard. */
+.field-input {
   width: 100%;
   padding: 10px 40px 10px var(--s-3);
   font-size: var(--t-lg);
@@ -428,22 +452,21 @@ body {
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 
-.route-panel input[inputmode="search"]::placeholder {
+.field-input::placeholder {
   color: var(--placeholder);
 }
 
 /* The focus ring must be visible: a faint glow ring falls below the 3:1 minimum
    (WCAG 1.4.11 / 2.4.11 Focus Appearance). A solid 2px accent-hi ring meets the
    indicator-area requirement on the dark field. */
-.route-panel input[inputmode="search"]:focus {
+.field-input:focus {
   border-color: var(--accent-hi);
   box-shadow: 0 0 0 2px var(--accent-hi);
 }
 
-/* geo / location pin icon button inside input */
-.geo-btn {
-  position: absolute;
-  right: var(--s-2);
+/* Icon-only control: a transparent square that lights up on hover. Shared by
+   .geo-btn (location pin inside the input) and .print-btn (directions header). */
+.icon-btn {
   width: var(--icon-btn);
   height: var(--icon-btn);
   border: none;
@@ -451,15 +474,26 @@ body {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: color var(--dur-fast), background var(--dur-fast);
   flex-shrink: 0;
+  transition: color var(--dur-fast), background var(--dur-fast);
 }
 
-.geo-btn:hover { color: var(--accent-hi); background: var(--accent-muted); }
+.icon-btn:hover,
+.icon-btn:focus-visible {
+  color: var(--accent-hi);
+  background: var(--accent-muted);
+}
+
+/* .geo-btn modifier: positioned inside the input wrap. */
+.geo-btn {
+  position: absolute;
+  right: var(--s-2);
+}
+
 .geo-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ─── Suggestion dropdown ─── */
@@ -545,7 +579,8 @@ body {
 
 /* ─── Plan button — the primary action is hard light: a near-white "beam" with
    ink text, the one bright surface in the rail. ─── */
-.route-panel button[type="submit"] {
+/* Component-owned: the submit button carries .btn-plan. */
+.btn-plan {
   padding: var(--s-3);
   font-size: var(--t-lg);
   font-weight: 600;
@@ -560,12 +595,12 @@ body {
   margin-top: 2px;
 }
 
-.route-panel button[type="submit"]:hover:not([aria-disabled="true"]) {
+.btn-plan:hover:not([aria-disabled="true"]) {
   background: var(--beam-hi);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
-.route-panel button[type="submit"]:focus-visible {
+.btn-plan:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
@@ -574,7 +609,7 @@ body {
    holds focus drops focus to <body>, and a disabled button is skipped by
    screen-reader form navigation. aria-disabled carries the state, so it has to
    carry the styling too. */
-.route-panel button[type="submit"][aria-disabled="true"] {
+.btn-plan[aria-disabled="true"] {
   background: var(--border-hi);
   color: var(--text-muted);
   cursor: not-allowed;
@@ -600,7 +635,7 @@ body {
   color: var(--text-muted);
 }
 
-.camera-summary .avoided-badge {
+.avoided-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -654,18 +689,31 @@ body {
    cameras? — so it leads the result as a full-width classification banner, not a
    pill. A state-colored status LED (the same sensor-square motif as the wordmark)
    and a colored left edge carry the state; the sentence stays in hard light so the
-   longer copy reads cleanly. The clean/already-clean states use `.status`; the
-   minimum-exposure state is the `.route-notice` banner below. */
-.status {
+   longer copy reads cleanly. .verdict is the shared base; .status and .route-notice
+   are the two mutually exclusive modifiers (must follow .verdict in source order
+   so their overrides win at equal specificity). */
+.verdict {
   display: flex;
   align-items: flex-start;
   gap: var(--s-3);
-  align-self: stretch;
   font-family: var(--font-sans);
   font-size: var(--t-lg);
   font-weight: 600;
-  line-height: 1.45;
   color: var(--text);
+}
+
+.verdict::before {
+  content: '';
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+/* Clean/already-clean state: inset panel with a green left edge. */
+.status {
+  align-self: stretch;
+  line-height: 1.45;
   background: var(--panel);
   padding: 13px 15px 13px 13px;
   border: 1px solid var(--border);
@@ -673,14 +721,8 @@ body {
   border-radius: var(--r);
 }
 
-/* Status LED — a small rounded square with a faint halo, echoing the wordmark. */
 .status::before {
-  content: '';
-  flex-shrink: 0;
-  width: 9px;
-  height: 9px;
   margin-top: 5px;
-  border-radius: 2px;
 }
 
 .status.clean {
@@ -762,7 +804,8 @@ body {
   border-color: var(--accent);
 }
 
-.route-result h3 {
+/* Component-owned: the h3 carries .section-heading. */
+.section-heading {
   font-family: var(--font-mono);
   font-size: var(--t-xs);
   font-weight: 500;
@@ -831,7 +874,9 @@ body {
 .export-warning .export-risk { font-weight: 500; }
 .export-warning .export-howto { color: var(--text-muted); }
 
-.export-warning .export-confirm {
+/* Component-owned: both buttons carry their own class. The confirm and cancel
+   buttons are independent rules (no cascade dependency). */
+.export-confirm {
   padding: 9px var(--s-3);
   background: var(--raised);
   border: 1px solid var(--border-hi);
@@ -844,9 +889,9 @@ body {
   transition: border-color var(--dur-fast);
 }
 
-.export-warning .export-confirm:hover { border-color: var(--accent); }
+.export-confirm:hover { border-color: var(--accent); }
 
-.export-warning button {
+.export-cancel {
   padding: var(--s-2);
   background: none;
   border: 1px solid var(--border);
@@ -858,7 +903,7 @@ body {
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 
-.export-warning button:hover { color: var(--text); border-color: var(--border-hi); }
+.export-cancel:hover { color: var(--text); border-color: var(--border-hi); }
 
 /* GPX export trigger button */
 .export-gpx-btn {
@@ -958,28 +1003,19 @@ body {
    fewest-cameras route. Deliberately prominent — a full-bleed banner in the amber
    caution palette with the field-of-view wedge — so the user can't miss that the
    route still passes within view of some cameras. */
+/* Minimum-exposure state: full-bleed amber banner. */
 .route-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-3);
   margin: 0;
   padding: 13px var(--s-4);
-  font-size: var(--t-lg);
-  font-weight: 600;
   line-height: 1.5;
-  color: var(--text);
   background: var(--amber-bg);
   border-top: 1px solid var(--amber-ring);
   border-bottom: 1px solid var(--amber-ring);
   border-left: 3px solid var(--amber);
 }
+
 .route-notice::before {
-  content: '';
-  flex-shrink: 0;
-  width: 9px;
-  height: 9px;
   margin-top: 6px;
-  border-radius: 2px;
   background: var(--amber);
   box-shadow: 0 0 0 3px var(--amber-bg);
 }
@@ -1054,29 +1090,11 @@ body {
   gap: var(--s-2);
 }
 
-/* Icon-only print trigger — mirrors the .geo-btn affordance (transparent square
-   that lights up on hover). The accessible name is provided via aria-label. */
-.print-btn {
-  width: var(--icon-btn);
-  height: var(--icon-btn);
-  border: none;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  flex-shrink: 0;
-  transition: color var(--dur-fast), background var(--dur-fast);
-}
+/* .print-btn is an .icon-btn with no modifier properties of its own.
+   The class exists for the .no-print print-hide and for test hooks. */
 
-.print-btn:hover,
-.print-btn:focus-visible {
-  color: var(--accent-hi);
-  background: var(--accent-muted);
-}
+/* Print control: .no-print hides elements from the printed sheet (applied in
+   JSX). Consumed only by the @media print block below. */
 
 /* The print sheet exists only when printing. */
 .printable-directions {
@@ -1084,33 +1102,13 @@ body {
 }
 
 @media print {
-  /* Hide all on-screen chrome and the camera-aware UI; the printed sheet is a
-     clean driving aid (no map, no controls, no camera/coverage notices). That
-     includes the screen-only banners above the sheet: without .error here,
-     printing while a plan has failed puts the red error text on paper as the
-     whole page. */
-  .app-header,
-  .app-footer,
-  .map-container,
-  .route-panel,
-  .route-notice,
-  .camera-summary,
-  .route-result .status,
-  .route-result .stats,
-  .comparison-toggle,
-  .coverage-warning,
-  .export-gpx-btn,
-  .export-warning,
-  .route-result h3,
-  .directions,
-  .print-btn,
-  .error,
-  .skip-link {
+  /* Allow-list approach: every non-printable element carries .no-print in the
+     JSX, so new components print by default (safe side). The old deny-list was
+     a maintenance hazard because new elements fell through. */
+  .no-print {
     display: none !important;
   }
 
-  /* Printer default margins are inconsistent and often near-zero; fix them so
-     the sheet isn't printed to the edge. */
   @page {
     margin: 15mm;
   }
@@ -1126,6 +1124,14 @@ body {
     background: #fff !important;
     color: #000 !important;
     box-shadow: none !important;
+  }
+
+  /* Reset the route-result box model so screen spacing does not leak onto the
+     printed sheet. The 16px padding and flex gap are screen layout. */
+  .route-result {
+    padding: 0 !important;
+    display: block !important;
+    gap: 0 !important;
   }
 
   /* The header is a flex row on screen; with its h3 and print button hidden, the

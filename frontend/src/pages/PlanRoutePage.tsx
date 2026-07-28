@@ -98,11 +98,11 @@ export function PlanRoutePage() {
           attribution before reaching the origin field (WCAG 2.4.1). It targets
           the control pane rather than <main> because the map sits first inside
           <main>; landing on the pane puts the form next in the tab order. */}
-      <a className="skip-link" href="#main-content">
+      <a className="skip-link no-print" href="#main-content">
         {t("a11y.skipToContent")}
       </a>
 
-      <header className="app-header">
+      <header className="app-header no-print">
         {/* The wordmark is the brand mark and is decorative (aria-hidden): the
             real, localized page heading is the <h1> beside it, so a screen reader
             announces the descriptive title — not the redacted brand string — and
@@ -133,7 +133,7 @@ export function PlanRoutePage() {
             below (status, stats, turn-by-turn directions). It's a labelled region
             (not role="img") because MapLibre renders interactive controls inside —
             an image must not contain focusable descendants. */}
-        <div className="map-container" role="region" aria-label={t("map.ariaLabel")}>
+        <div className="map-container no-print" role="region" aria-label={t("map.ariaLabel")}>
           {/* The fallback fills the container so its reserved height never jumps
               while the map chunk loads. */}
           <Suspense fallback={<div className="map-loading" aria-hidden="true" />}>
@@ -160,7 +160,7 @@ export function PlanRoutePage() {
           </div>
 
           <div className="result-section">
-            {errorMessage && <p className="error" role="alert">{errorMessage}</p>}
+            {errorMessage && <p className="error no-print" role="alert">{errorMessage}</p>}
             {route && endpoints && (
               <>
                 {/* The results section heading. It exists so heading navigation
@@ -183,7 +183,7 @@ export function PlanRoutePage() {
         </div>
       </main>
 
-      <footer className="app-footer">
+      <footer className="app-footer no-print">
         <a
           href="https://github.com/marjorie-james/flckd"
           target="_blank"
