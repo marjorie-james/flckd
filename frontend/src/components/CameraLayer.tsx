@@ -410,5 +410,34 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
     // `t` is in deps so popups rebind to the active language after a language switch.
   }, [map, t]);
 
-  return null;
+  // Text equivalent for viewport cameras (WCAG 2.1.1 keyboard + 1.1.1 text alt).
+  // The map layers show cameras as visual-only canvas dots/cones with popups that
+  // require pointer hit-tests. This parallel DOM list carries the same per-camera
+  // fields popupHtml builds, visually hidden, with each item focusable so a
+  // keyboard or screen-reader user can browse camera data without a mouse.
+  // The live region announces the count; the bbox fetch is already debounced
+  // 300ms and polite assertiveness avoids chattering during continuous panning.
+  const cameraList = data?.cameras ?? [];
+
+  return (
+    <>
+      <div className="visually-hidden" role="status" aria-live="polite">
+        {data ? t("cameras.a11y.count", { count: cameraList.length }) : ""}
+      </div>
+      <ul className="visually-hidden" aria-label={t("cameras.a11y.listLabel")}>
+        {cameraList.map((c) => {
+          const directional = typeof c.facing_direction === "number";
+          const dir = directionLabel(directional, c.facing_direction, t);
+          const type = c.camera_type ?? t("cameras.popup.unknown");
+          const pct = `${Math.round(c.confidence * 100)}%`;
+          const status = c.verification_status ?? t("cameras.popup.unknown");
+          return (
+            <li key={c.id} tabIndex={0}>
+              {t("cameras.popup.title")}, {t("cameras.popup.direction")}: {dir}, {t("cameras.popup.type")}: {type}, {t("cameras.popup.confidence")}: {pct}, {t("cameras.popup.status")}: {status}
+            </li>
+          );
+        })}
+      </ul>
+    </>
+  );
 }

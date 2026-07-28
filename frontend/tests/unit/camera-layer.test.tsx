@@ -38,6 +38,7 @@ vi.mock("../../src/utils/reducedMotion", () => ({ prefersReducedMotion: () => H.
 vi.mock("maplibre-gl", () => ({ default: { Popup: H.FakePopup } }));
 
 import { CameraLayer } from "../../src/components/CameraLayer";
+import "../../src/i18n";
 
 const BOUNDS = { getWest: () => -93.7, getSouth: () => 41.5, getEast: () => -93.5, getNorth: () => 41.7 };
 const VERIFIED = { id: 1, location: { lat: 41.61, lng: -93.61 }, snapped_location: { lat: 41.611, lng: -93.611 }, segment: [[-93.612, 41.611], [-93.610, 41.611]], facing_direction: 90, camera_type: "flock", confidence: 0.9, verification_status: "verified" };
@@ -85,7 +86,7 @@ function makeFakeMap(bounds = BOUNDS) {
   };
 }
 
-beforeEach(() => { H.data = { cameras: [] }; H.reduced = false; H.bboxes = []; H.zooms = []; H.debounceDelays = []; H.popups.length = 0; });
+beforeEach(() => { H.data = { cameras: [] } as { cameras: unknown[] } | undefined; H.reduced = false; H.bboxes = []; H.zooms = []; H.debounceDelays = []; H.popups.length = 0; });
 
 describe("CameraLayer viewport fetch (T002)", () => {
   it("computes a bbox from the map and fetches cameras for it (debounced)", () => {
@@ -264,5 +265,97 @@ describe("CameraLayer inspect + dismiss (T009)", () => {
     }));
     expect(H.popups[0].html).not.toContain("<img");
     expect(H.popups[0].html).toContain("&lt;img");
+  });
+});
+
+describe("CameraLayer accessible DOM (H3 fix: keyboard path + text equivalent)", () => {
+  it("renders camera details as a visually-hidden list without any pointer interaction", () => {
+    H.data = { cameras: [VERIFIED, DISPUTED] };
+    const map = makeFakeMap();
+    const { container } = render(<CameraLayer map={map as never} />);
+
+    const list = container.querySelector("ul");
+    expect(list).not.toBeNull();
+    expect(list!.className).toBe("visually-hidden");
+    expect(list!.getAttribute("aria-label")).toBeTruthy();
+
+    const items = container.querySelectorAll("li");
+    expect(items).toHaveLength(2);
+
+    // VERIFIED: directional (facing E/90°), flock, 90%, verified
+    const first = items[0].textContent!;
+    expect(first).toContain("flock");
+    expect(first).toContain("90%");
+    expect(first).toContain("verified");
+    // "Faces E" is specific enough to prove the cardinal rendered (a bare
+    // "E" would match Camera, Direction, Confidence, Type). The bearing
+    // check uses the degree symbol so it doesn't collide with "90%".
+    expect(first).toContain("Faces E");
+    expect(first).toContain("90°");
+
+    // DISPUTED: omnidirectional, flock, 30%, disputed
+    const second = items[1].textContent!;
+    expect(second).toContain("flock");
+    expect(second).toContain("30%");
+    expect(second).toContain("disputed");
+    expect(second).toContain("360°");
+  });
+
+  it("makes each entry keyboard-reachable via tabIndex={0}", () => {
+    H.data = { cameras: [VERIFIED, DISPUTED] };
+    const map = makeFakeMap();
+    const { container } = render(<CameraLayer map={map as never} />);
+
+    const items = container.querySelectorAll("li");
+    expect(items).toHaveLength(2);
+    items.forEach((item) => {
+      expect(item.getAttribute("tabindex")).toBe("0");
+    });
+  });
+
+  it("announces the camera count in a live region that updates with the data", () => {
+    H.data = { cameras: [VERIFIED] };
+    const map = makeFakeMap();
+    const { container, rerender } = render(<CameraLayer map={map as never} />);
+
+    const status = container.querySelector('[role="status"]')!;
+    expect(status.textContent).toBe("1 camera in the current view");
+
+    H.data = { cameras: [VERIFIED, DISPUTED] };
+    rerender(<CameraLayer map={map as never} />);
+    expect(status.textContent).toBe("2 cameras in the current view");
+  });
+
+  it("keeps the live region empty before camera data loads", () => {
+    H.data = undefined;
+    const map = makeFakeMap();
+    const { container } = render(<CameraLayer map={map as never} />);
+
+    expect(container.querySelector('[role="status"]')!.textContent).toBe("");
+    expect(container.querySelectorAll("li")).toHaveLength(0);
+  });
+
+  it("renders an empty list and a zero count when no cameras are in view", () => {
+    H.data = { cameras: [] };
+    const map = makeFakeMap();
+    const { container } = render(<CameraLayer map={map as never} />);
+
+    expect(container.querySelectorAll("li")).toHaveLength(0);
+    expect(container.querySelector('[role="status"]')!.textContent).toBe("0 cameras in the current view");
+  });
+
+  it("syncs the list items with the viewport camera data", () => {
+    H.data = { cameras: [VERIFIED] };
+    const map = makeFakeMap();
+    const { container, rerender } = render(<CameraLayer map={map as never} />);
+
+    expect(container.querySelectorAll("li")).toHaveLength(1);
+    expect(container.querySelector("li")!.textContent).toContain("verified");
+
+    H.data = { cameras: [DISPUTED] };
+    rerender(<CameraLayer map={map as never} />);
+
+    expect(container.querySelectorAll("li")).toHaveLength(1);
+    expect(container.querySelector("li")!.textContent).toContain("disputed");
   });
 });

@@ -36,6 +36,11 @@
       "unknown": "unknown",
       "faces": "Faces {{cardinal}} · {{deg}}°",
       "omnidirectional": "360° · all directions"
+    },
+    "a11y": {
+      "listLabel": "Cameras in the current map view",
+      "count_one": "{{count}} camera in the current view",
+      "count_other": "{{count}} cameras in the current view"
     }
   },
   "result": {
