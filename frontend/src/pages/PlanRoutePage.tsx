@@ -93,6 +93,15 @@ export function PlanRoutePage() {
 
   return (
     <div className="plan-page">
+      {/* First focusable thing on the page: without it a keyboard user tabs the
+          header link, the language select, the MapLibre canvas, and the map's
+          attribution before reaching the origin field (WCAG 2.4.1). It targets
+          the control pane rather than <main> because the map sits first inside
+          <main>; landing on the pane puts the form next in the tab order. */}
+      <a className="skip-link" href="#main-content">
+        {t("a11y.skipToContent")}
+      </a>
+
       <header className="app-header">
         {/* The wordmark is the brand mark and is decorative (aria-hidden): the
             real, localized page heading is the <h1> beside it, so a screen reader
@@ -137,7 +146,9 @@ export function PlanRoutePage() {
           </Suspense>
         </div>
 
-        <div className="content-pane">
+        {/* tabIndex={-1} so the skip link can actually move focus here; without
+            it the browser scrolls but focus stays where it was. */}
+        <div className="content-pane" id="main-content" tabIndex={-1}>
           <RoutePanel onPlan={handlePlan} planning={busy} onOriginChange={setOrigin} />
 
           {/* The only live region for route state: one concise, polite status
@@ -152,6 +163,11 @@ export function PlanRoutePage() {
             {errorMessage && <p className="error" role="alert">{errorMessage}</p>}
             {route && endpoints && (
               <>
+                {/* The results section heading. It exists so heading navigation
+                    goes h1 → h2 → h3 (the directions heading in RouteResult)
+                    with no skipped level; the visual design has no room for a
+                    second visible title, so it is hidden visually only. */}
+                <h2 className="visually-hidden">{t("result.section")}</h2>
                 <RouteNotice route={route} />
                 <CameraSummary route={route} />
                 <RouteResult

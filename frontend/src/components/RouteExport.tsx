@@ -27,8 +27,11 @@ export function RouteExport({ route }: Props) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasConfirming = useRef(false);
 
-  // Match the handoff's focus handling: move focus into the dialog on open,
-  // restore it to the trigger on close.
+  // This dialog is deliberately NOT modal: nothing outside it is inert or
+  // aria-hidden, so claiming aria-modal="true" would tell assistive tech the rest
+  // of the page is unavailable when it is still fully readable in browse mode.
+  // What it does instead is the honest set: focus moves in on open, returns to the
+  // trigger on close, and Escape cancels.
   useEffect(() => {
     if (confirming) {
       // Focus the dialog itself, NOT its first button. The first button is the
@@ -43,27 +46,10 @@ export function RouteExport({ route }: Props) {
     wasConfirming.current = confirming;
   }, [confirming]);
 
-  // Keep keyboard focus inside the modal alertdialog: Tab/Shift+Tab cycle between
-  // the two buttons (and the container) instead of escaping to the page behind it.
-  // Escape cancels. Pairs with aria-modal="true" so AT also scopes to the dialog.
+  // Escape cancels. There is no Tab trap: tabbing out of a non-modal dialog is
+  // correct behaviour, and it matches what the page actually exposes to AT.
   const onDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape") {
-      setConfirming(false);
-      return;
-    }
-    if (e.key !== "Tab") return;
-    const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button") ?? []);
-    if (buttons.length === 0) return;
-    const first = buttons[0];
-    const last = buttons[buttons.length - 1];
-    const active = document.activeElement;
-    if (e.shiftKey && (active === first || active === dialogRef.current)) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus();
-    }
+    if (e.key === "Escape") setConfirming(false);
   };
 
   // decodePolyline returns [lng, lat] pairs. Memoized so toggling the warning
@@ -104,7 +90,6 @@ export function RouteExport({ route }: Props) {
       ref={dialogRef}
       className="export-warning"
       role="alertdialog"
-      aria-modal="true"
       aria-labelledby={warningId}
       aria-describedby={howtoId}
       tabIndex={-1}

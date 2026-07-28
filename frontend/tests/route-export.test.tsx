@@ -36,6 +36,44 @@ describe("RouteExport", () => {
     expect(dialog).toHaveTextContent(/track-following navigation app/i);
   });
 
+  describe("the warning is a truthful non-modal dialog", () => {
+    // Closing remounts the trigger, so re-query it rather than holding a stale node.
+    const trigger = () => screen.getByRole("button", { name: /export route \(gpx\)/i });
+    const openIt = () => {
+      render(<RouteExport route={route()} />);
+      fireEvent.click(trigger());
+      return { dialog: screen.getByRole("alertdialog") };
+    };
+
+    it("does not claim aria-modal, since the rest of the page stays exposed", () => {
+      const { dialog } = openIt();
+      expect(dialog).not.toHaveAttribute("aria-modal");
+    });
+
+    it("moves focus into the dialog on open", () => {
+      const { dialog } = openIt();
+      expect(document.activeElement).toBe(dialog);
+    });
+
+    it("closes on Escape and returns focus to the trigger", () => {
+      const { dialog } = openIt();
+
+      fireEvent.keyDown(dialog, { key: "Escape" });
+
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(trigger());
+    });
+
+    it("returns focus to the trigger when cancelled with the mouse", () => {
+      openIt();
+
+      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(trigger());
+    });
+  });
+
   it("renders nothing when the route has too few points to form a track", () => {
     const { container } = render(<RouteExport route={route({ geometry: "" })} />);
     expect(container).toBeEmptyDOMElement();

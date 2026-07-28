@@ -3,6 +3,9 @@
     "title": "Planificador de rutas que evita cámaras",
     "getApp": "Obtener flckd"
   },
+  "a11y": {
+    "skipToContent": "Saltar al contenido principal"
+  },
   "form": {
     "origin": "Inicio",
     "destination": "Destino",
@@ -35,6 +38,7 @@
     }
   },
   "result": {
+    "section": "Resultados de la ruta",
     "fullyClean": "Esta ruta evita todas las cámaras conocidas.",
     "alreadyClean": "No hay cámaras en tu ruta; no se necesitan desvíos.",
     "notCameraFree": "Atención: no existe una ruta totalmente libre de cámaras. Esta ruta aún pasa a la vista de algunas cámaras (las menos posibles). Tenlo en cuenta al conducir.",
