@@ -1,6 +1,6 @@
 name: CI (frontend)
 
-# Frontend Quality Gates (ESLint, pnpm audit, tsc, Vitest).
+# Frontend Quality Gates (ESLint, pnpm audit, tsc, Vitest, Playwright e2e).
 #
 # Required-check + minutes hygiene: `frontend` is a branch-protection required
 # context, so it must report on EVERY pull request — a top-level `paths:` filter
@@ -76,11 +76,53 @@ jobs:
       - name: Tests (Vitest)
         run: pnpm exec vitest run
 
+  # Playwright e2e against the production build, API and tiles stubbed via
+  # page.route (no live geo stack, zero third-party requests).
+  #
+  # This suite existed for a long time without ever running here, and rotted:
+  # when it was first wired up it had 4 hard failures and a flake, one of which
+  # was a real product bug (re-planning an unchanged trip was a silent no-op,
+  # fixed in #97) and another a real map bug (effects gated on the oscillating
+  # isStyleLoaded(), fixed in #99). Unit tests could not have caught either.
+  # Keep it gated, or it will rot again.
+  #
+  # Runs in the official Playwright image so the browsers are preinstalled.
+  # Keep the tag in lockstep with @playwright/test in frontend/package.json.
+  frontend-e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.61.1-noble
+      # Chromium needs a real /dev/shm or it crashes on larger pages.
+      options: --ipc=host
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      # The image already ships Node 22, so this only adds pnpm. setup-node is
+      # deliberately not used here: it would install a second Node beside the
+      # one the image's browsers were built against.
+      - name: Install pnpm
+        run: npm i -g pnpm@11.5.2
+      - run: pnpm install --frozen-lockfile
+      - name: Build (playwright serves the production build via vite preview)
+        run: pnpm build
+      - name: E2E (Playwright)
+        # playwright.config.ts keeps a trace on failure under
+        # frontend/test-results/. Uploading it as an artifact would help debug a
+        # red run, but no workflow here uses upload-artifact yet and this repo
+        # pins action majors deliberately, so that is left for a follow-up rather
+        # than guessed at.
+        run: pnpm exec playwright test
+
   # Required branch-protection context. Always runs (a few seconds) and passes
   # unless a real job failed — so unrelated PRs satisfy the check without
   # running the heavy job, and a real failure still blocks the merge.
   frontend:
-    needs: [changes, frontend-tests]
+    needs: [changes, frontend-tests, frontend-e2e]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -89,12 +131,16 @@ jobs:
         run: |
           changes='${{ needs.changes.result }}'
           tests='${{ needs.frontend-tests.result }}'
-          echo "changes=${changes} frontend-tests=${tests}"
+          e2e='${{ needs.frontend-e2e.result }}'
+          echo "changes=${changes} frontend-tests=${tests} frontend-e2e=${e2e}"
           # Fail closed if the path detector itself broke.
           if [ "${changes}" != "success" ]; then
             echo "path detection did not succeed"; exit 1
           fi
           if [ "${tests}" = "failure" ] || [ "${tests}" = "cancelled" ]; then
+            exit 1
+          fi
+          if [ "${e2e}" = "failure" ] || [ "${e2e}" = "cancelled" ]; then
             exit 1
           fi
           exit 0
