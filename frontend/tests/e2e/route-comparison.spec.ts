@@ -85,21 +85,17 @@ test("clears the comparison and shows no trade-off when a new plan is penalty-fr
   await planRoute(page);
   await waitForPenaltyPlan(page);
 
-  // Re-plan with a penalty-free response. The query is cached by react-query
-  // (keyed on origin + destination + locale), so just clicking submit again
-  // returns the stale cache hit. Changing the destination busts the cache and
-  // forces a fresh API call that hits the new mock.
+  // Re-plan the SAME trip, this time returning a route whose fastest path is
+  // already the chosen route (no added time). Last-registered handler wins.
+  // Re-submitting unchanged endpoints must still re-plan: that it did not was a
+  // real bug in the query key, fixed separately. Do not bust the cache by
+  // editing an endpoint here, or this stops covering that regression.
   await page.route("**/api/v1/routes", async (route) => {
     const r = routeFor("en");
     r.fastest_comparison.added_duration_s = 0;
     r.fastest_comparison.added_distance_m = 0;
     await route.fulfill({ json: r });
   });
-  const inputs = page.locator('.route-panel input[inputmode="search"]');
-  await inputs.nth(1).fill("iowa state");
-  const suggestion = page.locator(".suggestions li button").first();
-  await suggestion.waitFor({ state: "visible" });
-  await suggestion.click();
   await page.locator('.route-panel button[type="submit"]').click();
 
   await expect(page.locator(".route-result")).toBeVisible();
