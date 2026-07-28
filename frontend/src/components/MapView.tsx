@@ -5,6 +5,7 @@ import type { StyleSpecification } from "maplibre-gl";
 import { decodePolyline } from "../lib/polyline";
 import type { Coordinate, RegionBounds, Route } from "../types/api";
 import { prefersReducedMotion } from "../utils/reducedMotion";
+import { ORIGIN_COLOR, MARKER_STROKE_COLOR, ROUTE_COLOR, ROUTE_COMPARISON_COLOR } from "../lib/mapPalette";
 import { CameraLayer } from "./CameraLayer";
 import { tilesBase } from "../config";
 import baseStyle from "../../public/map-style.json";
@@ -275,7 +276,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
           type: "line",
           source: ROUTE_SOURCE,
           layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "#818cf8", "line-width": 4, "line-opacity": 0.9 },
+          paint: { "line-color": ROUTE_COLOR, "line-width": 4, "line-opacity": 0.9 },
         });
       }
 
@@ -297,7 +298,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
             source: COMPARISON_SOURCE,
             layout: { "line-join": "round", "line-cap": "round" },
             paint: {
-              "line-color": "#9ca3af",
+              "line-color": ROUTE_COMPARISON_COLOR,
               "line-width": 3,
               "line-opacity": 0.7,
               "line-dasharray": [2, 2],
@@ -348,9 +349,9 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
           source: ORIGIN_SOURCE,
           paint: {
             "circle-radius": 7,
-            "circle-color": "#16a34a",
+            "circle-color": ORIGIN_COLOR,
             "circle-stroke-width": 2,
-            "circle-stroke-color": "#fff",
+            "circle-stroke-color": MARKER_STROKE_COLOR,
           },
         });
         existing = map.getSource(ORIGIN_SOURCE) as maplibregl.GeoJSONSource | undefined;
