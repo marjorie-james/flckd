@@ -63,8 +63,10 @@ test("draws the fastest route as a comparison line and surfaces the trade-off (U
   await expect(result.locator(".fastest-exposes")).toContainText("3 cameras");
 
   // Both lines are on the map; the comparison has real geometry.
-  expect(await hasLayer(page, "route-line")).toBe(true);
-  expect(await hasLayer(page, "comparison-line")).toBe(true);
+  // Poll: hasLayer is a raw page.evaluate; the map draw effect only runs
+  // after the style loads, so the layer may not exist on the first check.
+  await expect.poll(() => hasLayer(page, "route-line")).toBe(true);
+  await expect.poll(() => hasLayer(page, "comparison-line")).toBe(true);
 });
 
 test("hides the comparison line on dismiss while keeping the recommended route", async ({ page }) => {
@@ -74,7 +76,7 @@ test("hides the comparison line on dismiss while keeping the recommended route",
   await page.locator(".route-result").getByRole("button", { name: /hide fastest route/i }).click();
 
   await expect.poll(() => comparisonCoordCount(page)).toBe(0); // comparison cleared
-  expect(await hasLayer(page, "route-line")).toBe(true); // recommended route remains
+  await expect.poll(() => hasLayer(page, "route-line")).toBe(true); // recommended route remains
 });
 
 test("clears the comparison and shows no trade-off when a new plan is penalty-free (FR-009)", async ({
@@ -83,8 +85,11 @@ test("clears the comparison and shows no trade-off when a new plan is penalty-fr
   await planRoute(page);
   await waitForPenaltyPlan(page);
 
-  // Re-plan, this time returning a route whose fastest path is already the chosen
-  // route (no added time). Last-registered handler wins.
+  // Re-plan the SAME trip, this time returning a route whose fastest path is
+  // already the chosen route (no added time). Last-registered handler wins.
+  // Re-submitting unchanged endpoints must still re-plan: that it did not was a
+  // real bug in the query key, fixed separately. Do not bust the cache by
+  // editing an endpoint here, or this stops covering that regression.
   await page.route("**/api/v1/routes", async (route) => {
     const r = routeFor("en");
     r.fastest_comparison.added_duration_s = 0;

@@ -57,7 +57,9 @@ test("US1 desktop-1440: combined empty side margin ≤5% (SC-001)", async ({ pag
   const v = viewport("desktop-1440");
   await page.setViewportSize({ width: v.width, height: v.height });
   await page.goto("/");
-  expect(await sideMarginFraction(page)).toBeLessThanOrEqual(0.05);
+  // Poll: sideMarginFraction returns 1 (its fallback) when .plan-page hasn't
+  // rendered yet. Polling waits for React to finish the initial render.
+  await expect.poll(() => sideMarginFraction(page)).toBeLessThanOrEqual(0.05);
 });
 
 // ─── User Story 2: reflow, tablet, ultra-wide (T008) ───
@@ -100,7 +102,8 @@ test("US2 ultra-wide 2560: sidebar bounded, map absorbs width, no centered strip
   await page.setViewportSize({ width: v.width, height: v.height });
   await page.goto("/");
 
-  expect(await sideMarginFraction(page)).toBeLessThanOrEqual(0.02); // fills width, no strip
+  // Poll: sideMarginFraction returns 1 when .plan-page hasn't rendered yet.
+  await expect.poll(() => sideMarginFraction(page)).toBeLessThanOrEqual(0.02);
   const { content } = await panes(page);
   expect(content.width).toBeLessThanOrEqual(440); // ~420 cap + tolerance
   expect(await mapWidthFraction(page)).toBeGreaterThanOrEqual(0.7);
@@ -114,7 +117,9 @@ for (const name of ["mobile-320", "mobile-375", "landscape-phone"] as const) {
     await page.setViewportSize({ width: v.width, height: v.height });
     await page.goto("/");
 
-    expect(await sideMarginFraction(page)).toBeLessThanOrEqual(0.02);
+    // Poll: sideMarginFraction returns 1 when .plan-page hasn't rendered yet;
+    // polling lets the layout settle before asserting.
+    await expect.poll(() => sideMarginFraction(page)).toBeLessThanOrEqual(0.02);
     await expectNoHorizontalScroll(page);
 
     // Stacked order: map above content (INV-4).

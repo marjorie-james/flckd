@@ -121,6 +121,19 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
   // Whether the map has already been framed on the covered region (done once,
   // when the backend bounds first arrive).
   const framedRef = useRef(false);
+  // Whether the map's initial style has loaded (the "load" event has fired at
+  // least once). Unlike isStyleLoaded(), this flag never reverts to false when
+  // tile requests are in flight or fail. isStyleLoaded() tracks tile-loading
+  // progress and can return false well after "load" fired, but addSource /
+  // addLayer only need the style document processed ("load"), not every tile
+  // fetched. Using this ref avoids a race where an effect registers
+  // once("load", fn) after "load" already fired, stranding the callback.
+  //
+  // Assumption: the app never calls map.setStyle() to swap basemaps. A style
+  // swap would wipe sources/layers and require re-waiting for "load", but
+  // the ref would still read true. If that feature is ever added, switch to
+  // listening on the "style.load" event so the ref tracks each style load.
+  const styleReadyRef = useRef(false);
   // Whether the map is ready to be shown. The map boots at a neutral world view
   // ([0,0] zoom 1) before the covered region's bounds arrive; revealing it then
   // would flash the whole-world basemap for a frame. So we keep the canvas hidden
@@ -140,12 +153,16 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       zoom: 1,
     });
     setMap(mapRef.current);
+    const onStyleReady = () => { styleReadyRef.current = true; };
+    mapRef.current.once("load", onStyleReady);
     // End-to-end tests opt in (via window.__E2E__) to read the in-page map's
     // camera/marker state. This is never set in production, so the user's origin
     // coordinate is not exposed on a global in real use (anonymity).
     const w = window as unknown as { __E2E__?: boolean; __flckdMap?: maplibregl.Map };
     if (w.__E2E__) w.__flckdMap = mapRef.current;
     return () => {
+      styleReadyRef.current = false;
+      mapRef.current?.off("load", onStyleReady);
       mapRef.current?.remove();
       mapRef.current = null;
       setMap(null);
@@ -172,7 +189,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       // If a switch happens before the style loads, apply the language that is
       // current when "load" fires (not the captured one) — so a rapid en→es→en
       // switch can't leave a stale intermediate label language.
-      if (map.isStyleLoaded()) applyLabelLanguage(lng);
+      if (styleReadyRef.current) applyLabelLanguage(lng);
       else {
         pendingLoad = () => applyLabelLanguage(i18n.language);
         map.once("load", pendingLoad);
@@ -207,7 +224,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       // Framed on the region — safe to reveal without flashing the world view.
       setRevealed(true);
     };
-    if (map.isStyleLoaded()) frame();
+    if (styleReadyRef.current) frame();
     else map.once("load", frame);
     return () => {
       map.off("load", frame);
@@ -222,7 +239,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
     const map = mapRef.current;
     if (!map || regionBounds || revealed) return;
     const reveal = () => setRevealed(true);
-    if (map.isStyleLoaded()) reveal();
+    if (styleReadyRef.current) reveal();
     else map.once("load", reveal);
     return () => {
       map.off("load", reveal);
@@ -243,7 +260,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       (map.getSource(COMPARISON_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(lineFeature([]));
     };
     const clearLines = () => {
-      if (map.isStyleLoaded()) clear();
+      if (styleReadyRef.current) clear();
       else map.once("load", clear);
       return () => map.off("load", clear);
     };
@@ -318,7 +335,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       map.fitBounds(bounds, { padding: 48, duration: prefersReducedMotion() ? 0 : 600 });
     };
 
-    if (map.isStyleLoaded()) {
+    if (styleReadyRef.current) {
       draw();
       return;
     }
@@ -370,12 +387,10 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       }
     };
 
-    // Only the initial addSource/addLayer needs the style loaded; setData and the
-    // camera do not. Crucially, once the source exists we must NOT re-gate on
-    // isStyleLoaded() — it transiently returns false right after addSource, and
-    // `once("load")` only ever fires once, so a quick follow-up change (e.g. clear)
-    // would be dropped forever, stranding a stale marker.
-    if (map.getSource(ORIGIN_SOURCE) || map.isStyleLoaded()) {
+    // addSource/addLayer need the style document to be processed (the "load"
+    // event). styleReadyRef tracks that reliably; isStyleLoaded() can't because
+    // it reflects tile-loading progress too.
+    if (map.getSource(ORIGIN_SOURCE) || styleReadyRef.current) {
       apply();
       return;
     }

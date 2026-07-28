@@ -25,12 +25,21 @@ async function selectOrigin(page: Page, query: string, expectedLabel: string) {
   await option.click();
 }
 
+// Returns the map's current zoom, or null when the lazy-loaded MapView chunk
+// hasn't mounted yet (window.__flckdMap not set). Returning null instead of
+// throwing lets expect.poll retry. Playwright treats thrown errors as an
+// immediate poll failure, not a retriable attempt.
 const mapZoom = (page: Page) =>
-  page.evaluate(() => Math.round((window as unknown as { __flckdMap: { getZoom(): number } }).__flckdMap.getZoom()));
+  page.evaluate(() => {
+    const m = (window as unknown as { __flckdMap?: { getZoom(): number } }).__flckdMap;
+    return m ? Math.round(m.getZoom()) : null;
+  });
 
 const mapCenter = (page: Page) =>
   page.evaluate(() => {
-    const c = (window as unknown as { __flckdMap: { getCenter(): { lng: number; lat: number } } }).__flckdMap.getCenter();
+    const m = (window as unknown as { __flckdMap?: { getCenter(): { lng: number; lat: number } } }).__flckdMap;
+    if (!m) return null;
+    const c = m.getCenter();
     return { lng: c.lng, lat: c.lat };
   });
 
@@ -40,8 +49,9 @@ const mapCenter = (page: Page) =>
 const originMarkerCount = (page: Page) =>
   page.evaluate(async () => {
     const map = (window as unknown as {
-      __flckdMap: { getSource(id: string): { getData?: () => Promise<{ features?: unknown[] }> } | undefined };
+      __flckdMap?: { getSource(id: string): { getData?: () => Promise<{ features?: unknown[] }> } | undefined };
     }).__flckdMap;
+    if (!map) return null;
     const src = map.getSource("origin");
     if (!src?.getData) return 0;
     const data = await src.getData();
@@ -55,6 +65,7 @@ async function expectCenteredNear(page: Page, target: { lng: number; lat: number
     .poll(
       async () => {
         const c = await mapCenter(page);
+        if (!c) return false;
         return Math.abs(c.lng - target.lng) < 0.02 && Math.abs(c.lat - target.lat) < 0.02;
       },
       { timeout },
@@ -96,7 +107,10 @@ test("keeps manual map control after recentering (FR-008)", async ({ page }) => 
   await page.mouse.up();
 
   await expect
-    .poll(async () => Math.abs((await mapCenter(page)).lng - before.lng) > 0.0005)
+    .poll(async () => {
+      const c = await mapCenter(page);
+      return c ? Math.abs(c.lng - before.lng) > 0.0005 : false;
+    })
     .toBe(true);
 });
 
