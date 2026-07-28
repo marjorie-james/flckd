@@ -419,7 +419,13 @@ body {
 .geo-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ─── Suggestion dropdown ─── */
-.suggestions {
+/* Two mutually exclusive popovers share this chrome: the option listbox, and the
+   standalone status panel that replaces it when there is nothing to select. The
+   status text used to be a presentational row inside the listbox, which made
+   screen readers announce an empty list and put the text out of reach of list
+   navigation. */
+.suggestions,
+.suggestion-status {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
@@ -471,8 +477,9 @@ body {
   outline-offset: -2px;
 }
 
-/* Non-interactive status row inside the listbox: searching / no matches / error.
-   Distinct from the selectable option buttons above. */
+/* Status panel text: searching / no matches / error. Rendered instead of the
+   listbox, never inside it. The padding here overrides the 4px popover inset
+   above so the text sits where an option label would. */
 .suggestion-status {
   padding: 9px 11px;
   font-size: 0.8125rem;
@@ -535,7 +542,7 @@ body {
   margin-top: 2px;
 }
 
-.route-panel button[type="submit"]:hover:not(:disabled) {
+.route-panel button[type="submit"]:hover:not([aria-disabled="true"]) {
   background: #fff;
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
@@ -545,7 +552,11 @@ body {
   outline-offset: 2px;
 }
 
-.route-panel button[type="submit"]:disabled {
+/* The button is never natively disabled: a control that disables itself while it
+   holds focus drops focus to <body>, and a disabled button is skipped by
+   screen-reader form navigation. aria-disabled carries the state, so it has to
+   carry the styling too. */
+.route-panel button[type="submit"][aria-disabled="true"] {
   background: var(--border-hi);
   color: var(--text-muted);
   cursor: not-allowed;
