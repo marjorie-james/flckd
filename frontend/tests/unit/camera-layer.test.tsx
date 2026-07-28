@@ -287,16 +287,18 @@ describe("CameraLayer accessible DOM (H3 fix: keyboard path + text equivalent)",
     expect(first).toContain("flock");
     expect(first).toContain("90%");
     expect(first).toContain("verified");
-    // The direction label includes the cardinal and bearing
-    expect(first).toContain("E");
-    expect(first).toContain("90");
+    // "Faces E" is specific enough to prove the cardinal rendered (a bare
+    // "E" would match Camera, Direction, Confidence, Type). The bearing
+    // check uses the degree symbol so it doesn't collide with "90%".
+    expect(first).toContain("Faces E");
+    expect(first).toContain("90°");
 
     // DISPUTED: omnidirectional, flock, 30%, disputed
     const second = items[1].textContent!;
     expect(second).toContain("flock");
     expect(second).toContain("30%");
     expect(second).toContain("disputed");
-    expect(second).toContain("360");
+    expect(second).toContain("360°");
   });
 
   it("makes each entry keyboard-reachable via tabIndex={0}", () => {
