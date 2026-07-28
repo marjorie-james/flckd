@@ -1,5 +1,12 @@
 # Feature Specification: House-Number Address Suggestions
 
+> **⚠️ Superseded in part.** RC2's fix (strip the state token before the query reaches Nominatim) is
+> no longer unconditional. `011-country-camera-mapping` made whole-country the default scope, and a
+> country index carries admin_level-4 boundaries, so the state token disambiguates rather than
+> nullifies: `GeocoderClient` keeps it unless `CountryRegistry.single_state?` — the
+> `GEOCODER_REGION_STATE` single-region dev path — is in effect. RC1 and RC3 are unchanged. Retained
+> as the point-in-time record.
+
 **Feature Branch**: `fix/geocoder-housenumber-suggestions`
 
 **Created**: 2026-06-10

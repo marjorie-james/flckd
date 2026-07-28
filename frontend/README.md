@@ -61,9 +61,10 @@ docker compose -f infra/docker-compose.yml run --rm frontend pnpm lint
 
 # E2E (Playwright) — runs the production build with the API mocked, in the
 # official Playwright image (browsers preinstalled); node_modules is isolated
-# so the host is never touched:
+# so the host is never touched. Keep the image tag in lockstep with
+# @playwright/test in package.json:
 docker run --rm --ipc=host -v "$PWD/frontend":/work -v /work/node_modules -w /work \
-  -e CI=1 mcr.microsoft.com/playwright:v1.60.0-noble \
+  -e CI=1 mcr.microsoft.com/playwright:v1.61.1-noble \
   bash -lc "npm i -g pnpm@11.5.2 >/dev/null 2>&1 && pnpm install && pnpm build && pnpm exec playwright test"
 ```
 

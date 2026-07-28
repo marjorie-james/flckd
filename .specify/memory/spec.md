@@ -46,7 +46,7 @@ avoided (counts, graceful "no clean route").
 - **FR-020**: Keep camera data reasonably current via periodic updates; convey recency/coverage limits. *(Mechanism delivered by 003.)*
 - **FR-021**: Build camera data by importing open/community datasets + an internal verification/correction layer; record each camera's source/provenance and verification status. *(Delivered by 003.)*
 
-**Key Entities**: Route Request (ephemeral O/D + preference); Route (geometry, distance, time, directions, cameras-avoided, remaining); Camera Location (position, monitored segment(s), type, facing, last-verified, confidence, provenance, verification status); Avoidance Preference *(removed by 004)*; Locale. Data-model also defines `is_fully_clean`, `coverage_warning` codes (`outside_coverage`/`stale_data`), `snap_distance_m`, and a Camera `verification_status` state machine (`unverified`/`verified`/`disputed`/`removed`).
+**Key Entities**: Route Request (ephemeral O/D + preference); Route (geometry, distance, time, directions, cameras-avoided, remaining); Camera Location (position, monitored segment(s), type, facing, last-verified, confidence, provenance, verification status); Avoidance Preference *(removed by 004)*; Locale. Data-model also defines `is_fully_clean`, `coverage_warning` (`RoutePlanner` emits only `outside_coverage` or `nil`; the 002 contract also reserved `stale_data`/`partial_coverage`, which survive in the generated frontend types and locale strings but are never produced), `snap_distance_m`, and a Camera `verification_status` state machine (`unverified`/`verified`/`disputed`/`removed`).
 
 **Success Criteria** (verbatim, with current-state notes):
 - **SC-001**: When a camera-free route exists, return zero-camera route in ≥95% of cases.

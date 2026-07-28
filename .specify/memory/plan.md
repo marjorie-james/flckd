@@ -47,14 +47,17 @@ backend/                                  # Ruby 3.4 + Rails 8.1 API
 │   ├── services/
 │   │   ├── routing/                       # RoutePlanner, SegmentExclusionBuilder, RoutingEngineClient,
 │   │   │                                  #   ManeuverLocalizer [002]; ProximityScorer, RouteCameraDetector (post-009)
-│   │   ├── geocoding/                     # GeocoderClient, AddressDisambiguator [002];
-│   │   │                                  #   CountryRegistry [011]
-│   │   └── camera_data/                   # Importer + Sources::{Base,Overpass,GeojsonFile,AggregateImport,
-│   │                                      #   Deflock}[003], SegmentSnapper, Verifier [002],
-│   │                                      #   StaleReconciler, UsTiles [003]
+│   │   ├── geocoding/                     # GeocoderClient [002]; CountryRegistry, MapFraming [011]
+│   │   └── camera_data/                   # Importer, AggregateImport, SegmentSnapper [002];
+│   │                                      #   Sources::{Base,Overpass,OsmExtractFile,OsmTagging,
+│   │                                      #   OpenDataGeojson,GeojsonFile,UsTiles}, StaleReconciler,
+│   │                                      #   TiledRefresh [003]. There is no Deflock source class:
+│   │                                      #   DeFlock comes in through the OSM adapters and survives
+│   │                                      #   as an attribution tag (ADR 0001). Camera verification is
+│   │                                      #   the Camera#verification_status state machine, not a service.
 │   ├── controllers/api/v1/                # routes, geocode, coverage, cameras, meta, base [002];
 │   │                                      #   LocaleNegotiator-aware base [012]
-│   └── jobs/                              # CameraImportJob, SegmentSnapJob, DataRefreshJob (Solid Queue)
+│   └── jobs/                              # DataRefreshJob, GeoStalenessJob (Solid Queue)
 └── spec/                                  # RSpec; geo clients faked via recorded fixtures
 
 frontend/
@@ -95,8 +98,10 @@ test/infra/*.bats                           # bats script tests (build-geocoder,
 - **Initializers** [002]: `anonymity_logging` (filter_parameters + log redaction, drop client IP),
   `content_security_policy` (self-origin), `rack_attack`, `cors` (same-origin), `event_reporter`.
 - **Env vars**:
-  - `GEOCODER_COUNTRY` (default `us`) [011] — replaces the older `GEOCODER_REGION_STATE` /
-    hand-set `GEOCODER_VIEWBOX` [006]; `infra/.region` carries `COUNTRY`.
+  - `GEOCODER_COUNTRY` (default `us`) [011] — the app-level default scope; `infra/.region` carries
+    `COUNTRY`. `GEOCODER_REGION_STATE` / `GEOCODER_VIEWBOX` [006] are not retired: they still drive
+    the single-state path (`CountryRegistry.single_state?`), which `infra/terraform` provisions by
+    default (`deploy_scope = "state"`) and `infra/scripts/deploy-scope-env.sh` writes.
   - `NOMINATIM_USE_US_TIGER_DATA=yes` [006] — activates TIGER house-number lookups.
   - `CAMERA_REFRESH_MISSING_LIMIT` (default 3) [003] — auto-retire grace window.
   - `OVERPASS_URL` / `OVERPASS_USER_AGENT` [003]; US tiling grid params.
@@ -112,12 +117,12 @@ test/infra/*.bats                           # bats script tests (build-geocoder,
   `avoidance_preference` [004]. Response includes `is_fully_clean`, `coverage_warning`,
   `fastest_comparison` { geometry, cameras_passed_count } [009].
 - `GET /api/v1/geocode/search` · `POST /api/v1/geocode/reverse` [002].
-- `GET /api/v1/cameras?bbox=` — viewport cameras, capped at 500 [008]; returns `facing_direction`,
-  `snapped_location`, `segment` (post-009).
+- `GET /api/v1/cameras?bbox=` — viewport cameras, capped at `VIEWPORT_LIMIT = 5_000` (raised from 500
+  post-008, #37) [008]; returns `facing_direction`, `snapped_location`, `segment` (post-009).
 - `GET /api/v1/coverage` → `{ covered, data_freshness_at }`; `GET /api/v1/coverage/bounds` →
   registry-derived country extent [011] (`area_name` field dropped).
 - `GET /api/v1/meta/locales` [002] — catalog/locale parity.
-- `GET /health` [002].
+- `GET /api/v1/health` [002].
 
 > Removed: external-maps deep-link handoff (was a client-side action, removed post-009). Frontend-only
 > additions (007, 008, 010, 013) introduced no new endpoints.

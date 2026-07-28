@@ -1,5 +1,12 @@
 # Implementation Plan: Automatic Camera-Priority Routing
 
+> **⚠️ Superseded in part.** Removing the preference stands, but the fallback described below — "the
+> fastest available route" — was replaced post-009. `RoutePlanner#choose_route` now builds a
+> candidate pool (fastest, iterative-exclusion, and a "quiet" surface-street route) and, when none is
+> camera-free, picks the candidate minimizing `duration_s + λ · proximity_cost` under a detour cap
+> (`ProximityScorer`, `RouteCameraDetector`). The Technical Context still says PostgreSQL 16; the
+> repo has run PostgreSQL 17 (`postgis/postgis:17-3.4`) since its first commit. Retained as the point-in-time record.
+
 **Branch**: `004-auto-route-priority` | **Date**: 2026-06-09 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/004-auto-route-priority/spec.md`
@@ -10,7 +17,7 @@ Remove the three-way avoidance preference UI (avoid / balanced / fastest) and re
 
 ## Technical Context
 
-**Language/Version**: Ruby 3.4.x (backend), TypeScript 5.x (frontend)
+**Language/Version**: Ruby 3.4.x (backend), TypeScript ~6.0.x (frontend)
 
 **Primary Dependencies**: Rails 8.1.x (API mode), React 19, Vite, Valhalla (routing), MapLibre GL JS v5
 

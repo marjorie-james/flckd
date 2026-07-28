@@ -10,7 +10,7 @@ Replace the fixed 520px-wide, centered single column (`.plan-page` in `frontend/
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x, React 19
+**Language/Version**: TypeScript ~6.0.x, React 19
 
 **Primary Dependencies**: Vite, MapLibre GL JS, @tanstack/react-query, react-i18next (all existing — no new dependencies)
 

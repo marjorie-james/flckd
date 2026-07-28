@@ -21,7 +21,7 @@ dependencies, no backend changes, no new network calls.
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x, React 19 (frontend only — no backend changes)
+**Language/Version**: TypeScript ~6.0.x, React 19 (frontend only — no backend changes)
 
 **Primary Dependencies**: MapLibre GL JS (map + camera + GeoJSON layers), Vite, @tanstack/react-query,
 react-i18next

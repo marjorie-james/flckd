@@ -4,6 +4,15 @@ description: "Specification for an anonymous, mobile-first, multi-lingual route 
 
 # Feature Specification: Camera-Avoiding Route Planner
 
+> **⚠️ Superseded in part.** Two requirements below no longer describe the product. **FR-007** (the
+> avoid / balanced / fastest avoidance preference) was removed by `004-auto-route-priority`: there is
+> no preference UI and no `avoidance_preference` parameter, and the planner always prefers a
+> camera-free route. **FR-012b** (open the finished route in Apple/Google Maps) was removed
+> post-009: the only way a route leaves the app is the user-initiated, fully client-side GPX export
+> (`frontend/src/lib/gpx.ts`), and no Apple/Google Maps handoff exists anywhere in the codebase. The
+> requirement text below is retained as the point-in-time record; see `.specify/memory/spec.md`
+> § Superseded / Evolved Requirements for the current state.
+
 **Feature Branch**: `002-flock-route-avoidance`
 
 **Created**: 2026-05-31

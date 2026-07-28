@@ -132,3 +132,7 @@ quality and camera-segment snapping.
   existing importer specs + a query-count regression test).
 - The follow-ups are larger and sequenced for when coverage expands beyond the
   Iowa launch region; each can land independently.
+
+> **Update:** that expansion happened. Feature `011-country-camera-mapping` lifted
+> deployment scope from a single state to a whole country (default US), so this
+> section reads as a snapshot of the ADR 0001 timeframe rather than pending work.
