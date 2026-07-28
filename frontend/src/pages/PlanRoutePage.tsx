@@ -39,16 +39,19 @@ export function PlanRoutePage() {
   // resets on every new plan so a dismissal doesn't carry over to a fresh route
   // (FR-002a, FR-009).
   const [showComparison, setShowComparison] = useState(true);
+  // Monotonic counter so an explicit re-submit with unchanged endpoints still
+  // hits the network. Without this the query key is identical and TanStack Query
+  // serves the cached result, making "Plan route" a silent no-op.
+  const [planNonce, setPlanNonce] = useState(0);
 
-  // The plan is a cached, cancelable query keyed on the trip: submitting sets the
-  // endpoints (which starts it). Identical trips come from cache; a superseded
-  // in-flight plan is aborted, not raced. Avoidance is always maximal — the planner
-  // returns a fully camera-free route when one exists, and otherwise automatically
-  // falls back to the fewest-cameras route (surfaced by RouteNotice).
+  // The plan is a cancelable query keyed on the trip + a nonce: submitting sets
+  // the endpoints (which starts it) and bumps the nonce so repeated presses
+  // always re-plan. A superseded in-flight plan is aborted, not raced. Avoidance
+  // is always maximal.
   const planRequest: RouteRequest | null = endpoints
     ? { ...endpoints, locale: i18n.language }
     : null;
-  const plan = usePlanRoute(planRequest);
+  const plan = usePlanRoute(planRequest, planNonce);
 
   // The covered region's bounding box, fetched once, so the map opens framed on
   // whatever region this deployment covers (no hardcoded launch state).
@@ -60,6 +63,7 @@ export function PlanRoutePage() {
     labels: { origin: string; destination: string },
   ) => {
     setShowComparison(true);
+    setPlanNonce((n) => n + 1);
     setEndpoints({ origin: nextOrigin, destination });
     setTripLabels(labels);
   };
