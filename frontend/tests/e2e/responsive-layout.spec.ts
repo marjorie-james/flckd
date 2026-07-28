@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
 import {
   mockApi,
   planRoute,
@@ -7,6 +6,7 @@ import {
   expectNoHorizontalScroll,
   sideMarginFraction,
   mapWidthFraction,
+  expectNoAxeViolations,
 } from "./helpers";
 
 // Feature 010 — Responsive, full-width layout. These assertions encode the UI
@@ -135,17 +135,13 @@ test("US3 landscape-phone: map does not consume the entire viewport height", asy
 });
 
 // ─── Accessibility at mobile + desktop (T013, INV-5) ───
-const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+// Uses the shared axe config from helpers.ts (WCAG 2.2 AA + best-practice,
+// MapLibre-specific exclusions, no impact filter).
 for (const name of ["mobile-375", "desktop-1440"] as const) {
-  test(`a11y ${name}: no serious/critical violations`, async ({ page }) => {
+  test(`a11y ${name}: no accessibility violations`, async ({ page }) => {
     const v = viewport(name);
     await page.setViewportSize({ width: v.width, height: v.height });
     await page.goto("/");
-    // MapLibre's canvas/controls are library-managed (matches a11y.spec.ts).
-    const results = await new AxeBuilder({ page }).withTags(WCAG).exclude(".map-view").analyze();
-    const serious = results.violations.filter(
-      (x) => x.impact === "serious" || x.impact === "critical"
-    );
-    expect(serious, JSON.stringify(serious.map((x) => x.id), null, 2)).toEqual([]);
+    await expectNoAxeViolations(page);
   });
 }

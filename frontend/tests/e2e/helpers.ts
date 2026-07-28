@@ -1,4 +1,53 @@
 import { expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+
+// ── Shared axe configuration ──
+// WCAG 2.2 AA plus best-practice rules (heading-order, landmark-*). Covers
+// target-size (SC 2.5.8, wcag22aa) and heading-order (best-practice) that the
+// old WCAG 2.1 list missed.
+export const AXE_WCAG_TAGS = [
+  "wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice",
+];
+
+// MapLibre's own library-managed DOM: the WebGL canvas and the control
+// container (attribution, zoom, etc.). Excluded from axe because rules like
+// color-contrast don't apply to a <canvas>, and attribution is library-owned.
+// Excluding these specifically (not the whole .map-view) keeps any app UI
+// rendered inside the map container in scope.
+export const AXE_MAPLIBRE_EXCLUDES = [
+  ".maplibregl-canvas-container",
+  ".maplibregl-control-container",
+];
+
+// Build an AxeBuilder with the shared tag list, MapLibre exclusions, and
+// optional per-test disabled rules. Every axe assertion in the e2e suite should
+// go through this so the config is in one place.
+export function axeBuilder(page: Page, extraDisabledRules: string[] = []) {
+  let builder = new AxeBuilder({ page }).withTags(AXE_WCAG_TAGS);
+  for (const sel of AXE_MAPLIBRE_EXCLUDES) {
+    builder = builder.exclude(sel);
+  }
+  if (extraDisabledRules.length > 0) {
+    builder = builder.disableRules(extraDisabledRules);
+  }
+  return builder;
+}
+
+// Assert zero axe violations. On failure, print each rule ID, impact, and the
+// first affected node's HTML so the reporter gives actionable output.
+// Pass extraDisabledRules for tests that must suppress a known src/ defect.
+export async function expectNoAxeViolations(page: Page, extraDisabledRules: string[] = []) {
+  const results = await axeBuilder(page, extraDisabledRules).analyze();
+  const summary = results.violations.map((v) => ({
+    rule: v.id,
+    impact: v.impact,
+    nodes: v.nodes.length,
+    html: v.nodes[0]?.html?.slice(0, 200),
+  }));
+  expect(summary, JSON.stringify(summary, null, 2)).toEqual([]);
+}
+
+// ── Route fixtures ──
 
 // Two canned Iowa places the mock geocoder returns. Labels are matched against
 // the typed query so autocomplete behaves like the real thing.
