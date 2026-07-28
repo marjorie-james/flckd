@@ -1,5 +1,13 @@
 # Implementation Plan: Aggregated Camera Data Source-of-Truth
 
+> **⚠️ Superseded in part.** The `sources/deflock.rb` adapter this plan calls for was never built.
+> DeFlock ingests the same OSM/Overpass substrate as the OpenStreetMap source, so it was dropped
+> instead (migration `20260601000003_remove_deflock_source`, ADR 0001) and kept only as an
+> attribution tag. The OSM substrate itself later moved to a PBF extract by default
+> (`Sources::OsmExtractFile`, ADR 0002). The Technical Context still says PostgreSQL 16; the repo has
+> run PostgreSQL 17 (`postgis/postgis:17-3.4`) since its first commit. Retained as the point-in-time record; see
+> `.specify/memory/plan.md` for the implemented service layout.
+
 **Branch**: `003-camera-data-aggregation` | **Date**: 2026-06-01 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `/specs/003-camera-data-aggregation/spec.md`

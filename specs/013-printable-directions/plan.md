@@ -19,7 +19,7 @@ transmission, consistent with the project's anonymity model. The one non-trivial
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x, React 19 (frontend only — no backend change)
+**Language/Version**: TypeScript ~6.0.x, React 19 (frontend only — no backend change)
 
 **Primary Dependencies**: React 19, react-i18next (localization), Vite, existing `App.css`. Print
 uses the browser-native `window.print()` API and a `@media print` stylesheet — no new library.

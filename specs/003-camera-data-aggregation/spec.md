@@ -1,5 +1,14 @@
 # Feature Specification: Aggregated Camera Data Source-of-Truth
 
+> **⚠️ Superseded in part.** **FR-002**'s "two live source integrations" did not survive. DeFlock
+> queried the identical OSM/Overpass substrate as the OpenStreetMap source, so every physical camera
+> was stored twice; it was dropped in migration `20260601000003_remove_deflock_source` (ADR 0001) and
+> survives only as an attribution tag. There is now one OSM-based live source —
+> `Sources::OsmExtractFile` by default, `Sources::Overpass` as a config-flippable escape hatch
+> (`CAMERA_OSM_SOURCE`, ADR 0002) — plus the generic file importers (`GeojsonFile`,
+> `OpenDataGeojson`). The aggregation, provenance, refresh, and staleness requirements below all
+> still hold. Retained as the point-in-time record.
+
 **Feature Branch**: `003-camera-data-aggregation`
 
 **Created**: 2026-06-01

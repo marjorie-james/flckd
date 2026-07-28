@@ -1,5 +1,10 @@
 # Implementation Plan: Parallel TIGER/Line Data Download
 
+> **⚠️ Superseded (2026-06-10), never implemented.** See [spec.md](spec.md) for why the premise was
+> invalid. `infra/scripts/build-geocoder.sh` downloads a single preprocessed TIGER bundle
+> (`TIGER_BUNDLE_URL`), so the per-county worker loop this plan designs has nothing to parallelize
+> and does not exist in the script. Retained for historical context only.
+
 **Branch**: `005-parallel-tiger-download` | **Date**: 2026-06-10 | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `specs/005-parallel-tiger-download/spec.md`

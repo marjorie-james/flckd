@@ -20,7 +20,8 @@ CameraSummary, CameraLayer, LanguageSwitcher, PlanRoutePage; `infra/` Valhalla/N
 OSM, generic importer) into one authoritative provenance-tagged DB; daily 08:00 UTC background refresh
 + manual trigger; preserve human verifications; conservative stale→auto-retire (3 missing refreshes);
 partial-failure isolation; nationwide (CONUS) coverage.
-**New Components:** `RefreshRun` model; `Sources::Deflock`, `StaleReconciler`, `UsTiles` services;
+**New Components:** `RefreshRun` model; `StaleReconciler`, `UsTiles` services (no `Sources::Deflock`
+was ever built — DeFlock is ingested through the OSM adapters and tagged, see ADR 0001);
 freshness fields + lifecycle on Camera; `config/recurring.yml` cron; `camera_data:refresh[:status]` rake.
 **Tasks Completed:** 44/44.
 
@@ -115,3 +116,21 @@ excluded; fully client-side (`window.print()` + `@media print`), zero transmissi
 **New Components:** `PrintableDirections.tsx`; print stylesheet block in `App.css`; `print.*` i18n keys;
 origin/destination label lift `RoutePanel → PlanRoutePage → RouteResult → PrintableDirections`.
 **Tasks Completed:** 19/19.
+
+### Coverage stops here — work after the 002–013 archival
+
+This log has not been updated since the 2026-06-18 archival commit (`e7cfc8e`). Everything merged
+after it is recorded only in `git log e7cfc8e..HEAD` (33 commits as of `aacc25b`), because
+none of it went through the per-feature `specs/` flow this log summarizes. The non-dependency-bump
+changes in that range, by merge commit:
+
+- `b287466` (#72) broaden the OSM tag net + add an open-data GeoJSON camera source
+- `6bda0a6` (#71) harden edge network trust + clamp the geocode limit
+- `835344c` (#67) / `f851731` (#68) split `bundler-audit` into a non-blocking CI job
+- `5614296` (#73), `38233ee` (#74), `77d9424` (#75) Terraform whole-US Vultr host + host hardening
+- `ee50c98` (#76) resolve the deploy host from `FLCKD_HOST` (keeps the IP out of `deploy.yml`)
+- `2adc5f2` (#78) wire whole-US import/build tuning into the on-host path
+- `63f36c8` (#79) Terraform `deploy_scope` sizes a single-state or whole-US host from one config
+- `aacc25b` (#89) make the dev Postgres host port configurable (`POSTGRES_HOST_PORT`)
+
+Use `git log` for anything not listed; do not treat this file as complete past 2026-06-18.

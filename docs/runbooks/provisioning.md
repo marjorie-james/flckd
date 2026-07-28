@@ -86,6 +86,14 @@ ssh-keygen -t ed25519 -f kamal_deploy -C flckd-deploy   # add kamal_deploy.pub t
 - In `backend/config/deploy.yml`, replace every `<PLACEHOLDER>` —
   `<REGISTRY_HOST>`, `<WEB_HOST_1>`, `<JOB_HOST_1>`, `<API_DOMAIN>`, `<DB_HOST>`,
   `<ROUTING_HOST>`, `<GEOCODER_HOST>`, `<TILES_HOST>`.
+- For the host addresses you can skip the literal replacement and keep the IP out
+  of the file entirely, which is what `deploy.example.yml` recommends: `deploy.yml`
+  is ERB-rendered, so write `host: <%= ENV.fetch("FLCKD_HOST") %>` and export
+  `FLCKD_HOST=<ip>` in `.kamal/secrets.env` (gitignored). `bin/kamal-docker`
+  forwards it into the Kamal render, and the `infra/scripts/*.sh` helpers resolve
+  the same var (`resolve_target_host` in `lib-deploy-host.sh` falls back
+  `TARGET_HOST` → `GEO_HOST` → `FLCKD_HOST` → the rendered `deploy.yml` host). The
+  single-host whole-US deploy uses one `FLCKD_HOST` for every server entry.
 - Create `backend/.kamal/secrets` from the template and fill it (it's gitignored;
   the `.example` is tracked):
   ```bash

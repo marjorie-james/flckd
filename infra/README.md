@@ -140,10 +140,11 @@ curl -s -o /dev/null -w '%{http_code} %{content_type}\n' "http://localhost:8080/
 
 `tileserver` serves the raw vector tiles at `/tiles/{z}/{x}/{y}.mvt` (proxied to the frontend via
 `vite.config.ts`). The frontend renders them with a self-hosted MapLibre style at
-`frontend/public/map-style.json` (the `MapView` default; override with `VITE_MAP_STYLE_URL`). It
-references only our own origins — vector tiles from `/tiles` and glyphs from `/fonts` (vendored Noto
-Sans under `public/fonts`) — and pulls in no third-party sources, so the basemap makes zero outbound
-requests (anonymity, FR-012a).
+`frontend/public/map-style.json`. `MapView` imports that file statically, so the style is baked into
+the bundle at build time; there is no env override. To ship a different style, edit the file and
+rebuild. It references only our own origins — vector tiles from `/tiles` and glyphs from `/fonts`
+(vendored Noto Sans under `public/fonts`) — and pulls in no third-party sources, so the basemap makes
+zero outbound requests (anonymity, FR-012a).
 
 Place/road-name labels are drawn by `symbol` layers (`road-labels`, `place-labels`) whose `text-field`
 follows the selected interface language at runtime: `MapView` rewrites it to `name:<lng>`, falling back

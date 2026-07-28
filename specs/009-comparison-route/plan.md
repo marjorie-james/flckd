@@ -24,7 +24,7 @@ external calls** — both routes are already computed by our own self-hosted Val
 
 ## Technical Context
 
-**Language/Version**: Ruby 3.4 / Rails 8.1 (API mode) backend; TypeScript 5.x + React 19 frontend.
+**Language/Version**: Ruby 3.4 / Rails 8.1 (API mode) backend; TypeScript ~6.0.x + React 19 frontend.
 
 **Primary Dependencies**: Valhalla (self-hosted, already called twice per request — fastest + avoiding),
 PostGIS (`ST_Intersects` on monitored segments, existing pattern), MapLibre GL JS (line layers),

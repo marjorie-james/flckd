@@ -22,7 +22,7 @@ map is ready. No new dependencies, no backend changes.
 
 ## Technical Context
 
-**Language/Version**: TypeScript 5.x, React 19 (frontend only)
+**Language/Version**: TypeScript ~6.0.x, React 19 (frontend only)
 
 **Primary Dependencies**: MapLibre GL JS (native GeoJSON clustering + Popup), @tanstack/react-query
 (existing `useCameras`)

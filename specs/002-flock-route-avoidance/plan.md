@@ -1,5 +1,13 @@
 # Implementation Plan: Camera-Avoiding Route Planner
 
+> **⚠️ Superseded in part.** The "open in Apple/Google Maps" handoff named in the Summary below was
+> removed post-009; the only outbound path today is the user-initiated, fully client-side GPX export
+> (`frontend/src/lib/gpx.ts`), which sends nothing anywhere. The avoidance preference this plan
+> designs was removed by `004-auto-route-priority`. The Technical Context still names React 18, which
+> the scaffold never used (the first commit shipped React 19 and PostgreSQL 17); `.specify/memory/spec.md`
+> § Superseded / Evolved Requirements records that. Retained as the point-in-time record; see
+> `.specify/memory/plan.md` for the implemented state.
+
 **Branch**: `002-flock-route-avoidance` | **Date**: 2026-05-31 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/002-flock-route-avoidance/spec.md`
 
@@ -23,7 +31,7 @@ top — all run as Rails background jobs.
 
 **Language/Version**: Ruby 3.4.x (latest stable that Rails 8.1 supports — pinned to 3.4.9; Ruby 4.0 is
 newer but several native extensions, e.g. msgpack, are not yet binary-compatible with it) with Rails
-8.1.x (latest stable — 8.1.3 as of 2026-05-31, API mode) backend; TypeScript 5.x + React 18 frontend.
+8.1.x (latest stable — 8.1.3 as of 2026-05-31, API mode) backend; TypeScript ~6.0.x + React 18 frontend.
 Pin to the newest stable patch of each at project setup; revisit Ruby 4.0 once the gem ecosystem
 catches up.
 **Rails 8.1 included features leveraged**: **Solid Queue** (DB-backed background jobs — no Redis) for

@@ -112,7 +112,7 @@ resource envelope are documented in
 validated at launch; an un-provisioned country fails fast with an actionable error.
 
 A **single state can also be a production deployment** — a much lighter footprint than
-whole-US. Set the state in `backend/.kamal/geo.env` and `bin/kamal-docker` frames the map on
+whole-US. Set the state in `backend/.kamal/geo.env` and `backend/bin/kamal-docker` frames the map on
 (and geocodes within) that state, so the app never opens zoomed out to the whole US. See
 [docs/runbooks/geo-provisioning.md](docs/runbooks/geo-provisioning.md).
 

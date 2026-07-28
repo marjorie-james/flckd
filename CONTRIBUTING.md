@@ -55,16 +55,28 @@ fast and laptop-friendly. The whole-US production build is much heavier; see
 Run these (in Docker) before opening a PR — CI runs the same:
 
 ```bash
-# Backend (RSpec, test env)
-docker compose -f infra/docker-compose.yml run --rm -e RAILS_ENV=test backend bundle exec rspec
+# Backend (RuboCop, Brakeman, RSpec)
+docker compose -f infra/docker-compose.yml run --rm backend bundle exec rubocop
+docker compose -f infra/docker-compose.yml run --rm backend bundle exec brakeman -q --no-pager --exit-on-warn --exit-on-error
+docker compose -f infra/docker-compose.yml run --rm -e RAILS_ENV=test -e COVERAGE=1 backend bundle exec rspec
 
-# Frontend (Vitest + lint)
-docker compose -f infra/docker-compose.yml run --rm frontend pnpm test -- run
+# Frontend (ESLint, dependency audit, typecheck, Vitest)
 docker compose -f infra/docker-compose.yml run --rm frontend pnpm lint
+docker compose -f infra/docker-compose.yml run --rm frontend pnpm audit --prod --audit-level high
+docker compose -f infra/docker-compose.yml run --rm frontend pnpm exec tsc -b --noEmit
+docker compose -f infra/docker-compose.yml run --rm frontend pnpm exec vitest run
 
 # Infra shell scripts (bats)
-docker run --rm -v "$(pwd):/code" -w /code bats/bats:1.11.0 test/infra/build-geocoder.bats
+docker run --rm -v "$(pwd):/code" -w /code bats/bats:1.11.0 test/infra
 ```
+
+RuboCop and Brakeman are part of the required `backend` gate, and the dependency audit and
+typecheck are part of the required `frontend` gate — a PR that only passes the test runners can
+still fail CI. `shellcheck` is its own required gate; CI runs
+`shellcheck --severity=warning --exclude=SC1091,SC2034 infra/scripts/*.sh`. The bats command above
+runs everything under `test/infra`, a superset of the file list in
+[`.github/workflows/ci-scripts.yml`](.github/workflows/ci-scripts.yml), which is the authority on
+what CI actually runs. `bundler-audit` runs in CI too but is deliberately non-blocking.
 
 ## Pull requests
 
