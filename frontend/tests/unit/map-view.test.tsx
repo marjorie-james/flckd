@@ -50,7 +50,9 @@ const H = vi.hoisted(() => {
     getBounds() { return { _bounds: "framed" }; }
     setMinZoom(z: number) { calls.setMinZoom.push(z); }
     setMaxBounds(b: unknown) { calls.setMaxBounds.push(b); }
-    once() {}
+    // Fire "load" callbacks synchronously so styleReadyRef gets set during
+    // the init effect, matching the real MapLibre lifecycle.
+    once(event: string, fn: () => void) { if (event === "load") fn(); }
     off() {}
     remove() {}
   }

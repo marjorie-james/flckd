@@ -46,8 +46,11 @@ describe("MapView label-language effect cleanup", () => {
     const { unmount } = render(<MapView route={null} origin={null} />);
 
     // A language switch before the style loads registers a deferred load handler.
+    // Snapshot the once count before the switch so we find the handler that the
+    // language effect registered, not one from the init/framing/reveal effects.
+    const onceBefore = H.calls.once.length;
     await i18n.changeLanguage("es");
-    const pending = H.calls.once.find(([ev]) => ev === "load");
+    const pending = H.calls.once.slice(onceBefore).find(([ev]) => ev === "load");
     expect(pending).toBeDefined();
 
     unmount();
