@@ -579,7 +579,15 @@ body {
   font-size: 0.75rem;
 }
 
-.camera-summary summary { cursor: pointer; color: var(--amber); }
+/* 12px text at line-height 1.5 is an 18px-tall box. Pad to clear the 24px
+   minimum target (WCAG 2.2 SC 2.5.8) without touching type size or the
+   disclosure marker. */
+.camera-summary summary {
+  cursor: pointer;
+  color: var(--amber);
+  min-height: 24px;
+  padding: 3px 0;
+}
 
 .camera-summary ul {
   margin: 4px 0 0;
@@ -955,12 +963,51 @@ body {
 }
 
 /* ─── Utility ─── */
+/* Hidden visually, still announced. clip-path is the current mechanism; the
+   deprecated clip stays for older engines. nowrap keeps long live-region text
+   from reflowing to one character per line inside the 1px box, and zeroing
+   padding/border stops a stray declaration from leaking a visible sliver. */
 .visually-hidden {
   position: absolute;
   width: 1px;
   height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Bypass blocks (WCAG 2.4.1): off-screen until focused, then a normal control
+   pinned over the header. Uses :focus, not :focus-visible — a skip link is only
+   ever reached by keyboard, and it must show for every engine. */
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1000;
+  transform: translateY(-300%);
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 12px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  color: var(--bg);
+  background: var(--beam);
+  border-radius: var(--r-sm);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 2px;
 }
 
 /* ─── Printable directions ─── */
@@ -1003,7 +1050,10 @@ body {
 
 @media print {
   /* Hide all on-screen chrome and the camera-aware UI; the printed sheet is a
-     clean driving aid (no map, no controls, no camera/coverage notices). */
+     clean driving aid (no map, no controls, no camera/coverage notices). That
+     includes the screen-only banners above the sheet: without .error here,
+     printing while a plan has failed puts the red error text on paper as the
+     whole page. */
   .app-header,
   .app-footer,
   .map-container,
@@ -1018,8 +1068,16 @@ body {
   .export-warning,
   .route-result h3,
   .directions,
-  .print-btn {
+  .print-btn,
+  .error,
+  .skip-link {
     display: none !important;
+  }
+
+  /* Printer default margins are inconsistent and often near-zero; fix them so
+     the sheet isn't printed to the edge. */
+  @page {
+    margin: 15mm;
   }
 
   /* Force a clean white page regardless of the dark on-screen theme. */

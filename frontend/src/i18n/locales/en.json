@@ -3,6 +3,9 @@
     "title": "Camera-Avoiding Route Planner",
     "getApp": "Get flckd"
   },
+  "a11y": {
+    "skipToContent": "Skip to main content"
+  },
   "form": {
     "origin": "Start",
     "destination": "Destination",
@@ -35,6 +38,7 @@
     }
   },
   "result": {
+    "section": "Route results",
     "fullyClean": "This route avoids all known cameras.",
     "alreadyClean": "No cameras on your route — no detours needed.",
     "notCameraFree": "Heads up: no fully camera-free route exists. This route still passes within view of some cameras — the fewest possible. Drive with that in mind.",
