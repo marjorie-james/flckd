@@ -18,9 +18,7 @@
 
   --text:        #e6e9ec;
   --text-muted:  #9aa3ad;
-  --text-faint:  #2a2e34;
-  /* Meets WCAG AA (4.5:1) on the dark input/panel backgrounds. --text-faint is
-     decorative only; --placeholder is for any text a user must read. */
+  /* Meets WCAG AA (4.5:1) on the dark input/panel backgrounds. */
   --placeholder: #8b939d;
 
   /* Brand hue accent — steel-teal (sensor/scan/focus). Replaces the former
@@ -33,7 +31,6 @@
 
   /* Hard light — the near-white "beam": the wordmark and the primary action. */
   --beam:        #e9eef0;
-  --beam-edge:   #c2cace;
 
   --green:       #34d399;
   --green-bg:    rgba(52, 211, 153, 0.08);
@@ -64,9 +61,7 @@
 
   --r-sm:  6px;
   --r:     10px;
-  --r-lg:  14px;
   --shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
-  --shadow-sm: 0 2px 12px rgba(0, 0, 0, 0.4);
 
   /* Plex Sans carries body/UI; Plex Mono carries the wordmark, the uppercase
      instrument labels, and route data (times, distances, step numbers). Both are
@@ -78,6 +73,10 @@
 /* ─── Reset ─── */
 *, *::before, *::after { box-sizing: border-box; }
 
+#root {
+  min-height: 100svh;
+}
+
 body {
   margin: 0;
   font-family: var(--font-sans);
@@ -86,6 +85,9 @@ body {
   font-size: 0.875rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 /* ─── Page shell (responsive) ───
@@ -498,32 +500,6 @@ body {
   color: var(--red);
 }
 
-/* ─── Preference segmented control ─── */
-.preference,
-.avoidance-control {
-  border: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.preference legend,
-.avoidance-control legend {
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--text-muted);
-  float: none;
-  padding: 0;
-  width: 100%;
-  margin-bottom: 0;
-}
-
 
 /* ─── Plan button — the primary action is hard light: a near-white "beam" with
    ink text, the one bright surface in the rail. ─── */
@@ -674,17 +650,6 @@ body {
 .status.clean::before {
   background: var(--green);
   box-shadow: 0 0 0 3px var(--green-bg);
-}
-
-.status.exposed {
-  background: var(--amber-bg);
-  border-color: var(--amber-ring);
-  border-left-color: var(--amber);
-}
-
-.status.exposed::before {
-  background: var(--amber);
-  box-shadow: 0 0 0 3px var(--amber-bg);
 }
 
 /* Route data — read as an instrument HUD: mono, uppercase, tight. */

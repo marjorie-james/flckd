@@ -23,7 +23,7 @@ export function CameraSummary({ route }: Props) {
         </span>
       )}
       {status === "alreadyClean" && (
-        <span className="avoided-badge clean">{t("result.alreadyClean")}</span>
+        <span className="avoided-badge">{t("result.alreadyClean")}</span>
       )}
       {route.remaining_cameras.length > 0 && (
         <details>
