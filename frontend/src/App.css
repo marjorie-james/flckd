@@ -63,6 +63,48 @@
   --r:     10px;
   --shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
 
+  /* Spacing scale. 1px borders and component-specific sizes (9px, 13px, etc.)
+     stay as literals until snapping is a deliberate visual decision. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+
+  /* Type scale (screen). 1.125rem (popup close) is a one-off. */
+  --t-xs:   0.625rem;   /* 10px  instrument labels, step counters */
+  --t-sm:   0.6875rem;  /* 11px  controls, badges, captions */
+  --t-base: 0.75rem;    /* 12px  secondary text */
+  --t-md:   0.8125rem;  /* 13px  body content, suggestions */
+  --t-lg:   0.875rem;   /* 14px  primary text, verdicts, inputs */
+  --t-xl:   1.375rem;   /* 22px  wordmark */
+
+  /* Duration */
+  --dur-fast: 150ms;
+  --dur-slow: 280ms;
+
+  /* Focus ring (outline pattern). Box-shadow focus variants keep their own
+     values inline because the mechanism differs. */
+  --focus-ring: 2px solid var(--accent-hi);
+  --focus-offset: 2px;
+
+  /* Stacking. Only one z-index in the codebase; named so its relationship to
+     MapLibre's internal z-indices is documented in one place. */
+  --z-dropdown: 200;
+
+  /* Letter-spacing. --track-caption for mono/uppercase instrument labels;
+     --track-data for data readouts. Other one-off trackings (0.01em, 0.02em,
+     0.05em, 0.06em, 0.08em) stay as literals. */
+  --track-caption: 0.09em;
+  --track-data:    0.04em;
+
+  /* Hard-light hover for the primary action button. */
+  --beam-hi: #fff;
+
+  /* Component-level sizes referenced from multiple rules. */
+  --icon-btn: 26px;
+  --tap-min:  24px;
+
   /* Plex Sans carries body/UI; Plex Mono carries the wordmark, the uppercase
      instrument labels, and route data (times, distances, step numbers). Both are
      self-hosted (see main.tsx). */
@@ -82,7 +124,7 @@ body {
   font-family: var(--font-sans);
   color: var(--text);
   background: var(--bg);
-  font-size: 0.875rem;
+  font-size: var(--t-lg);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -123,9 +165,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--s-3) var(--s-4);
   border-bottom: 1px solid var(--border);
-  gap: 12px;
+  gap: var(--s-3);
 }
 
 /* Right-side header cluster: the repo link sits to the left of the language
@@ -133,7 +175,7 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s-3);
 }
 
 /* The repo link is also in the footer; on narrow screens drop the header copy so
@@ -148,7 +190,7 @@ body {
      allow it to wrap instead of clip if a very narrow viewport still can't hold
      one line. The wordmark stays the prominent brand mark above it. */
   .app-title {
-    font-size: 0.6875rem;
+    font-size: var(--t-sm);
     letter-spacing: 0.06em;
     white-space: normal;
     overflow: visible;
@@ -175,7 +217,7 @@ body {
   font-weight: 700;
   /* Scaled up so the brand fills the taller header (the language label now stacks
      above its select). The sensor dot + title indent below scale to match. */
-  font-size: 1.375rem;
+  font-size: var(--t-xl);
   letter-spacing: 0.01em;
   line-height: 1;
   color: var(--beam);
@@ -196,10 +238,10 @@ body {
 .app-title {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--t-base);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
+  letter-spacing: var(--track-caption);
   color: var(--text-muted);
   /* Indent to align under the wordmark text, past the sensor dot (9px) + its
      gap (9px). */
@@ -215,25 +257,25 @@ body {
 .app-footer {
   display: flex;
   justify-content: center;
-  padding: 13px 16px;
+  padding: 13px var(--s-4);
   border-top: 1px solid var(--border);
 }
 
 .app-footer a,
 .header-repo-link {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
   text-decoration: none;
-  /* Standalone link (not inline in a sentence), so it needs its own ≥24px target
-     rather than relying on the inline exception (WCAG 2.5.8). */
+  /* Standalone link (not inline in a sentence), so it needs its own minimum
+     target rather than relying on the inline exception (WCAG 2.5.8). */
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 0 4px;
+  min-height: var(--tap-min);
+  padding: 0 var(--s-1);
 }
 
 .app-footer a:hover,
@@ -243,8 +285,8 @@ body {
 
 .app-footer a:focus-visible,
 .header-repo-link:focus-visible {
-  outline: 2px solid var(--accent-hi);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
   border-radius: var(--r-sm);
 }
 
@@ -261,7 +303,7 @@ body {
 .language-switcher__label {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   line-height: 1.2;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -273,7 +315,7 @@ body {
   border: 1px solid var(--border-interactive);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 5px 9px;
@@ -342,7 +384,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px;
+  padding: var(--s-4);
   border-bottom: 1px solid var(--border);
   /* Height of the suggestion dropdown — ~4 rows tall; a longer result set scrolls
      within it. The dropdown is an overlay (position: absolute), so it doesn't
@@ -360,10 +402,10 @@ body {
 /* Instrument labels — mono, uppercase, micro. */
 .route-panel label {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: var(--t-xs);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
+  letter-spacing: var(--track-caption);
   color: var(--text-muted);
 }
 
@@ -375,15 +417,15 @@ body {
 
 .route-panel input[inputmode="search"] {
   width: 100%;
-  padding: 10px 40px 10px 12px;
-  font-size: 0.875rem;
+  padding: 10px 40px 10px var(--s-3);
+  font-size: var(--t-lg);
   font-family: var(--font-sans);
   color: var(--text);
   background: var(--input-bg);
   border: 1px solid var(--border-interactive);
   border-radius: var(--r);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 
 .route-panel input[inputmode="search"]::placeholder {
@@ -401,9 +443,9 @@ body {
 /* geo / location pin icon button inside input */
 .geo-btn {
   position: absolute;
-  right: 8px;
-  width: 26px;
-  height: 26px;
+  right: var(--s-2);
+  width: var(--icon-btn);
+  height: var(--icon-btn);
   border: none;
   border-radius: var(--r-sm);
   background: transparent;
@@ -413,7 +455,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: color 0.15s, background 0.15s;
+  transition: color var(--dur-fast), background var(--dur-fast);
   flex-shrink: 0;
 }
 
@@ -436,10 +478,10 @@ body {
   border: 1px solid var(--border-interactive);
   border-radius: var(--r);
   box-shadow: var(--shadow);
-  z-index: 200;
+  z-index: var(--z-dropdown);
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: var(--s-1);
   /* Bound the list to the reserved height so it stays a tidy dropdown and, for the
      last field, never extends past the space reserved for it below. */
   max-height: var(--suggest-h);
@@ -453,7 +495,7 @@ body {
   background: none;
   border: none;
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   font-family: var(--font-sans);
   cursor: pointer;
   border-radius: var(--r-sm);
@@ -484,7 +526,7 @@ body {
    above so the text sits where an option label would. */
 .suggestion-status {
   padding: 9px 11px;
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -496,7 +538,7 @@ body {
 /* Inline field-level error (e.g. geolocation denied/unavailable). */
 .field-error {
   margin: 2px 0 0;
-  font-size: 0.75rem;
+  font-size: var(--t-base);
   color: var(--red);
 }
 
@@ -504,8 +546,8 @@ body {
 /* ─── Plan button — the primary action is hard light: a near-white "beam" with
    ink text, the one bright surface in the rail. ─── */
 .route-panel button[type="submit"] {
-  padding: 12px;
-  font-size: 0.875rem;
+  padding: var(--s-3);
+  font-size: var(--t-lg);
   font-weight: 600;
   font-family: var(--font-sans);
   color: var(--bg);
@@ -514,18 +556,18 @@ body {
   border-radius: var(--r);
   cursor: pointer;
   letter-spacing: 0.02em;
-  transition: background 0.15s, box-shadow 0.15s;
+  transition: background var(--dur-fast), box-shadow var(--dur-fast);
   margin-top: 2px;
 }
 
 .route-panel button[type="submit"]:hover:not([aria-disabled="true"]) {
-  background: #fff;
+  background: var(--beam-hi);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .route-panel button[type="submit"]:focus-visible {
-  outline: 2px solid var(--accent-hi);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 /* The button is never natively disabled: a control that disables itself while it
@@ -550,11 +592,11 @@ body {
 .camera-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: var(--s-2);
+  padding: 10px var(--s-4);
   background: var(--raised);
   border-bottom: 1px solid var(--border);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   color: var(--text-muted);
 }
 
@@ -563,10 +605,10 @@ body {
   align-items: center;
   gap: 5px;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
   color: var(--green);
   background: var(--green-bg);
   border: 1px solid var(--green-ring);
@@ -576,11 +618,11 @@ body {
 
 .camera-summary .exposed {
   color: var(--amber);
-  font-size: 0.75rem;
+  font-size: var(--t-base);
 }
 
 .camera-summary details {
-  font-size: 0.75rem;
+  font-size: var(--t-base);
 }
 
 /* 12px text at line-height 1.5 is an 18px-tall box. Pad to clear the 24px
@@ -589,22 +631,22 @@ body {
 .camera-summary summary {
   cursor: pointer;
   color: var(--amber);
-  min-height: 24px;
+  min-height: var(--tap-min);
   padding: 3px 0;
 }
 
 .camera-summary ul {
-  margin: 4px 0 0;
-  padding-left: 16px;
+  margin: var(--s-1) 0 0;
+  padding-left: var(--s-4);
   color: var(--text-muted);
 }
 
 /* ─── Route result ─── */
 .route-result {
-  padding: 16px;
+  padding: var(--s-4);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--s-4);
 }
 
 /* ─── The verdict stamp (signature) ───
@@ -617,10 +659,10 @@ body {
 .status {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--s-3);
   align-self: stretch;
   font-family: var(--font-sans);
-  font-size: 0.875rem;
+  font-size: var(--t-lg);
   font-weight: 600;
   line-height: 1.45;
   color: var(--text);
@@ -661,7 +703,7 @@ body {
   flex-wrap: wrap;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
 }
 
 .stats li {
@@ -671,7 +713,7 @@ body {
   padding: 5px 9px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
 }
 
 /* The trip's own time and distance are the headline figures — brighten them. */
@@ -690,18 +732,18 @@ body {
    swatch mirrors the comparison line drawn on the map. */
 .comparison-toggle {
   align-self: flex-start;
-  margin-top: 8px;
-  padding: 6px 12px;
+  margin-top: var(--s-2);
+  padding: 6px var(--s-3);
   background: var(--raised);
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 
 .comparison-toggle::before {
@@ -722,10 +764,10 @@ body {
 
 .route-result h3 {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: var(--t-xs);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
+  letter-spacing: var(--track-caption);
   color: var(--text-muted);
   margin: 0;
 }
@@ -740,7 +782,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   counter-reset: step;
 }
 
@@ -751,14 +793,14 @@ body {
   counter-increment: step;
   display: flex;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--s-3);
   line-height: 1.5;
 }
 
 .directions li::before {
   content: counter(step, decimal-leading-zero);
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: var(--t-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--accent-hi);
@@ -780,8 +822,8 @@ body {
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 0.8125rem;
+  gap: var(--s-2);
+  font-size: var(--t-md);
   color: var(--amber);
 }
 
@@ -790,30 +832,30 @@ body {
 .export-warning .export-howto { color: var(--text-muted); }
 
 .export-warning .export-confirm {
-  padding: 9px 12px;
+  padding: 9px var(--s-3);
   background: var(--raised);
   border: 1px solid var(--border-hi);
   border-radius: var(--r-sm);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   font-weight: 500;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 
 .export-warning .export-confirm:hover { border-color: var(--accent); }
 
 .export-warning button {
-  padding: 8px;
+  padding: var(--s-2);
   background: none;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text-muted);
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 
 .export-warning button:hover { color: var(--text); border-color: var(--border-hi); }
@@ -826,11 +868,11 @@ body {
   border-radius: var(--r);
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-data);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
   align-self: flex-start;
 }
 
@@ -838,16 +880,16 @@ body {
 
 /* ─── Coverage warning ─── */
 .coverage-warning {
-  font-size: 0.75rem;
+  font-size: var(--t-base);
   color: var(--amber);
   margin: 0;
 }
 
 /* ─── Error ─── */
 .error {
-  padding: 12px 16px;
+  padding: var(--s-3) var(--s-4);
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--t-md);
   color: var(--red);
   background: var(--red-bg);
   border-top: 1px solid var(--red-ring);
@@ -864,8 +906,8 @@ body {
   border: 1px solid var(--border-hi);
   border-radius: var(--r);
   box-shadow: var(--shadow);
-  padding: 12px 14px;
-  font-size: 0.8125rem;
+  padding: var(--s-3) 14px;
+  font-size: var(--t-md);
 }
 .camera-popup-shell.maplibregl-popup-anchor-top .maplibregl-popup-tip,
 .camera-popup-shell.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
@@ -888,9 +930,9 @@ body {
   font-size: 1.125rem;
   /* MapLibre's default close button is content-sized (~22px tall); enforce the
      24×24 minimum touch target (WCAG 2.5.8). */
-  min-width: 24px;
-  min-height: 24px;
-  padding: 2px 8px;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: 2px var(--s-2);
 }
 .camera-popup-shell .maplibregl-popup-close-button:hover {
   color: var(--text);
@@ -899,13 +941,13 @@ body {
 .camera-popup__title {
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 8px;
-  padding-right: 12px;
+  margin-bottom: var(--s-2);
+  padding-right: var(--s-3);
 }
 .camera-popup__row {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--s-4);
   line-height: 1.7;
 }
 .camera-popup__k { color: var(--text-muted); }
@@ -919,10 +961,10 @@ body {
 .route-notice {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--s-3);
   margin: 0;
-  padding: 13px 16px;
-  font-size: 0.875rem;
+  padding: 13px var(--s-4);
+  font-size: var(--t-lg);
   font-weight: 600;
   line-height: 1.5;
   color: var(--text);
@@ -947,7 +989,7 @@ body {
 @media (prefers-reduced-motion: no-preference) {
   .status,
   .route-notice {
-    animation: verdict-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation: verdict-in var(--dur-slow) cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
   @keyframes verdict-in {
     from { opacity: 0; transform: translateY(-4px); }
@@ -978,16 +1020,16 @@ body {
    ever reached by keyboard, and it must show for every engine. */
 .skip-link {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: var(--s-2);
+  left: var(--s-2);
   z-index: 1000;
   transform: translateY(-300%);
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 0 12px;
+  min-height: var(--tap-min);
+  padding: 0 var(--s-3);
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
+  font-size: var(--t-sm);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -999,8 +1041,8 @@ body {
 
 .skip-link:focus {
   transform: translateY(0);
-  outline: 2px solid var(--accent-hi);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 /* ─── Printable directions ─── */
@@ -1009,14 +1051,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--s-2);
 }
 
 /* Icon-only print trigger — mirrors the .geo-btn affordance (transparent square
    that lights up on hover). The accessible name is provided via aria-label. */
 .print-btn {
-  width: 26px;
-  height: 26px;
+  width: var(--icon-btn);
+  height: var(--icon-btn);
   border: none;
   border-radius: var(--r-sm);
   background: transparent;
@@ -1027,7 +1069,7 @@ body {
   justify-content: center;
   padding: 0;
   flex-shrink: 0;
-  transition: color 0.15s, background 0.15s;
+  transition: color var(--dur-fast), background var(--dur-fast);
 }
 
 .print-btn:hover,
