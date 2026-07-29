@@ -43,7 +43,9 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flckd"]
+      # -d: pg_isready defaults dbname to the username ("flckd"), which doesn't
+      # exist — the server logs FATAL "database flckd does not exist" every probe.
+      test: ["CMD-SHELL", "pg_isready -U flckd -d flckd_development"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -53,6 +55,11 @@ services:
       context: ../backend
       dockerfile: Dockerfile.dev
     command: bin/rails server -b 0.0.0.0 -p 3000
+    # Solid Queue runs inside Puma (SOLID_QUEUE_IN_PUMA below); when postgres
+    # goes away the supervisor dies and its plugin stops Puma with exit 0, which
+    # otherwise leaves the API permanently down while the rest of the stack
+    # comes back — first-load map framing (/coverage/bounds) silently breaks.
+    restart: unless-stopped
     environment:
       RAILS_ENV: development
       # Run the Solid Queue supervisor inside Puma so background jobs (camera
