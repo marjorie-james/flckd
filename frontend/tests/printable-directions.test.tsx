@@ -171,6 +171,43 @@ describe("PrintableDirections print sheet content", () => {
   });
 });
 
+describe("PrintableDirections print-path accessibility", () => {
+  function sheet(container: HTMLElement) {
+    const el = container.querySelector(".printable-directions");
+    if (!el) throw new Error("print sheet not found");
+    return el as HTMLElement;
+  }
+
+  it("hides the sheet from the a11y tree on screen by default", () => {
+    const { container } = render(
+      <PrintableDirections route={route()} originLabel="A" destinationLabel="B" />,
+    );
+    expect(sheet(container).getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("exposes the sheet on beforeprint and hides it again on afterprint", () => {
+    const { container } = render(
+      <PrintableDirections route={route()} originLabel="A" destinationLabel="B" />,
+    );
+    const el = sheet(container);
+    expect(el.getAttribute("aria-hidden")).toBe("true");
+
+    fireEvent(window, new Event("beforeprint"));
+    expect(el.getAttribute("aria-hidden")).toBe("false");
+
+    fireEvent(window, new Event("afterprint"));
+    expect(el.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("uses an <h1> for the print heading so the print view has a top-level heading", () => {
+    const { container } = render(
+      <PrintableDirections route={route()} originLabel="A" destinationLabel="B" />,
+    );
+    const heading = sheet(container).querySelector(".print-heading");
+    expect(heading?.tagName).toBe("H1");
+  });
+});
+
 describe("PrintableDirections print structure (US2 pagination targets)", () => {
   it("renders the numbered .print-steps list the print CSS targets", () => {
     const { container } = render(

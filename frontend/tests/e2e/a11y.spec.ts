@@ -148,10 +148,14 @@ test("print media view has no violations", async ({ page }) => {
   // sheet becomes visible and the map/panel/controls hide.
   await page.emulateMedia({ media: "print" });
 
-  // KNOWN DEFECT (src/): page-has-heading-one fires because @media print hides
-  // the header (including the h1) and the print-only directions sheet starts at
-  // h2. Fix belongs in PlanRoutePage or App.css, not the test harness.
-  await expectNoAxeViolations(page, ["page-has-heading-one"]);
+  // emulateMedia activates @media print CSS but does NOT fire the beforeprint
+  // event. The print sheet toggles aria-hidden off in its beforeprint handler,
+  // so we dispatch the event manually to match what a real print flow does.
+  await page.evaluate(() => window.dispatchEvent(new Event("beforeprint")));
+
+  // The print sheet now provides an <h1> (with aria-hidden toggled off), so
+  // the print view has a top-level heading and page-has-heading-one passes.
+  await expectNoAxeViolations(page);
 });
 
 // ── Spanish locale ──

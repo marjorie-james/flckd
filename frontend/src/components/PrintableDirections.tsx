@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Route } from "../types/api";
 import { routeTotals } from "../utils/routeTotals";
@@ -25,6 +26,23 @@ export function PrintableDirections({ route, originLabel, destinationLabel }: Pr
   const { t } = useTranslation();
   const { travelMin, km } = routeTotals(route);
 
+  // On screen the print sheet is display:none and hidden from the a11y tree so
+  // the directions aren't announced twice. But in the print/PDF path this sheet
+  // is the ONLY content, so a static aria-hidden would drop the directions and
+  // privacy notice from a tagged PDF. Expose it during printing, then hide it
+  // again afterward.
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    const onBefore = () => setPrinting(true);
+    const onAfter = () => setPrinting(false);
+    window.addEventListener("beforeprint", onBefore);
+    window.addEventListener("afterprint", onAfter);
+    return () => {
+      window.removeEventListener("beforeprint", onBefore);
+      window.removeEventListener("afterprint", onAfter);
+    };
+  }, []);
+
   return (
     <>
       <button
@@ -41,9 +59,10 @@ export function PrintableDirections({ route, originLabel, destinationLabel }: Pr
 
       {/* Print-only sheet. It is display:none on screen (App.css) and revealed
           only under @media print. aria-hidden keeps this print copy out of the
-          on-screen accessibility tree so the directions aren't announced twice. */}
-      <div className="printable-directions" aria-hidden="true">
-        <h2 className="print-heading">{t("print.heading")}</h2>
+          on-screen accessibility tree so the directions aren't announced twice,
+          but it flips off during printing so the tagged PDF keeps the content. */}
+      <div className="printable-directions" aria-hidden={printing ? "false" : "true"}>
+        <h1 className="print-heading">{t("print.heading")}</h1>
         <p className="print-trip">
           <span className="print-from">
             {t("print.from")}: {originLabel}
