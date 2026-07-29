@@ -870,6 +870,11 @@ body {
   color: var(--amber);
 }
 
+.export-warning:focus-visible {
+  outline: 2px solid var(--amber-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .export-warning p { margin: 0; }
 .export-warning .export-risk { font-weight: 500; }
 .export-warning .export-howto { color: var(--text-muted); }
@@ -890,6 +895,10 @@ body {
 }
 
 .export-confirm:hover { border-color: var(--accent); }
+.export-confirm:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
 
 .export-cancel {
   padding: var(--s-2);
@@ -904,6 +913,10 @@ body {
 }
 
 .export-cancel:hover { color: var(--text); border-color: var(--border-hi); }
+.export-cancel:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
 
 /* GPX export trigger button */
 .export-gpx-btn {
@@ -922,6 +935,10 @@ body {
 }
 
 .export-gpx-btn:hover { color: var(--text); border-color: var(--accent); }
+.export-gpx-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
 
 /* ─── Coverage warning ─── */
 .coverage-warning {
