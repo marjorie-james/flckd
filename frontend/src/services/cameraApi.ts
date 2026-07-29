@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiGet } from "./apiClient";
 
 export interface CameraPin {
@@ -30,5 +30,6 @@ export function useCameras(bbox: string | null, zoom: number | null = null) {
       apiGet<CamerasResponse>("/cameras", { bbox: bbox!, ...(zoom != null ? { zoom } : {}) }, signal),
     enabled: Boolean(bbox),
     staleTime: 300_000,
+    placeholderData: keepPreviousData,
   });
 }
