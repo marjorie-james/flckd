@@ -133,6 +133,11 @@ RSpec.describe "GET /api/v1/cameras", type: :request do
     expect(response).to have_http_status(:bad_request)
   end
 
+  it "400s on a world-spanning bbox that exceeds the area cap" do
+    get "/api/v1/cameras", params: { bbox: "-180,-90,180,90" } # 360 * 180 = 64800 sq deg
+    expect(response).to have_http_status(:bad_request)
+  end
+
   it "400s on a bbox component that parses to infinity (1e400)" do
     # Float("1e400") yields Float::INFINITY without raising; only the range check
     # rejects it, so an infinite envelope never reaches PostGIS.

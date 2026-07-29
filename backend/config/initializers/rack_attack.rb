@@ -41,7 +41,7 @@ class Rack::Attack
 
   # Tighter throttle on the expensive routing endpoint.
   throttle("routes/ip", limit: 20, period: 60) do |req|
-    coarse_key(req) if req.path == "/api/v1/routes" && req.post?
+    coarse_key(req) if req.path.start_with?("/api/v1/routes") && req.post?
   end
 
   self.throttled_responder = lambda do |_req|

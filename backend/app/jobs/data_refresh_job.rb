@@ -105,7 +105,12 @@ class DataRefreshJob < ApplicationJob
       Rails.logger.info("[camera_data] refresh skipped — another run is already in progress (FR-014)")
       :skipped
     else
-      RefreshRun.create!(trigger: trigger, started_at: Time.current)
+      begin
+        RefreshRun.create!(trigger: trigger, started_at: Time.current)
+      rescue ActiveRecord::RecordNotUnique
+        Rails.logger.info("[camera_data] refresh skipped -- concurrent run won the race (FR-014)")
+        :skipped
+      end
     end
   end
 

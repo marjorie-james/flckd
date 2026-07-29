@@ -18,6 +18,10 @@ module Api
       # caller that always wants full detail) — segments are included.
       SEGMENT_DETAIL_ZOOM = 14
 
+      # Cap the viewport area to prevent world-spanning queries that scan the entire
+      # camera dataset. ~100 sq degrees covers generous city/metro viewports.
+      MAX_BBOX_AREA = 100
+
       def index
         bbox = parse_bbox(params.require(:bbox))
         cameras = Camera
@@ -98,6 +102,9 @@ module Api
         in_range = [ min_lng, max_lng ].all? { |v| v.between?(-180, 180) } &&
                    [ min_lat, max_lat ].all? { |v| v.between?(-90, 90) }
         raise ActionController::ParameterMissing, :bbox unless in_range && min_lng <= max_lng && min_lat <= max_lat
+
+        area = (max_lng - min_lng) * (max_lat - min_lat)
+        raise ActionController::ParameterMissing, :bbox if area > MAX_BBOX_AREA
 
         [ min_lng, min_lat, max_lng, max_lat ]
       rescue ArgumentError, TypeError
