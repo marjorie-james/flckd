@@ -43,6 +43,15 @@ describe("RouteResult camera status", () => {
     expect(p?.textContent ?? "").not.toBe("");
   });
 
+  it("marks the coverage warning as a polite live region (role=status)", () => {
+    const { container } = render(
+      <RouteResult route={route({ coverage_warning: "outside_coverage" })} />,
+    );
+    const p = container.querySelector("p.coverage-warning");
+    expect(p).not.toBeNull();
+    expect(p?.getAttribute("role")).toBe("status");
+  });
+
   it("renders no empty coverage-warning paragraph for an unknown code", () => {
     const { container } = render(
       <RouteResult route={route({ coverage_warning: "totally_unknown_code" })} />,

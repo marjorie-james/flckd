@@ -85,7 +85,14 @@ export function RouteResult({
         </button>
       )}
 
-      {coverageWarning && <p className="coverage-warning no-print">{coverageWarning}</p>}
+      {/* role="status" makes this a polite live region (implicit aria-live="polite").
+          The caveat is safety-relevant but not an error, so it must announce
+          without the interrupt of role="alert". */}
+      {coverageWarning && (
+        <p className="coverage-warning no-print" role="status">
+          {coverageWarning}
+        </p>
+      )}
 
       <RouteExport route={route} />
 
