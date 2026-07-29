@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 // The map (MapLibre GL + its WebGL stack and the camera layer) is by far the
 // heaviest dependency in the bundle. Load it as a separate chunk so the header,
@@ -52,6 +52,31 @@ export function PlanRoutePage() {
     ? { ...endpoints, locale: i18n.language }
     : null;
   const plan = usePlanRoute(planRequest, planNonce);
+
+  // Focus target for a resolved re-plan. With keepPreviousData the last route
+  // stays mounted while a re-plan fetches, so focus is never dropped to <body>;
+  // once fresh data replaces the placeholder we still move focus here so a
+  // keyboard/screen-reader user lands on the new route instead of wherever they
+  // were. isPlaceholderData is true only while old data is shown during a
+  // re-fetch, so a true → false transition means a re-plan just resolved. The
+  // initial plan never sets the flag (no previous data), so it is left alone.
+  const resultRef = useRef<HTMLDivElement>(null);
+  const wasPlaceholderRef = useRef(false);
+  useEffect(() => {
+    if (wasPlaceholderRef.current && !plan.isPlaceholderData && plan.data) {
+      // Don't steal focus from a field the user started editing during a slow
+      // re-plan; only pull focus to the result when it's on the Plan button or
+      // was lost to <body>.
+      const active = document.activeElement;
+      const editing =
+        active instanceof HTMLElement &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.isContentEditable);
+      if (!editing) resultRef.current?.focus();
+    }
+    wasPlaceholderRef.current = plan.isPlaceholderData;
+  }, [plan.isPlaceholderData, plan.data]);
 
   // The covered region's bounding box, fetched once, so the map opens framed on
   // whatever region this deployment covers (no hardcoded launch state).
@@ -163,7 +188,9 @@ export function PlanRoutePage() {
             {routeAnnouncement}
           </div>
 
-          <div className="result-section">
+          {/* tabIndex={-1} so a resolved re-plan can move focus onto the fresh
+              result region (it is not otherwise focusable). */}
+          <div className="result-section" ref={resultRef} tabIndex={-1}>
             {errorMessage && <p className="error no-print" role="alert">{errorMessage}</p>}
             {route && endpoints && (
               <>
