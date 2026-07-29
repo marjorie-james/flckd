@@ -7,7 +7,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       # Core US1 flow: plan a camera-avoiding route. POST keeps coordinates
       # out of URLs/logs (anonymity, FR-011).
-      resources :routes, only: [ :create ]
+      resources :routes, only: [ :create ], format: false
 
       # Geocoding for origin/destination entry & disambiguation (FR-001/016).
       get  "geocode/search",  to: "geocoding#search"

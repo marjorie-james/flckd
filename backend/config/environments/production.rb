@@ -18,8 +18,8 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  # ActiveStorage is not loaded (engine removed in application.rb — M5 remediation).
+  # config.active_storage.service = :local
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true
@@ -103,12 +103,15 @@ Rails.application.configure do
       ActionDispatch::RemoteIp::TRUSTED_PROXIES + trusted_proxies
   end
 
-  # Enable DNS-rebinding / Host-header protection once a stable domain exists.
-  # Set APP_HOSTS (comma-separated) or the legacy single-value API_DOMAIN; the
-  # /up health check stays excluded so load-balancer probes are never rejected.
+  # DNS-rebinding / Host-header protection — fail closed. APP_HOSTS (comma-
+  # separated) or API_DOMAIN must be set; the /up health check stays excluded so
+  # load-balancer probes are never rejected. RAILS_ENV_SKIP_HOST_CHECK is the
+  # escape hatch for CI/staging environments that legitimately lack a domain.
   allowed_hosts = EdgeConfig.allowed_hosts
   if allowed_hosts.any?
     config.hosts = allowed_hosts
     config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  else
+    raise "APP_HOSTS or API_DOMAIN must be set in production" unless ENV["RAILS_ENV_SKIP_HOST_CHECK"]
   end
 end

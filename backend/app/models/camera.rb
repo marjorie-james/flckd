@@ -56,10 +56,17 @@ class Camera < ApplicationRecord
   # is human-verified, which is exempt (FR-008/FR-009). Auto-retirement sets the
   # `auto_retired` flag (recoverable), NOT verification_status="removed" (terminal,
   # reserved for human removal).
+  #
+  # The increment is an atomic SQL `SET col = col + 1` so concurrent calls
+  # (e.g. overlapping reconciler runs) never lose an increment — fixing the
+  # lost-update race from the old Ruby-side read-modify-write (audit M7).
   def mark_missing!(limit: CameraData.missing_limit)
-    count = consecutive_missing_count + 1
-    attrs = { consecutive_missing_count: count, stale: true }
-    attrs[:auto_retired] = true if count >= limit && verification_status != "verified"
-    update!(attrs)
+    self.class.where(id: id).update_all(
+      "consecutive_missing_count = consecutive_missing_count + 1, stale = true"
+    )
+    reload
+    if consecutive_missing_count >= limit && verification_status != "verified"
+      update!(auto_retired: true)
+    end
   end
 end
