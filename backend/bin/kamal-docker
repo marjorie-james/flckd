@@ -112,6 +112,7 @@ docker run --rm -i $TTY_FLAG \
   -e SECRET_KEY_BASE \
   -e DATABASE_PASSWORD -e NOMINATIM_PASSWORD \
   -e FLCKD_HOST \
+  -e API_DOMAIN \
   "$KAMAL_IMAGE" "$@" || STATUS=$?
 
 # After a successful `setup`, provision the self-hosted geo substrate (routing
