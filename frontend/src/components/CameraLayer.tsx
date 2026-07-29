@@ -413,8 +413,10 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
   // Text equivalent for viewport cameras (WCAG 2.1.1 keyboard + 1.1.1 text alt).
   // The map layers show cameras as visual-only canvas dots/cones with popups that
   // require pointer hit-tests. This parallel DOM list carries the same per-camera
-  // fields popupHtml builds, visually hidden, with each item focusable so a
-  // keyboard or screen-reader user can browse camera data without a mouse.
+  // fields popupHtml builds, visually hidden, as a static list a screen-reader
+  // user can browse without a mouse. The items are not tab stops: a keyboard
+  // user would otherwise hit up to 5,000 invisible focus targets before the
+  // address form, and screen readers browse static lists without tab stops.
   // The live region announces the count; the bbox fetch is already debounced
   // 300ms and polite assertiveness avoids chattering during continuous panning.
   const cameraList = data?.cameras ?? [];
@@ -432,7 +434,7 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
           const pct = `${Math.round(c.confidence * 100)}%`;
           const status = c.verification_status ?? t("cameras.popup.unknown");
           return (
-            <li key={c.id} tabIndex={0}>
+            <li key={c.id}>
               {t("cameras.popup.title")}, {t("cameras.popup.direction")}: {dir}, {t("cameras.popup.type")}: {type}, {t("cameras.popup.confidence")}: {pct}, {t("cameras.popup.status")}: {status}
             </li>
           );

@@ -301,7 +301,7 @@ describe("CameraLayer accessible DOM (H3 fix: keyboard path + text equivalent)",
     expect(second).toContain("360°");
   });
 
-  it("makes each entry keyboard-reachable via tabIndex={0}", () => {
+  it("keeps the list out of the keyboard tab order (no tabIndex on any entry)", () => {
     H.data = { cameras: [VERIFIED, DISPUTED] };
     const map = makeFakeMap();
     const { container } = render(<CameraLayer map={map as never} />);
@@ -309,7 +309,23 @@ describe("CameraLayer accessible DOM (H3 fix: keyboard path + text equivalent)",
     const items = container.querySelectorAll("li");
     expect(items).toHaveLength(2);
     items.forEach((item) => {
-      expect(item.getAttribute("tabindex")).toBe("0");
+      expect(item.hasAttribute("tabindex")).toBe(false);
+    });
+  });
+
+  it("stays screen-reader accessible as a labelled static list", () => {
+    H.data = { cameras: [VERIFIED, DISPUTED] };
+    const map = makeFakeMap();
+    const { getByRole, getAllByRole } = render(<CameraLayer map={map as never} />);
+
+    // A <ul> exposes role="list"; the aria-label names it for AT.
+    const list = getByRole("list", { name: /camera/i });
+    expect(list).not.toBeNull();
+
+    const items = getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    items.forEach((item) => {
+      expect(item.textContent?.trim()).toBeTruthy();
     });
   });
 
