@@ -52,7 +52,7 @@
   --map-route:               #6fc6cb; /* = --accent-hi (was indigo-400) */
   --map-route-comparison:    #9aa3ad; /* = --text-muted */
   --map-origin:              #34d399; /* = --green */
-  --map-cluster:             #3f9aa0; /* = --accent */
+  --map-cluster:             #2b7a80; /* darkened teal, 5.0:1 vs white text */
   --map-camera-confirmed:    #f87171; /* = --red */
   --map-camera-suspect:      #fbbf24; /* = --amber */
   --map-camera-confirmed-hi: #fca5a5;

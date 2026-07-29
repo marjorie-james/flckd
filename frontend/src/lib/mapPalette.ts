@@ -26,9 +26,10 @@ export const MAP_COLOR_TOKENS = {
   "--map-route-comparison": "#9aa3ad",
   // Confirmed starting address. --green, the same token the "clean" verdict uses.
   "--map-origin": "#34d399",
-  // Camera cluster bubble. --accent: the palette's sensor/scan hue, one step
-  // below the route so a cluster never competes with the planned line.
-  "--map-cluster": "#3f9aa0",
+  // Camera cluster bubble. Darkened teal (5.0:1 against white cluster-count
+  // text, WCAG AA). One step below the route so a cluster never competes with
+  // the planned line.
+  "--map-cluster": "#2b7a80",
   // Confirmed camera: dot, 360 halo ring, and watched-stretch line. --red.
   "--map-camera-confirmed": "#f87171",
   // Disputed or low-confidence camera, same three elements. --amber.
