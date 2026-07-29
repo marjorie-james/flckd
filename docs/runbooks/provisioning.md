@@ -84,8 +84,10 @@ ssh-keygen -t ed25519 -f kamal_deploy -C flckd-deploy   # add kamal_deploy.pub t
   one, where kamal-proxy is the public edge. Kamal reads `config/deploy.yml` by
   default.
 - In `backend/config/deploy.yml`, replace every `<PLACEHOLDER>` —
-  `<REGISTRY_HOST>`, `<WEB_HOST_1>`, `<JOB_HOST_1>`, `<API_DOMAIN>`, `<DB_HOST>`,
-  `<ROUTING_HOST>`, `<GEOCODER_HOST>`, `<TILES_HOST>`.
+  `<REGISTRY_HOST>`, `<WEB_HOST_1>`, `<JOB_HOST_1>`, `<API_DOMAIN>`, `<APP_HOSTS>`,
+  `<DB_HOST>`, `<ROUTING_HOST>`, `<GEOCODER_HOST>`, `<TILES_HOST>`.
+  `<API_DOMAIN>` and `<APP_HOSTS>` are different values and are not
+  interchangeable; see the note under the step 5 Variables table.
 - For the host addresses you can skip the literal replacement and keep the IP out
   of the file entirely, which is what `deploy.example.yml` recommends: `deploy.yml`
   is ERB-rendered, so write `host: <%= ENV.fetch("FLCKD_HOST") %>` and export
@@ -136,7 +138,8 @@ filling these variables in. Set them all (a single co-located box uses the same
 |----------|---------|-------|
 | `REGISTRY_HOST` | render | registry host, e.g. `ghcr.io` |
 | `REGISTRY_NAMESPACE` | render | image namespace, e.g. your GitHub user/org |
-| `API_DOMAIN` | render + app deploy smoke test | e.g. `api.flckd.example` |
+| `API_DOMAIN` | render + app deploy smoke test | the domain kamal-proxy routes on (`proxy.host`), e.g. `api.flckd.example` |
+| `APP_HOSTS` | render | Rails host-authorization allow-list: **every** hostname whose requests reach Rails, comma-separated, e.g. `api.flckd.example,flckd.example` |
 | `WEB_HOST` / `JOB_HOST` / `DB_HOST` | render | `user@addr` of each role's host |
 | `ROUTING_HOST` / `TILES_HOST` / `GEOCODER_HOST` | render + geo deploy | `user@addr` of each geo host |
 | `ROUTING_DATA_PATH` / `TILES_DATA_PATH` / `GEOCODER_IMPORT_PATH` | geo deploy | on-host dir backing each accessory volume — see step 7 |
@@ -147,6 +150,70 @@ this — you copy the template and edit `config/deploy.yml` by hand; see step 4.
 
 Also set the GitHub **environment** named `production` (both deploy workflows use
 it) and, optionally, add required reviewers there as a deploy gate.
+
+### `API_DOMAIN` vs `APP_HOSTS`
+
+These two are easy to confuse and control different layers. Setting only one of
+them is the most common way to deploy a healthy-looking app that refuses every
+request.
+
+- **`API_DOMAIN`** is the domain **kamal-proxy routes on**. It becomes
+  `proxy.host` in the rendered `deploy.yml`, and the proxy uses it to obtain the
+  Let's Encrypt certificate. One value.
+- **`APP_HOSTS`** is the **Rails host-authorization allow-list**
+  (`config.hosts`). It must contain **every** hostname whose requests reach
+  Rails. `EdgeConfig.allowed_hosts` splits it on commas or whitespace, so
+  `api.flckd.example,flckd.example` and `api.flckd.example flckd.example` are
+  equivalent. When `APP_HOSTS` is unset, `API_DOMAIN` is read instead as a
+  legacy single-value fallback.
+
+They are frequently **not** the same set. If a Caddy edge serves the frontend
+from an apex domain and reverse-proxies `/api` to the backend, requests arrive at
+Rails carrying `Host: flckd.example`, not the proxy's `api.flckd.example`. The
+apex domain must therefore appear in `APP_HOSTS`:
+
+```
+API_DOMAIN = api.flckd.example
+APP_HOSTS  = api.flckd.example,flckd.example
+```
+
+Omitting the apex domain produces a total API outage that reads as healthy:
+containers boot, `/up` and `/api/v1/health` pass, kamal-proxy reports the target
+healthy, and every actual API call returns **403** with
+`[ActionDispatch::HostAuthorization::DefaultResponseApp] Blocked hosts: <host>`
+in the app logs. If the frontend loads but no data ever appears, check
+`APP_HOSTS` first.
+
+The two healthcheck paths are exempt from host authorization by design, which is
+why they keep passing: kamal-proxy health-checks the container by container ID
+rather than by the public domain, so `/up` and `/api/v1/health` would otherwise
+be rejected and the deploy would fail even on a correct allow-list.
+
+### Host authorization fails closed
+
+In production, an empty allow-list is a **boot failure**, not a silent bypass.
+If neither `APP_HOSTS` nor `API_DOMAIN` resolves to anything,
+`config/environments/production.rb` raises during boot:
+
+```
+APP_HOSTS or API_DOMAIN must be set in production
+```
+
+This is deliberate hardening, not a bug. The earlier behavior skipped host
+authorization entirely when the allow-list was empty, which left DNS-rebinding
+protection silently disabled and depended on the edge proxy to validate the Host
+header. Failing closed makes the misconfiguration loud at deploy time instead of
+invisible in production.
+
+During a Kamal deploy this surfaces as `target failed to become healthy` (the
+container exits before it can serve the healthcheck); the error string above is
+in `kamal app logs`.
+
+Set `RAILS_ENV_SKIP_HOST_CHECK` to any non-empty value to bypass the check. That
+escape hatch is for environments that legitimately have no domain, such as a CI
+smoke test or a staging box reached only by IP. Do not set it on a real
+deployment: it disables host authorization, which is the control that closes the
+DNS-rebinding gap.
 
 ## 6. First bring-up (in order)
 
