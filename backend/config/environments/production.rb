@@ -110,7 +110,7 @@ Rails.application.configure do
   allowed_hosts = EdgeConfig.allowed_hosts
   if allowed_hosts.any?
     config.hosts = allowed_hosts
-    config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+    config.host_authorization = { exclude: ->(request) { request.path.in?(%w[/up /api/v1/health]) } }
   else
     raise "APP_HOSTS or API_DOMAIN must be set in production" unless ENV["RAILS_ENV_SKIP_HOST_CHECK"]
   end
