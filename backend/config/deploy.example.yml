@@ -92,8 +92,9 @@ env:
     GEOCODER_COUNTRY: us
     TILES_URL: http://flckd-backend-tiles:8080
     # Host authorization (M4 fail-closed): Rails rejects requests whose Host
-    # header doesn't match. Must equal the domain Caddy forwards to kamal-proxy.
-    API_DOMAIN: <API_DOMAIN>
+    # header doesn't match. Comma-separated list of all domains that reach Rails
+    # (e.g. api.example.com,example.com).
+    APP_HOSTS: <APP_HOSTS>
     # Run Solid Queue inside Puma off (we run a dedicated job host above).
     SOLID_QUEUE_IN_PUMA: false
     WEB_CONCURRENCY: 2

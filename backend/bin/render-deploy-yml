@@ -23,6 +23,7 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # -> backend/
 : "${ROUTING_HOST:?set the ROUTING_HOST GitHub Actions variable}"
 : "${GEOCODER_HOST:?set the GEOCODER_HOST GitHub Actions variable}"
 : "${TILES_HOST:?set the TILES_HOST GitHub Actions variable}"
+: "${APP_HOSTS:?set the APP_HOSTS GitHub Actions variable}"
 
 sed \
   -e "s|<REGISTRY_HOST>|${REGISTRY_HOST}|g" \
@@ -30,6 +31,7 @@ sed \
   -e "s|<WEB_HOST_1>|${WEB_HOST}|g" \
   -e "s|<JOB_HOST_1>|${JOB_HOST}|g" \
   -e "s|<API_DOMAIN>|${API_DOMAIN}|g" \
+  -e "s|<APP_HOSTS>|${APP_HOSTS}|g" \
   -e "s|<DB_HOST>|${DB_HOST}|g" \
   -e "s|<ROUTING_HOST>|${ROUTING_HOST}|g" \
   -e "s|<GEOCODER_HOST>|${GEOCODER_HOST}|g" \
