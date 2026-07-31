@@ -26,7 +26,7 @@ test("switches language at runtime, localizing UI and directions, preserving inp
   await page.locator(".language-switcher select").selectOption("es");
 
   // UI chrome localizes immediately.
-  await expect(page.locator("h1")).toHaveText("Planificador de rutas que evita cámaras");
+  await expect(page.locator("h1.app-title")).toHaveText("Planificador de rutas que evita cámaras");
   await expect(page.locator(".route-panel button[type=submit]")).toHaveText("Planificar ruta");
   await expect(page.locator(".route-result h3")).toHaveText("Indicaciones");
 
@@ -46,7 +46,7 @@ test.describe("first paint follows the environment", () => {
   test.use({ locale: "es-ES" });
 
   test("renders Spanish on first load with no manual selection", async ({ page }) => {
-    await expect(page.locator("h1")).toHaveText("Planificador de rutas que evita cámaras");
+    await expect(page.locator("h1.app-title")).toHaveText("Planificador de rutas que evita cámaras");
     await expect(page.locator("html")).toHaveAttribute("lang", "es");
   });
 });
@@ -55,20 +55,20 @@ test.describe("first paint follows the environment", () => {
 // reload and overrides the (English) environment guess; choosing "Automatic"
 // clears it and reverts to the environment-derived language.
 test("remembers an explicit choice across reload and reverts on Automatic", async ({ page }) => {
-  await expect(page.locator("h1")).toHaveText("Camera-Avoiding Route Planner");
+  await expect(page.locator("h1.app-title")).toHaveText("Camera-Avoiding Route Planner");
 
   await page.locator(".language-switcher select").selectOption("es");
-  await expect(page.locator("h1")).toHaveText("Planificador de rutas que evita cámaras");
+  await expect(page.locator("h1.app-title")).toHaveText("Planificador de rutas que evita cámaras");
 
   // Persisted: a reload keeps Spanish even though the browser advertises English.
   await page.reload();
-  await expect(page.locator("h1")).toHaveText("Planificador de rutas que evita cámaras");
+  await expect(page.locator("h1.app-title")).toHaveText("Planificador de rutas que evita cámaras");
 
   // Automatic: forget the choice, re-derive from the environment (English).
   await page.locator(".language-switcher select").selectOption("auto");
-  await expect(page.locator("h1")).toHaveText("Camera-Avoiding Route Planner");
+  await expect(page.locator("h1.app-title")).toHaveText("Camera-Avoiding Route Planner");
   await page.reload();
-  await expect(page.locator("h1")).toHaveText("Camera-Avoiding Route Planner");
+  await expect(page.locator("h1.app-title")).toHaveText("Camera-Avoiding Route Planner");
 });
 
 // US3 (FR-010, AS3; Constitution IV): map labels follow the selected language and
