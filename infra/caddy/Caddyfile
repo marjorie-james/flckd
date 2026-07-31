@@ -29,6 +29,14 @@ www.{$FLCKD_DOMAIN} {
 	redir https://{$FLCKD_DOMAIN}{uri} permanent
 }
 
+# Legacy domain: getflckd.com (+ www) → apex. Previously handled by Namecheap's
+# URL forwarding, which serves nothing on :443 — browsers now default to https,
+# so the redirect hung. Served here instead so Caddy mints a real cert. DNS for
+# both names must be A records to this host (not the registrar's forwarder).
+getflckd.com, www.getflckd.com {
+	redir https://{$FLCKD_DOMAIN}{uri} permanent
+}
+
 {$FLCKD_DOMAIN} {
 	encode zstd gzip
 
