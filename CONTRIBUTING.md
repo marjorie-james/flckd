@@ -52,22 +52,53 @@ fast and laptop-friendly. The whole-US production build is much heavier; see
 
 ## Running the checks locally
 
-Run these (in Docker) before opening a PR — CI runs the same:
+Run these (in Docker) before opening a PR — CI runs the same.
+
+Prepare the test database first. The compose Postgres seeds only
+`flckd_development`, so the `RAILS_ENV=test` suite has no database to connect to until
+you create one:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d postgres
+docker compose -f infra/docker-compose.yml run --rm --no-deps -e RAILS_ENV=test backend bin/rails db:prepare
+```
+
+Re-run that `db:prepare` after pulling changes that add migrations, otherwise the suite
+runs against a stale schema.
 
 ```bash
 # Backend (RuboCop, Brakeman, RSpec)
-docker compose -f infra/docker-compose.yml run --rm backend bundle exec rubocop
-docker compose -f infra/docker-compose.yml run --rm backend bundle exec brakeman -q --no-pager --exit-on-warn --exit-on-error
-docker compose -f infra/docker-compose.yml run --rm -e RAILS_ENV=test -e COVERAGE=1 backend bundle exec rspec
+docker compose -f infra/docker-compose.yml run --rm --no-deps backend bundle exec rubocop
+docker compose -f infra/docker-compose.yml run --rm --no-deps backend bundle exec brakeman -q --no-pager --exit-on-warn --exit-on-error
+docker compose -f infra/docker-compose.yml run --rm --no-deps -e RAILS_ENV=test -e COVERAGE=1 backend bundle exec rspec
 
 # Frontend (ESLint, dependency audit, typecheck, Vitest)
-docker compose -f infra/docker-compose.yml run --rm frontend pnpm lint
-docker compose -f infra/docker-compose.yml run --rm frontend pnpm audit --prod --audit-level high
-docker compose -f infra/docker-compose.yml run --rm frontend pnpm exec tsc -b --noEmit
-docker compose -f infra/docker-compose.yml run --rm frontend pnpm exec vitest run
+docker compose -f infra/docker-compose.yml run --rm --no-deps frontend pnpm lint
+docker compose -f infra/docker-compose.yml run --rm --no-deps frontend pnpm audit --prod --audit-level high
+docker compose -f infra/docker-compose.yml run --rm --no-deps frontend pnpm exec tsc -b --noEmit
+docker compose -f infra/docker-compose.yml run --rm --no-deps frontend pnpm exec vitest run
 
 # Infra shell scripts (bats)
 docker run --rm -v "$(pwd):/code" -w /code bats/bats:1.11.0 test/infra
+```
+
+Keep `--no-deps` on those `compose run` commands. The `backend` service declares
+`depends_on` for the geo stack (and `frontend` depends on `backend`), so without it
+Compose starts the geocoder, whose first run kicks off a Nominatim OSM import that takes
+roughly 20 minutes before it is healthy. The tests stub the geo services, so none of them
+are needed. Postgres is the one real dependency, which is why it is started explicitly
+above.
+
+### After a lockfile change
+
+`backend` mounts a `bundle_cache` volume over `/usr/local/bundle` and `frontend` mounts
+`frontend_node_modules` over `/app/node_modules`. Those named volumes shadow what the
+image built, so a changed `Gemfile.lock` or `pnpm-lock.yaml` shows up as confusing
+missing-dependency errors until you reinstall inside the service:
+
+```bash
+docker compose -f infra/docker-compose.yml run --rm --no-deps backend bundle install
+docker compose -f infra/docker-compose.yml run --rm --no-deps frontend pnpm install
 ```
 
 RuboCop and Brakeman are part of the required `backend` gate, and the dependency audit and
