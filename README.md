@@ -233,6 +233,68 @@ curl -s http://localhost:3000/api/v1/routes -H 'Content-Type: application/json' 
 Health check: `curl http://localhost:3000/api/v1/health` (returns 503
 `degraded` when the DB is down; geo services fail soft).
 
+### Troubleshooting: a port is already in use
+
+If something else on your machine already uses one of these ports, the stack fails
+to start and Docker prints a line like:
+
+```
+Error response from daemon: driver failed programming external connectivity on
+endpoint infra-postgres-1: Bind for 0.0.0.0:5432 failed: port is already allocated
+```
+
+You may also see `bind: address already in use`. The port number in the message
+tells you which service collided:
+
+| Port | Service | Override |
+|---|---|---|
+| 5432 | PostgreSQL | `POSTGRES_HOST_PORT` |
+| 3000 | Backend API | none |
+| 5173 | Frontend (Vite) | none |
+| 8002 | Routing (Valhalla) | none |
+| 8080 | Tiles (go-pmtiles) | none |
+| 8081 | Geocoder (Nominatim) | none |
+
+**Port 5432 (PostgreSQL)** is the common one, because a locally installed Postgres
+or another project usually owns it. Pick an unused host port and export it before
+starting the stack:
+
+```bash
+export POSTGRES_HOST_PORT=55432
+docker compose -f infra/docker-compose.yml up -d
+```
+
+This moves only the host-side publish. The backend still reaches the database at
+`postgres:5432` over the compose network, so nothing else needs to change. Export it
+in your shell rather than putting it in `infra/.env`: the setup wizard rewrites that
+file from scratch and would drop the line. To make it stick across terminals, add the
+`export` line to your shell profile (`~/.zshrc` or `~/.bashrc`).
+
+**The other five ports have no override today.** You have two options:
+
+1. Stop whatever else is using the port, then start the stack again. To find the
+   culprit on macOS or Linux, run `lsof -i :3000` (substitute the port).
+2. Keep both running by adding a compose override file. Create
+   `infra/docker-compose.override.yml` with only the ports you need to move:
+
+   ```yaml
+   services:
+     backend:
+       ports:
+         - "3001:3000"
+   ```
+
+   Then start the stack passing both files, because `-f` turns off the automatic
+   pickup of the override file:
+
+   ```bash
+   docker compose -f infra/docker-compose.yml \
+     -f infra/docker-compose.override.yml up -d
+   ```
+
+   Remember that changing the host port changes the URL you visit. Moving the
+   frontend to `5174:5173` means opening <http://localhost:5174>.
+
 ## Tests
 
 ```bash
