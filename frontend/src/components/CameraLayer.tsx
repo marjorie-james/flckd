@@ -41,8 +41,11 @@ const ROUTE_LAYER = "route-line";
 const CONE_CONFIRMED = "cam-cone-confirmed";
 const CONE_SUSPECT = "cam-cone-suspect";
 
-const CLUSTER_RADIUS = 50;
-const CLUSTER_MAX_ZOOM = 16;
+// Soft clustering: merge only near-overlapping dots (40px), and stop clustering
+// from z14 up — the same zoom the watched stretches appear (SEGMENT_MIN_ZOOM),
+// so dots un-cluster exactly when their segments render.
+const CLUSTER_RADIUS = 40;
+const CLUSTER_MAX_ZOOM = 13;
 const BBOX_DEBOUNCE_MS = 300;
 // Mirrors the backend's per-request limit (CamerasController::VIEWPORT_LIMIT);
 // reaching it means the viewport count may under-represent the true total
