@@ -52,7 +52,7 @@ const H = vi.hoisted(() => {
     setMaxBounds(b: unknown) { calls.setMaxBounds.push(b); }
     // Fire "load" callbacks synchronously so styleReadyRef gets set during
     // the init effect, matching the real MapLibre lifecycle.
-    once(event: string, fn: () => void) { if (event === "load") fn(); }
+    once(event: string, fn: () => void) { if (event === "style.load") fn(); }
     off() {}
     remove() {}
   }
@@ -62,7 +62,8 @@ const H = vi.hoisted(() => {
 
 vi.mock("../../src/utils/reducedMotion", () => ({ prefersReducedMotion: () => H.state.reduced }));
 vi.mock("maplibre-gl", () => ({
-  default: { Map: H.FakeMap, LngLatBounds: class { extend() { return this; } } },
+  Map: H.FakeMap,
+  LngLatBounds: class { extend() { return this; } },
 }));
 
 // CameraLayer uses map APIs the FakeMap here doesn't implement and is unrelated

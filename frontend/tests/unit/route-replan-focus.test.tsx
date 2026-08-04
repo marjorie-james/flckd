@@ -28,13 +28,11 @@ vi.mock("../../src/services/geocodeApi", async (importOriginal) => {
 
 // jsdom has no WebGL; the minimal map stub mounts the container without a real map.
 vi.mock("maplibre-gl", () => ({
-  default: {
-    Map: class {
-      isStyleLoaded() { return true; }
-      getSource() { return undefined; }
-      addSource() {} addLayer() {} flyTo() {} jumpTo() {} fitBounds() {}
-      easeTo() {} once() {} off() {} remove() {}
-    },
+  Map: class {
+    isStyleLoaded() { return true; }
+    getSource() { return undefined; }
+    addSource() {} addLayer() {} flyTo() {} jumpTo() {} fitBounds() {}
+    easeTo() {} once() {} off() {} remove() {}
   },
 }));
 

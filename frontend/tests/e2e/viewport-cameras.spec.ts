@@ -39,6 +39,18 @@ const sourceCount = (page: Page) =>
     return d?.features?.length ?? 0;
   });
 
+const renderedFeatureCount = (page: Page, lng: number, lat: number, layers: string[]) =>
+  page.evaluate(({ lng, lat, layers }) => {
+    const map = (window as unknown as {
+      __flckdMap: {
+        project(c: [number, number]): { x: number; y: number };
+        queryRenderedFeatures(p: [number, number], o: { layers: string[] }): unknown[];
+      };
+    }).__flckdMap;
+    const p = map.project([lng, lat]);
+    return map.queryRenderedFeatures([p.x, p.y], { layers }).length;
+  }, { lng, lat, layers });
+
 // Click the map canvas at the projected pixel of a lng/lat.
 async function clickAt(page: Page, lng: number, lat: number) {
   const canvas = page.locator(".maplibregl-canvas");
@@ -69,6 +81,7 @@ test("opens a details popup on camera click and dismisses it via Esc (FR-006/SC-
   const disputed = { lng: -93.61, lat: 41.605 };
   await page.evaluate((c) => (window as unknown as { __flckdMap: { jumpTo(o: unknown): void } }).__flckdMap.jumpTo({ center: [c.lng, c.lat], zoom: 18 }), disputed);
   await page.waitForTimeout(400);
+  await expect.poll(() => renderedFeatureCount(page, disputed.lng, disputed.lat, ["camera-points", "camera-cones"])).toBeGreaterThan(0);
   await clickAt(page, disputed.lng, disputed.lat);
 
   const popup = page.locator(".maplibregl-popup");
@@ -88,7 +101,8 @@ test("opens a details popup on camera click and dismisses it via Esc (FR-006/SC-
 test("expands a cluster on tap (FR-005)", async ({ page }) => {
   await expect.poll(() => sourceCount(page)).toBe(9);
   const zoom = () => page.evaluate(() => Math.round((window as unknown as { __flckdMap: { getZoom(): number } }).__flckdMap.getZoom()));
-  // Default view (zoom 7) clusters the group; clicking it zooms in.
+  const initialZoom = await zoom();
+  await expect.poll(() => renderedFeatureCount(page, CLUSTER_CENTER.lng, CLUSTER_CENTER.lat, ["camera-clusters"])).toBeGreaterThan(0);
   await clickAt(page, CLUSTER_CENTER.lng, CLUSTER_CENTER.lat);
-  await expect.poll(zoom).toBeGreaterThan(7);
+  await expect.poll(zoom).toBeGreaterThan(initialZoom);
 });

@@ -35,7 +35,7 @@ vi.mock("../../src/hooks/useDebounce", () => ({
   useDebounce: (v: string, delay: number) => { H.debounceDelays.push(delay); return v; },
 }));
 vi.mock("../../src/utils/reducedMotion", () => ({ prefersReducedMotion: () => H.reduced }));
-vi.mock("maplibre-gl", () => ({ default: { Popup: H.FakePopup } }));
+vi.mock("maplibre-gl", () => ({ Popup: H.FakePopup }));
 
 import { CameraLayer } from "../../src/components/CameraLayer";
 import "../../src/i18n";

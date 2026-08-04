@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type * as GeoJSON from "geojson";
 import { useCameras, type CameraPin } from "../services/cameraApi";
 import { useDebounce } from "../hooks/useDebounce";
 import { prefersReducedMotion } from "../utils/reducedMotion";
@@ -25,6 +26,7 @@ import {
 // monitored stretch faintly highlighted. Directional cameras get a vision cone
 // pointing the way they face; omnidirectional (360°) cameras get a halo ring.
 
+const STYLE_READY_EVENT = "style.load";
 const SOURCE_ID = "cameras";
 const SEGMENT_SOURCE = "camera-segments";
 const SEGMENT_LAYER = "camera-segment-lines";
@@ -205,7 +207,7 @@ function popupHtml(
   );
 }
 
-export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
+export function CameraLayer({ map, styleReady = false }: { map: maplibregl.Map | null; styleReady?: boolean }) {
   const { t } = useTranslation();
   // 1. Viewport bbox + zoom on settle (moveend), debounced so rapid moves
   // coalesce (FR-002/003). The (floored) zoom rides along so the backend can
@@ -335,8 +337,8 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
 
     // Only the initial addSource/addLayer needs the style loaded; setData does not.
     // Once the source exists we must not re-gate on isStyleLoaded() (see MapView).
-    if (map.getSource(SOURCE_ID) || map.isStyleLoaded()) apply();
-    else map.once("load", apply);
+    if (map.getSource(SOURCE_ID) || styleReady || map.isStyleLoaded()) apply();
+    else map.once(STYLE_READY_EVENT, apply);
 
     // Surface a truncated viewport rather than silently under-counting (FR-011).
     if (cameras.length >= SERVER_CAP) {
@@ -346,9 +348,9 @@ export function CameraLayer({ map }: { map: maplibregl.Map | null }) {
     // Cancel any deferred apply on unmount/re-run: "load" only ever fires once, so
     // a stranded handler would run on a removed map or with a stale data closure.
     return () => {
-      map.off("load", apply);
+      map.off(STYLE_READY_EVENT, apply);
     };
-  }, [map, data]);
+  }, [map, data, styleReady]);
 
   // 3. Interaction: cluster → expand (reduced-motion aware, FR-005); point → details popup (FR-006).
   const popupRef = useRef<maplibregl.Popup | null>(null);
