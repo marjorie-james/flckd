@@ -1,5 +1,20 @@
-import { defineConfig } from 'vite'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+
+function maplibreWorkerAssets(): Plugin {
+  return {
+    name: 'maplibre-worker-assets',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'assets/maplibre-gl-shared.mjs',
+        source: readFileSync(resolve('node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs')),
+      })
+    },
+  }
+}
 
 // https://vite.dev/config/
 //
@@ -8,7 +23,7 @@ import react from '@vitejs/plugin-react'
 // self-hosted services over the private compose network (never a third party).
 // Targets are overridable via env for other topologies.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), maplibreWorkerAssets()],
   server: {
     host: true,
     port: 5173,

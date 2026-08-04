@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import type * as GeoJSON from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { StyleSpecification } from "maplibre-gl";
@@ -149,6 +150,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const style = buildStyle(window.location.origin, tilesBase(), i18n.language);
+    maplibregl.setWorkerUrl(maplibreWorkerUrl);
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
       style,

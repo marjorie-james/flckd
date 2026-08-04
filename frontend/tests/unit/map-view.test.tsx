@@ -63,6 +63,7 @@ const H = vi.hoisted(() => {
 vi.mock("../../src/utils/reducedMotion", () => ({ prefersReducedMotion: () => H.state.reduced }));
 vi.mock("maplibre-gl", () => ({
   Map: H.FakeMap,
+  setWorkerUrl: () => {},
   LngLatBounds: class { extend() { return this; } },
 }));
 

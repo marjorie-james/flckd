@@ -26,6 +26,7 @@ vi.mock("../../src/services/geocodeApi", async (importOriginal) => {
 // jsdom has no WebGL/canvas; assert the container mounts without constructing a
 // real map. The style URL is self-hosted, so no third-party tile request occurs.
 vi.mock("maplibre-gl", () => ({
+  setWorkerUrl: () => {},
   Map: class {
     isStyleLoaded() { return true; }
     getSource() { return undefined; }

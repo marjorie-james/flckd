@@ -28,6 +28,7 @@ vi.mock("../../src/services/geocodeApi", async (importOriginal) => {
 
 // jsdom has no WebGL; the minimal map stub mounts the container without a real map.
 vi.mock("maplibre-gl", () => ({
+  setWorkerUrl: () => {},
   Map: class {
     isStyleLoaded() { return true; }
     getSource() { return undefined; }

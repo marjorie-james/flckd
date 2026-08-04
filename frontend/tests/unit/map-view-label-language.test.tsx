@@ -30,6 +30,7 @@ const H = vi.hoisted(() => {
 vi.mock("../../src/utils/reducedMotion", () => ({ prefersReducedMotion: () => false }));
 vi.mock("maplibre-gl", () => ({
   Map: H.FakeMap,
+  setWorkerUrl: () => {},
   LngLatBounds: class { extend() { return this; } },
 }));
 vi.mock("../../src/components/CameraLayer", () => ({ CameraLayer: () => null }));
