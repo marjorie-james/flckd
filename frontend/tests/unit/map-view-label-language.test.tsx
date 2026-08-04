@@ -29,7 +29,9 @@ const H = vi.hoisted(() => {
 
 vi.mock("../../src/utils/reducedMotion", () => ({ prefersReducedMotion: () => false }));
 vi.mock("maplibre-gl", () => ({
-  default: { Map: H.FakeMap, LngLatBounds: class { extend() { return this; } } },
+  Map: H.FakeMap,
+  setWorkerUrl: () => {},
+  LngLatBounds: class { extend() { return this; } },
 }));
 vi.mock("../../src/components/CameraLayer", () => ({ CameraLayer: () => null }));
 
@@ -50,7 +52,7 @@ describe("MapView label-language effect cleanup", () => {
     // language effect registered, not one from the init/framing/reveal effects.
     const onceBefore = H.calls.once.length;
     await i18n.changeLanguage("es");
-    const pending = H.calls.once.slice(onceBefore).find(([ev]) => ev === "load");
+    const pending = H.calls.once.slice(onceBefore).find(([ev]) => ev === "style.load");
     expect(pending).toBeDefined();
 
     unmount();

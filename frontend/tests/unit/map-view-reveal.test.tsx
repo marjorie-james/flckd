@@ -19,7 +19,7 @@ const H = vi.hoisted(() => {
     getZoom() { return 5; }
     getBounds() { return { _bounds: "framed" }; }
     setMinZoom() {} setMaxBounds() {}
-    once(event: string, cb: () => void) { if (event === "load") loadHandlers.push(cb); }
+    once(event: string, cb: () => void) { if (event === "style.load") loadHandlers.push(cb); }
     off() {} remove() {}
   }
   const fireLoad = () => { for (const cb of loadHandlers.splice(0)) cb(); };
@@ -28,7 +28,9 @@ const H = vi.hoisted(() => {
 
 vi.mock("../../src/utils/reducedMotion", () => ({ prefersReducedMotion: () => false }));
 vi.mock("maplibre-gl", () => ({
-  default: { Map: H.FakeMap, LngLatBounds: class { extend() { return this; } } },
+  Map: H.FakeMap,
+  setWorkerUrl: () => {},
+  LngLatBounds: class { extend() { return this; } },
 }));
 vi.mock("../../src/components/CameraLayer", () => ({ CameraLayer: () => null }));
 

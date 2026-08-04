@@ -129,9 +129,10 @@ export async function mockApi(page: Page) {
     route.fulfill({ json: { bounds: [[-96.64, 40.37], [-90.14, 43.50]] } })
   );
 
-  // Self-hosted tiles: stub an empty style so MapLibre initializes offline.
+  // Self-hosted vector tiles: return an empty valid response so MapLibre can
+  // finish loading the style without contacting the tile service.
   await page.route("**/tiles/**", (route) =>
-    route.fulfill({ json: { version: 8, sources: {}, layers: [] } })
+    route.fulfill({ status: 204, body: "" })
   );
 }
 

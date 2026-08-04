@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
+import type * as GeoJSON from "geojson";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { StyleSpecification } from "maplibre-gl";
 import { decodePolyline } from "../lib/polyline";
@@ -35,8 +37,10 @@ import i18n from "../i18n";
 // so a missing localized name never renders blank (FR-010).
 const LABEL_LAYERS = ["road-labels", "place-labels"];
 
-function labelTextField(lng: string): unknown {
-  return ["coalesce", ["get", `name:${lng}`], ["get", "name:en"], ["get", "name"]];
+type TextFieldValue = NonNullable<Extract<StyleSpecification["layers"][number], { type: "symbol" }>["layout"]>["text-field"];
+
+function labelTextField(lng: string): TextFieldValue {
+  return ["coalesce", ["get", `name:${lng}`], ["get", "name:en"], ["get", "name"]] as TextFieldValue;
 }
 
 function buildStyle(glyphOrigin: string, tilesOrigin: string, lng: string): StyleSpecification {
@@ -62,6 +66,7 @@ function buildStyle(glyphOrigin: string, tilesOrigin: string, lng: string): Styl
   } as unknown as StyleSpecification;
 }
 
+const STYLE_READY_EVENT = "style.load";
 const ROUTE_SOURCE = "route";
 const ROUTE_LAYER = "route-line";
 
@@ -134,6 +139,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
   // the ref would still read true. If that feature is ever added, switch to
   // listening on the "style.load" event so the ref tracks each style load.
   const styleReadyRef = useRef(false);
+  const [styleReady, setStyleReady] = useState(false);
   // Whether the map is ready to be shown. The map boots at a neutral world view
   // ([0,0] zoom 1) before the covered region's bounds arrive; revealing it then
   // would flash the whole-world basemap for a frame. So we keep the canvas hidden
@@ -144,6 +150,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const style = buildStyle(window.location.origin, tilesBase(), i18n.language);
+    maplibregl.setWorkerUrl(maplibreWorkerUrl);
     mapRef.current = new maplibregl.Map({
       container: containerRef.current,
       style,
@@ -153,8 +160,11 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       zoom: 1,
     });
     setMap(mapRef.current);
-    const onStyleReady = () => { styleReadyRef.current = true; };
-    mapRef.current.once("load", onStyleReady);
+    const onStyleReady = () => {
+      styleReadyRef.current = true;
+      setStyleReady(true);
+    };
+    mapRef.current.once(STYLE_READY_EVENT, onStyleReady);
     // End-to-end tests opt in (via window.__E2E__) to read the in-page map's
     // camera/marker state. This is never set in production, so the user's origin
     // coordinate is not exposed on a global in real use (anonymity).
@@ -162,7 +172,8 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
     if (w.__E2E__) w.__flckdMap = mapRef.current;
     return () => {
       styleReadyRef.current = false;
-      mapRef.current?.off("load", onStyleReady);
+      setStyleReady(false);
+      mapRef.current?.off(STYLE_READY_EVENT, onStyleReady);
       mapRef.current?.remove();
       mapRef.current = null;
       setMap(null);
@@ -192,13 +203,13 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       if (styleReadyRef.current) applyLabelLanguage(lng);
       else {
         pendingLoad = () => applyLabelLanguage(i18n.language);
-        map.once("load", pendingLoad);
+        map.once(STYLE_READY_EVENT, pendingLoad);
       }
     };
     i18n.on("languageChanged", onLanguageChanged);
     return () => {
       i18n.off("languageChanged", onLanguageChanged);
-      if (pendingLoad) map.off("load", pendingLoad);
+      if (pendingLoad) map.off(STYLE_READY_EVENT, pendingLoad);
     };
   }, [map]);
 
@@ -225,9 +236,9 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       setRevealed(true);
     };
     if (styleReadyRef.current) frame();
-    else map.once("load", frame);
+    else map.once(STYLE_READY_EVENT, frame);
     return () => {
-      map.off("load", frame);
+      map.off(STYLE_READY_EVENT, frame);
     };
   }, [regionBounds]);
 
@@ -240,9 +251,9 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
     if (!map || regionBounds || revealed) return;
     const reveal = () => setRevealed(true);
     if (styleReadyRef.current) reveal();
-    else map.once("load", reveal);
+    else map.once(STYLE_READY_EVENT, reveal);
     return () => {
-      map.off("load", reveal);
+      map.off(STYLE_READY_EVENT, reveal);
     };
   }, [regionBounds, revealed]);
 
@@ -261,8 +272,8 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
     };
     const clearLines = () => {
       if (styleReadyRef.current) clear();
-      else map.once("load", clear);
-      return () => map.off("load", clear);
+      else map.once(STYLE_READY_EVENT, clear);
+      return () => map.off(STYLE_READY_EVENT, clear);
     };
 
     // No route (e.g. "completely avoid" found none, or an error): clear any drawn route
@@ -339,9 +350,9 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       draw();
       return;
     }
-    map.once("load", draw);
+    map.once(STYLE_READY_EVENT, draw);
     return () => {
-      map.off("load", draw);
+      map.off(STYLE_READY_EVENT, draw);
     };
   }, [route, showComparison]);
 
@@ -394,9 +405,9 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
       apply();
       return;
     }
-    map.once("load", apply);
+    map.once(STYLE_READY_EVENT, apply);
     return () => {
-      map.off("load", apply);
+      map.off(STYLE_READY_EVENT, apply);
     };
   }, [origin]);
 
@@ -415,7 +426,7 @@ export function MapView({ route, origin, showComparison = true, regionBounds }: 
         transition: "opacity 200ms ease-in",
       }}
     >
-      {map && <CameraLayer map={map} />}
+      {map && <CameraLayer map={map} styleReady={styleReady} />}
     </div>
   );
 }

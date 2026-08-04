@@ -9,13 +9,12 @@ import "../../src/i18n";
 // container resolves. Geo/map are mocked so the test is deterministic and hits no
 // network or WebGL (Constitution Principle II).
 vi.mock("maplibre-gl", () => ({
-  default: {
-    Map: class {
-      isStyleLoaded() { return true; }
-      getSource() { return undefined; }
-      addSource() {} addLayer() {} flyTo() {} jumpTo() {} fitBounds() {}
-      easeTo() {} once() {} off() {} remove() {}
-    },
+  setWorkerUrl: () => {},
+  Map: class {
+    isStyleLoaded() { return true; }
+    getSource() { return undefined; }
+    addSource() {} addLayer() {} flyTo() {} jumpTo() {} fitBounds() {}
+    easeTo() {} once() {} off() {} remove() {}
   },
 }));
 
