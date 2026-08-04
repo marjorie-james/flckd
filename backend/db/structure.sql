@@ -956,6 +956,13 @@ CREATE INDEX index_refresh_runs_on_status ON public.refresh_runs USING btree (st
 
 
 --
+-- Name: index_refresh_runs_unique_running; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_refresh_runs_unique_running ON public.refresh_runs USING btree (status) WHERE ((status)::text = 'running'::text);
+
+
+--
 -- Name: index_solid_queue_blocked_executions_for_maintenance; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1215,6 +1222,7 @@ ALTER TABLE ONLY public.solid_queue_scheduled_executions
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20260730000001'),
 ('20260617000001'),
 ('20260613000001'),
 ('20260612000001'),
