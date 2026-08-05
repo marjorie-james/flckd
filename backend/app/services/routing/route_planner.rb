@@ -39,12 +39,12 @@ module Routing
     # enough to take worthwhile residential detours, low enough to reject pathological
     # loops that barely lower exposure.
     PROXIMITY_LAMBDA = 90.0
-    # Overall wall-clock budget (seconds) for the candidate-building work after the
-    # fastest route is fetched. The avoid loop can fan out into many sequential
-    # routing calls; if the engine is slow this caps how long one request keeps a
-    # server thread, returning the best route found so far rather than hanging.
-    # The fastest route is fetched before the clock starts, so a result is always
-    # produced. Override with ROUTE_DEADLINE_S.
+    # Overall wall-clock budget (seconds) for route planning, including candidate
+    # lookup and the mandatory fastest route. Remaining time is passed to each
+    # routing request; optional avoidance work returns the best route found when the
+    # budget expires. PostGIS work is counted against this budget but is not cancelled
+    # by it; this does not set a database statement_timeout. Override with
+    # ROUTE_DEADLINE_S.
     DEADLINE_S = Float(ENV.fetch("ROUTE_DEADLINE_S", 8.0))
 
     def initialize(routing_client: RoutingEngineClient.build,
@@ -58,17 +58,18 @@ module Routing
     end
 
     def plan(origin:, destination:, locale: "en", deadline_s: DEADLINE_S)
+      deadline = monotonic_now + deadline_s
       bbox = bounding_box(origin, destination)
       candidates = @exclusion.segments_in_bbox(bbox, min_confidence: MIN_AVOID_CONFIDENCE)
 
-      fastest = @routing.route(origin: origin, destination: destination)
+      timeout = remaining_timeout(deadline)
+      raise Geo::HttpClient::ServiceError, "route planning deadline exceeded" unless timeout
+
+      fastest = @routing.route(origin: origin, destination: destination, timeout: timeout)
+      raise Geo::HttpClient::ServiceError, "route planning deadline exceeded" if deadline_exceeded?(deadline)
+
       fastest_passed = @detector.passed(fastest, candidates)
-
-      # Start the budget after the (mandatory) fastest route, so we always return
-      # a route even when the avoidance search would otherwise run long.
-      @deadline = monotonic_now + deadline_s
-
-      chosen = choose_route(origin, destination, fastest, fastest_passed, candidates)
+      chosen = choose_route(origin, destination, fastest, fastest_passed, candidates, deadline)
       chosen_passed = chosen.equal?(fastest) ? fastest_passed : @detector.passed(chosen, candidates)
 
       build_result(
@@ -92,14 +93,14 @@ module Routing
     # proximity_cost`, so we pick the genuinely least-exposed route and not a
     # pathological loop. A fastest route that already passes no cameras short-circuits
     # to itself.
-    def choose_route(origin, destination, fastest, fastest_passed, candidates)
+    def choose_route(origin, destination, fastest, fastest_passed, candidates, deadline)
       return fastest if fastest_passed.empty?
 
       pool = [ fastest ]
-      exclusion = avoid(origin, destination, candidates, fastest, fastest_passed)
+      exclusion = avoid(origin, destination, candidates, fastest, fastest_passed, deadline)
       pool << exclusion unless exclusion.equal?(fastest)
       # Skip the speculative quiet candidate once the budget is spent.
-      quiet = deadline_exceeded? ? nil : quiet_route(origin, destination)
+      quiet = deadline_exceeded?(deadline) ? nil : quiet_route(origin, destination, deadline)
       pool << quiet if quiet
 
       clean = pool.select { |route| @detector.passed(route, candidates).empty? }
@@ -115,9 +116,13 @@ module Routing
     # A route biased onto quieter surface streets (no highways + a low top speed), so
     # the selector has an out-of-the-way option that doesn't 442 the way a hard
     # exclusion can. nil when the engine can't produce one.
-    def quiet_route(origin, destination)
+    def quiet_route(origin, destination, deadline)
+      timeout = remaining_timeout(deadline)
+      return nil unless timeout
+
       @routing.route(origin: origin, destination: destination,
-                     costing_options: { use_highways: 0, top_speed: QUIET_TOP_SPEED })
+                     costing_options: { use_highways: 0, top_speed: QUIET_TOP_SPEED },
+                     timeout: timeout)
     rescue Geo::HttpClient::ServiceError
       nil
     end
@@ -139,7 +144,7 @@ module Routing
     # Instead we exclude the passed segments one at a time, keeping whichever still
     # route — true minimum exposure. A segment that's infeasible even on its own is
     # genuinely unavoidable (e.g. the only road out), so we stop retrying it.
-    def avoid(origin, destination, candidates, fastest, fastest_passed)
+    def avoid(origin, destination, candidates, fastest, fastest_passed, deadline)
       best = fastest
       best_passed = fastest_passed
       excluded_ids = Set.new # segments excluded so far (feasible together)
@@ -147,12 +152,12 @@ module Routing
       current = fastest
 
       MAX_PASSES.times do
-        break if deadline_exceeded? # budget spent — return the best route found so far
+        break if deadline_exceeded?(deadline) # budget spent — return the best route found so far
 
         new_ids = @detector.passed(current, candidates).map(&:id) - excluded_ids.to_a - unavoidable.to_a
         break if new_ids.empty? # nothing left we can try to exclude — best effort reached
 
-        route = reroute_excluding(origin, destination, candidates, excluded_ids.to_a + new_ids)
+        route = reroute_excluding(origin, destination, candidates, excluded_ids.to_a + new_ids, deadline)
 
         if route
           excluded_ids.merge(new_ids)
@@ -169,9 +174,9 @@ module Routing
           # dozens one by one (the few we drop are picked up on the next pass).
           progressed = false
           new_ids.first(FALLBACK_FANOUT_LIMIT).each do |id|
-            break if deadline_exceeded? # bound the per-pass fan-out by the budget too
+            break if deadline_exceeded?(deadline) # bound the per-pass fan-out by the budget too
 
-            trial = reroute_excluding(origin, destination, candidates, excluded_ids.to_a + [ id ])
+            trial = reroute_excluding(origin, destination, candidates, excluded_ids.to_a + [ id ], deadline)
             if trial
               excluded_ids << id
               current = trial
@@ -193,9 +198,9 @@ module Routing
 
     # Reroutes excluding the given segment ids (pulled from candidates). nil when no
     # path exists under that exclusion set, or the set is empty.
-    def reroute_excluding(origin, destination, candidates, ids)
+    def reroute_excluding(origin, destination, candidates, ids, deadline)
       segments = candidates.select { |s| ids.include?(s.id) }
-      safe_route(origin, destination, @exclusion.rings_for(segments))
+      safe_route(origin, destination, @exclusion.rings_for(segments), deadline)
     end
 
     # Keeps a candidate route as the new best only when it passes strictly fewer
@@ -205,10 +210,14 @@ module Routing
       passed.size < best_passed.size ? [ candidate_route, passed ] : [ best, best_passed ]
     end
 
-    def safe_route(origin, destination, exclude_polygons)
+    def safe_route(origin, destination, exclude_polygons, deadline)
       return nil if exclude_polygons.empty?
 
-      @routing.route(origin: origin, destination: destination, exclude_polygons: exclude_polygons)
+      timeout = remaining_timeout(deadline)
+      return nil unless timeout
+
+      @routing.route(origin: origin, destination: destination,
+                     exclude_polygons: exclude_polygons, timeout: timeout)
     rescue Geo::HttpClient::ServiceError
       nil # no route under this exclusion set → caller keeps the best route so far
     end
@@ -259,11 +268,16 @@ module Routing
       covered ? nil : "outside_coverage"
     end
 
-    # True once the per-request candidate-building budget is spent. Uses a
-    # monotonic clock so it's immune to wall-clock adjustments. Never true before
-    # #plan sets @deadline (so helpers called outside a plan are unaffected).
-    def deadline_exceeded?
-      @deadline && monotonic_now > @deadline
+    # Uses a monotonic clock so wall-clock adjustments cannot extend the budget.
+    # A non-positive remainder is never passed to the HTTP client, where zero would
+    # otherwise disable rather than constrain some timeout implementations.
+    def remaining_timeout(deadline)
+      remaining = deadline - monotonic_now
+      remaining.positive? ? remaining : nil
+    end
+
+    def deadline_exceeded?(deadline)
+      remaining_timeout(deadline).nil?
     end
 
     def monotonic_now

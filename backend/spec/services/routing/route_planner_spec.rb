@@ -306,19 +306,86 @@ RSpec.describe Routing::RoutePlanner do
   end
 
   describe "wall-clock deadline" do
-    it "returns the best route so far without running the avoid fan-out once the budget is spent" do
-      a = build_stubbed(:monitored_segment)
+    it "starts the clock before candidate lookup and reduces the fastest request timeout" do
+      now = 100.0
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      exclusion = exclusion_with([])
+      allow(exclusion).to receive(:segments_in_bbox) do
+        now = 102.0
+        []
+      end
+      route_planner = described_class.new(
+        routing_client: engine,
+        exclusion_builder: exclusion,
+        detector: GeoFakes::FakeDetector.new("FAST" => []),
+        proximity_scorer: GeoFakes::FakeProximityScorer.new
+      )
+      allow(route_planner).to receive(:monotonic_now) { now }
+
+      route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
+
+      expect(engine.timeouts).to eq([ 6.0 ])
+    end
+
+    it "raises without routing when candidate lookup consumes the mandatory budget" do
+      now = 100.0
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      exclusion = exclusion_with([])
+      allow(exclusion).to receive(:segments_in_bbox) do
+        now = 109.0
+        []
+      end
+      route_planner = described_class.new(routing_client: engine, exclusion_builder: exclusion)
+      allow(route_planner).to receive(:monotonic_now) { now }
+
+      expect {
+        route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
+      }.to raise_error(Geo::HttpClient::ServiceError, /deadline exceeded/)
+      expect(engine.timeouts).to be_empty
+    end
+
+    it "raises when the mandatory fastest request completes after the budget" do
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      route_planner = planner(engine, segments: [], passes: { "FAST" => [] })
+      times = [ 100.0, 100.0, 109.0 ]
+      allow(route_planner).to receive(:monotonic_now) { times.shift || 109.0 }
+
+      expect {
+        route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
+      }.to raise_error(Geo::HttpClient::ServiceError, /deadline exceeded/)
+      expect(engine.timeouts).to eq([ 8.0 ])
+    end
+
+    it "passes a positive non-increasing timeout to every optional route" do
+      segment = build_stubbed(:monitored_segment)
+      clean = sample_route(distance_m: 6_000, duration_s: 800, geometry: "CLEAN")
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: clean, quiet: clean)
+      route_planner = planner(engine, segments: [ segment ],
+                                      passes: { "FAST" => [ segment ], "CLEAN" => [] })
+      now = 100.0
+      allow(route_planner).to receive(:monotonic_now) { now += 0.25 }
+
+      route_planner.plan(origin: origin, destination: destination, deadline_s: 10)
+
+      expect(engine.timeouts).to eq([ 9.75, 9.0, 8.5 ])
+      expect(engine.timeouts).to all(be_positive)
+      expect(engine.timeouts.each_cons(2)).to all(satisfy { |previous, current| current <= previous })
+    end
+
+    it "returns the fastest route and suppresses optional calls after expiry" do
+      segment = build_stubbed(:monitored_segment)
       avoid = sample_route(distance_m: 6_000, duration_s: 800, geometry: "AVOID")
       engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: avoid, quiet: avoid)
+      route_planner = planner(engine, segments: [ segment ],
+                                      passes: { "FAST" => [ segment ], "AVOID" => [] })
+      times = [ 100.0, 100.0, 100.0, 109.0 ]
+      allow(route_planner).to receive(:monotonic_now) { times.shift || 109.0 }
 
-      # With a normal budget this O/D yields the fully-clean AVOID route; an
-      # already-exceeded deadline must short-circuit to the fastest route and make
-      # zero avoidance reroutes (no thread-pinning fan-out under a slow engine).
-      result = planner(engine, segments: [ a ], passes: { "FAST" => [ a ], "AVOID" => [] })
-               .plan(origin: origin, destination: destination, deadline_s: -1)
+      result = route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
 
-      expect(result.distance_m).to eq(5_000) # the fastest route
-      expect(engine.exclude_calls).to eq(0)  # no avoidance attempted
+      expect(result.distance_m).to eq(5_000)
+      expect(engine.timeouts).to eq([ 8.0 ])
+      expect(engine.exclude_calls).to eq(0)
     end
   end
 end

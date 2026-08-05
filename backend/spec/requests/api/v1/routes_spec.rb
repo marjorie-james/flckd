@@ -116,10 +116,11 @@ RSpec.describe "POST /api/v1/routes", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "responds with a structured error code when the routing service is down" do
+  it "keeps the no_route contract when mandatory route planning fails or expires" do
     planner = instance_double(Routing::RoutePlanner)
     allow(Routing::RoutePlanner).to receive(:new).and_return(planner)
-    allow(planner).to receive(:plan).and_raise(Geo::HttpClient::ServiceError)
+    allow(planner).to receive(:plan)
+      .and_raise(Geo::HttpClient::ServiceError, "route planning deadline exceeded")
 
     post "/api/v1/routes", params: params, as: :json
 

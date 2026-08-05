@@ -51,6 +51,15 @@ RSpec.describe Routing::RoutingEngineClient do
       }
     end
 
+    it "passes the remaining planner timeout to the HTTP request seam" do
+      allow(client).to receive(:post).and_call_original
+
+      client.route(origin: { lat: 1.0, lng: 2.0 }, destination: { lat: 3.0, lng: 4.0 }, timeout: 1.5)
+
+      expect(client).to have_received(:post)
+        .with("/route", hash_including(costing: "auto"), timeout: 1.5)
+    end
+
     it "tolerates a response with no trip (degenerate body)" do
       stub_request(:post, "#{base_url}/route")
         .to_return(status: 200, body: "{}", headers: { "Content-Type" => "application/json" })
