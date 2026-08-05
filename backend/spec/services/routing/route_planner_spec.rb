@@ -305,20 +305,179 @@ RSpec.describe Routing::RoutePlanner do
     end
   end
 
-  describe "wall-clock deadline" do
-    it "returns the best route so far without running the avoid fan-out once the budget is spent" do
-      a = build_stubbed(:monitored_segment)
+  describe "deadline accounting" do
+    it "starts the clock before candidate lookup and reduces the fastest request timeout" do
+      now = 100.0
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      exclusion = exclusion_with([])
+      allow(exclusion).to receive(:segments_in_bbox) do
+        now = 102.0
+        []
+      end
+      route_planner = described_class.new(
+        routing_client: engine,
+        exclusion_builder: exclusion,
+        detector: GeoFakes::FakeDetector.new("FAST" => []),
+        proximity_scorer: GeoFakes::FakeProximityScorer.new
+      )
+      allow(route_planner).to receive(:monotonic_now) { now }
+
+      route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
+
+      expect(engine.timeouts).to eq([ 6.0 ])
+    end
+
+    it "raises without routing when candidate lookup consumes the mandatory budget" do
+      now = 100.0
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      exclusion = exclusion_with([])
+      allow(exclusion).to receive(:segments_in_bbox) do
+        now = 109.0
+        []
+      end
+      route_planner = described_class.new(routing_client: engine, exclusion_builder: exclusion)
+      allow(route_planner).to receive(:monotonic_now) { now }
+
+      expect {
+        route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
+      }.to raise_error(Geo::HttpClient::ServiceError, /deadline exceeded/)
+      expect(engine.timeouts).to be_empty
+    end
+
+    it "raises when the mandatory fastest request completes after the budget" do
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      route_planner = planner(engine, segments: [], passes: { "FAST" => [] })
+      times = [ 100.0, 100.0, 100.0, 109.0 ]
+      allow(route_planner).to receive(:monotonic_now) { times.shift || 109.0 }
+
+      expect {
+        route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
+      }.to raise_error(Geo::HttpClient::ServiceError, /deadline exceeded/)
+      expect(engine.timeouts).to eq([ 8.0 ])
+    end
+
+    it "passes a positive non-increasing timeout to every optional route" do
+      segment = build_stubbed(:monitored_segment)
+      clean = sample_route(distance_m: 6_000, duration_s: 800, geometry: "CLEAN")
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: clean, quiet: clean)
+      route_planner = planner(engine, segments: [ segment ],
+                                      passes: { "FAST" => [ segment ], "CLEAN" => [] })
+      now = 100.0
+      allow(route_planner).to receive(:monotonic_now) { now += 0.25 }
+
+      route_planner.plan(origin: origin, destination: destination, deadline_s: 10)
+
+      expect(engine.timeouts).to eq([ 9.5, 8.0, 7.0 ])
+      expect(engine.timeouts).to all(be_positive)
+      expect(engine.timeouts.each_cons(2)).to all(satisfy { |previous, current| current <= previous })
+    end
+
+    it "returns the fastest route and suppresses optional calls after expiry" do
+      segment = build_stubbed(:monitored_segment)
       avoid = sample_route(distance_m: 6_000, duration_s: 800, geometry: "AVOID")
       engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: avoid, quiet: avoid)
+      route_planner = planner(engine, segments: [ segment ],
+                                      passes: { "FAST" => [ segment ], "AVOID" => [] })
+      times = [ 100.0, 100.0, 100.0, 100.0, 100.0, 109.0 ]
+      allow(route_planner).to receive(:monotonic_now) { times.shift || 109.0 }
 
-      # With a normal budget this O/D yields the fully-clean AVOID route; an
-      # already-exceeded deadline must short-circuit to the fastest route and make
-      # zero avoidance reroutes (no thread-pinning fan-out under a slow engine).
-      result = planner(engine, segments: [ a ], passes: { "FAST" => [ a ], "AVOID" => [] })
-               .plan(origin: origin, destination: destination, deadline_s: -1)
+      result = route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
 
-      expect(result.distance_m).to eq(5_000) # the fastest route
-      expect(engine.exclude_calls).to eq(0)  # no avoidance attempted
+      expect(result.distance_m).to eq(5_000)
+      expect(engine.timeouts).to eq([ 8.0 ])
+      expect(engine.exclude_calls).to eq(0)
+    end
+
+    it "uses fastest metadata when camera detection of a chosen route times out" do
+      segment = build_stubbed(:monitored_segment)
+      avoid = sample_route(distance_m: 6_000, duration_s: 800, geometry: "AVOID")
+      detector = instance_double(Routing::RouteCameraDetector)
+      allow(detector).to receive(:passed) { |route, _candidates| route[:geometry] == "FAST" ? [ segment ] : nil }
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      route_planner = described_class.new(routing_client: engine,
+                                          exclusion_builder: exclusion_with([ segment ]),
+                                          detector: detector,
+                                          proximity_scorer: GeoFakes::FakeProximityScorer.new)
+      allow(route_planner).to receive(:choose_route).and_return(avoid)
+
+      result = route_planner.plan(origin: origin, destination: destination)
+
+      expect(result.geometry).to eq("FAST")
+      expect(result.remaining_cameras).to eq([ { osm_way_id: segment.osm_way_id } ])
+      expect(result.fastest_comparison[:geometry]).to eq("FAST")
+      expect(result.fastest_comparison[:cameras_passed_count]).to eq(1)
+    end
+
+    it "discards a safe route whose HTTP call finishes after the deadline" do
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: fastest)
+      route_planner = planner(engine, segments: [], passes: { "FAST" => [] })
+      now = 100.0
+      allow(engine).to receive(:route).and_wrap_original do |original, **kwargs|
+        now = 109.0
+        original.call(**kwargs)
+      end
+      allow(route_planner).to receive(:monotonic_now) { now }
+
+      route = route_planner.send(:safe_route, origin, destination, [ [ [ 0.0, 0.0 ] ] ], 108.0)
+
+      expect(route).to be_nil
+      expect(engine.exclude_calls).to eq(1)
+    end
+
+    it "discards a quiet route whose HTTP call finishes after the deadline" do
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, quiet: fastest)
+      route_planner = planner(engine, segments: [], passes: { "FAST" => [] })
+      now = 100.0
+      allow(engine).to receive(:route).and_wrap_original do |original, **kwargs|
+        now = 109.0
+        original.call(**kwargs)
+      end
+      allow(route_planner).to receive(:monotonic_now) { now }
+
+      route = route_planner.send(:quiet_route, origin, destination, 108.0)
+
+      expect(route).to be_nil
+      expect(engine.timeouts).to eq([ 8.0 ])
+    end
+
+    describe "database cancellation" do
+      it "raises a service error for a cancelled mandatory stage and keeps the connection usable" do
+        route_planner = planner(GeoFakes::FakeRoutingEngine.new(fastest: fastest), segments: [])
+        deadline = route_planner.send(:monotonic_now) + 1
+
+        expect {
+          route_planner.send(:database_stage, deadline, mandatory: true) { raise ActiveRecord::QueryCanceled }
+        }.to raise_error(Geo::HttpClient::ServiceError, /deadline exceeded/)
+        expect(ActiveRecord::Base.connection.select_value("SELECT 1")).to eq(1)
+      end
+
+      it "returns nil for a cancelled optional stage and keeps the connection usable" do
+        route_planner = planner(GeoFakes::FakeRoutingEngine.new(fastest: fastest), segments: [])
+        deadline = route_planner.send(:monotonic_now) + 1
+
+        result = route_planner.send(:database_stage, deadline) { raise ActiveRecord::QueryCanceled }
+
+        expect(result).to be_nil
+        expect(ActiveRecord::Base.connection.select_value("SELECT 1")).to eq(1)
+      end
+
+      it "falls back to the fastest route when an optional proximity query is cancelled" do
+        segment = build_stubbed(:monitored_segment)
+        detour = sample_route(distance_m: 6_000, duration_s: 800, geometry: "DETOUR")
+        scorer = instance_double(Routing::ProximityScorer)
+        allow(scorer).to receive(:cost).and_raise(ActiveRecord::QueryCanceled)
+        route_planner = described_class.new(
+          routing_client: GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: detour, quiet: fastest),
+          exclusion_builder: exclusion_with([ segment ]),
+          detector: GeoFakes::FakeDetector.new("FAST" => [ segment ], "DETOUR" => [ segment ]),
+          proximity_scorer: scorer
+        )
+
+        result = route_planner.plan(origin: origin, destination: destination)
+
+        expect(result.geometry).to eq("FAST")
+        expect(ActiveRecord::Base.connection.select_value("SELECT 1")).to eq(1)
+      end
     end
   end
 end

@@ -27,12 +27,30 @@ module Geo
       end
     end
 
-    def get(path, params = {})
-      handle { connection.get(path, params) }
+    def get(path, params = {}, timeout: nil, **query)
+      timeout = request_timeout(timeout)
+      handle { connection.get(path, params.merge(query)) { |request| apply_timeout(request, timeout) } }
     end
 
-    def post(path, body = {})
-      handle { connection.post(path, body) }
+    def post(path, body = {}, timeout: nil)
+      timeout = request_timeout(timeout)
+      handle { connection.post(path, body) { |request| apply_timeout(request, timeout) } }
+    end
+
+    def request_timeout(timeout)
+      return if timeout.nil?
+
+      timeout = Float(timeout)
+      raise ArgumentError, "timeout must be positive" unless timeout.positive?
+
+      [ timeout, @timeout ].min
+    end
+
+    def apply_timeout(request, timeout)
+      return if timeout.nil?
+
+      request.options.timeout = timeout
+      request.options.open_timeout = timeout
     end
 
     def handle

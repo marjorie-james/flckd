@@ -9,8 +9,8 @@ RSpec.describe Geo::HttpClient do
 
   let(:client_class) do
     Class.new(described_class) do
-      def fetch(path) = get(path)
-      def send_body(path, body) = post(path, body)
+      def fetch(path, timeout: nil) = get(path, timeout: timeout)
+      def send_body(path, body, timeout: nil) = post(path, body, timeout: timeout)
     end
   end
 
@@ -33,6 +33,49 @@ RSpec.describe Geo::HttpClient do
 
       client.send_body("/echo", { a: 1 })
       expect(stub).to have_been_requested
+    end
+
+    it "applies a per-request timeout to open and read without changing connection defaults" do
+      connection = client.send(:connection)
+      defaults = [ connection.options.open_timeout, connection.options.timeout ]
+      request_options = nil
+      allow(connection).to receive(:post).and_wrap_original do |original, *args, &block|
+        original.call(*args) do |request|
+          block.call(request)
+          request_options = [ request.options.open_timeout, request.options.timeout ]
+        end
+      end
+      stub_request(:post, "#{base_url}/timed")
+        .to_return(status: 200, body: "{}", headers: { "Content-Type" => "application/json" })
+
+      client.send_body("/timed", {}, timeout: 1.25)
+
+      expect(request_options).to eq([ 1.25, 1.25 ])
+      expect([ connection.options.open_timeout, connection.options.timeout ]).to eq(defaults)
+    end
+
+    it "clamps a per-request timeout to the configured HTTP ceiling" do
+      connection = client.send(:connection)
+      request_options = nil
+      allow(connection).to receive(:get).and_wrap_original do |original, *args, &block|
+        original.call(*args) do |request|
+          block.call(request)
+          request_options = [ request.options.open_timeout, request.options.timeout ]
+        end
+      end
+      stub_request(:get, "#{base_url}/ceiling")
+        .to_return(status: 200, body: "{}", headers: { "Content-Type" => "application/json" })
+
+      client.fetch("/ceiling", timeout: 10)
+
+      expect(request_options).to eq([ 2, 2 ])
+    end
+
+    it "rejects a non-positive timeout before issuing a request" do
+      expect(client.send(:connection)).not_to receive(:get)
+
+      expect { client.fetch("/never", timeout: 0) }
+        .to raise_error(ArgumentError, /must be positive/)
     end
   end
 

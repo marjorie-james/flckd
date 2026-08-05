@@ -17,7 +17,7 @@ module GeoFakes
   class FakeRoutingEngine
     # Records the polygons of the last avoidance request so tests can assert
     # which subset a pass excluded, and how many exclusion calls were made.
-    attr_reader :last_exclude_polygons, :exclude_calls
+    attr_reader :last_exclude_polygons, :exclude_calls, :timeouts
 
     def initialize(fastest:, avoiding: nil, quiet: nil, raise_on_exclude: false)
       @fastest = fastest
@@ -26,9 +26,12 @@ module GeoFakes
       @raise_on_exclude = raise_on_exclude
       @last_exclude_polygons = nil
       @exclude_calls = 0
+      @timeouts = []
     end
 
-    def route(origin:, destination:, exclude_polygons: [], costing_options: {})
+    def route(origin:, destination:, exclude_polygons: [], costing_options: {}, timeout: nil)
+      @timeouts << timeout
+
       if exclude_polygons.empty?
         return @fastest if costing_options.empty?
         raise Geo::HttpClient::ServiceError, "no quiet route" if @quiet == :raise

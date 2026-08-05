@@ -14,7 +14,7 @@ module Routing
     #
     # Returns a normalized hash:
     #   { geometry:, distance_m:, duration_s:, maneuvers: [...] }
-    def route(origin:, destination:, exclude_polygons: [], costing_options: {})
+    def route(origin:, destination:, exclude_polygons: [], costing_options: {}, timeout: nil)
       payload = {
         costing: "auto",
         locations: [
@@ -24,7 +24,7 @@ module Routing
         exclude_polygons: exclude_polygons,
         costing_options: { auto: costing_options }
       }
-      body = post("/route", payload)
+      body = post("/route", payload, timeout: timeout)
       normalize(body)
     end
 
