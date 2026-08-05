@@ -143,6 +143,16 @@ RSpec.describe CameraData::TiledRefresh do
     expect(result.snapped_total).to eq(0)
   end
 
+  it "does not construct a tile source while creating blank state" do
+    source_factory = instance_spy(Proc)
+    refresh = described_class.new(tiles: [ tile_a ], source_factory: source_factory)
+
+    state = refresh.blank_state
+
+    expect(state).to include("delta_since" => nil, "delta_anchor_captured" => false)
+    expect(source_factory).not_to have_received(:call)
+  end
+
   describe "delta import" do
     let(:cam_c) { { external_ref: "osm:c", lat: 41.5, lng: -93.5, camera_type: "Flock", confidence: 0.5 } }
 
@@ -187,9 +197,10 @@ RSpec.describe CameraData::TiledRefresh do
 
       first = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
       state = first.blank_state
-      expect(state["delta_since"]).to eq(anchor.iso8601(6))
+      expect(state).to include("delta_since" => nil, "delta_anchor_captured" => false)
 
       travel_to(advanced, with_usec: true) { first.import_next(state) }
+      expect(state["delta_since"]).to eq(anchor.iso8601(6))
       expect(ds.reload.last_imported_at).to eq(advanced)
 
       state = JSON.parse(state.to_json)
@@ -222,28 +233,31 @@ RSpec.describe CameraData::TiledRefresh do
       expect(source_b).to have_received(:supports_delta?).with(since: nil)
     end
 
-    it "captures last_imported_at once when resuming a legacy cursor without an anchor" do
+    it "full-fetches remaining tiles when resuming a legacy cursor without an anchor" do
       original_anchor = Time.utc(2026, 1, 2, 3, 4, 5, 123_456)
       resume_anchor = Time.utc(2026, 1, 3, 4, 5, 6, 654_321)
       ds = DataSource.create!(name: "OpenStreetMap", kind: "community",
                               license: "ODbL-1.0", last_imported_at: original_anchor)
       source_a = src([])
-      source_b = delta_src(since: resume_anchor, upserted: [ cam_b ], deleted_refs: [])
+      source_b = src([ cam_b ])
+      allow(source_b).to receive(:fetch_delta)
       sources = factory(tile_a => source_a, tile_b => source_b)
 
       first = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
       state = JSON.parse(first.blank_state.to_json)
       state.delete("delta_since")
+      state.delete("delta_anchor_captured")
       state["i"] = 1
       ds.update!(last_imported_at: resume_anchor)
 
       second = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
       second.import_next(state)
 
-      # A legacy cursor cannot recover its original anchor. It records the value
-      # observed on its first resumed tile and keeps that value from then on.
-      expect(state["delta_since"]).to eq(resume_anchor.iso8601(6))
-      expect(source_b).to have_received(:supports_delta?).with(since: resume_anchor)
+      # A legacy cursor cannot recover its original anchor. Freeze nil so
+      # remaining tiles use the full endpoint and cannot omit changes.
+      expect(state).to include("delta_since" => nil, "legacy_cursor" => true)
+      expect(source_b).to have_received(:fetch)
+      expect(source_b).not_to have_received(:fetch_delta)
     end
 
     it "bulk-touches unchanged cameras so the reconciler does not flag them as missing" do

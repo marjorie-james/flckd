@@ -34,15 +34,17 @@ module CameraData
 
     # Fresh progress state. Plain string keys + arrays so it round-trips cleanly
     # through the continuation cursor's JSON serialization. The delta anchor is
-    # captured before tile 1 and stored as an ISO 8601 string; nil is retained to
-    # mean that this run intentionally started without a delta baseline.
+    # captured inside #import_next, after the tile source is constructed inside
+    # its failure-isolation seam. nil is retained to mean that this run started
+    # without a delta baseline.
     # "is_delta" / "deleted_refs" track the delta path for finalize; old cursors
     # without these keys degrade gracefully (is_delta nil = falsy → full path).
     def blank_state
       { "i" => 0, "added" => 0, "updated" => 0, "skipped" => 0,
         "failed" => 0, "ok" => [], "error_class" => nil,
         "is_delta" => false, "deleted_refs" => [],
-        "delta_since" => data_source&.last_imported_at&.iso8601(6) }
+        "delta_since" => nil, "delta_anchor_captured" => false,
+        "legacy_cursor" => false }
     end
 
     def call
@@ -64,9 +66,9 @@ module CameraData
       begin
         source = @source_factory.call(cell)
         @source_name ||= source.source_name
-        @importer ||= Importer.for_source(source)
         since = delta_since(state)
-        if source.supports_delta?(since: since)
+        @importer ||= Importer.for_source(source)
+        if !state["legacy_cursor"] && source.supports_delta?(since: since)
           delta = source.fetch_delta(since: since)
           stats = @importer.import(delta[:upserted])
           (state["deleted_refs"] ||= []).concat(delta[:deleted_refs])
@@ -121,12 +123,17 @@ module CameraData
 
     # Read the run-wide delta anchor from continuation state rather than process
     # memory, so a resumed service uses the same timestamp after JSON round-trip.
-    # Legacy cursors have no key. Their original pre-tile-1 anchor cannot be
-    # reconstructed, so capture last_imported_at once on the first resumed tile
-    # and persist it for the rest of that run.
+    # The anchor for a new run is captured after source construction, so blank_state
+    # never invokes source_factory outside import_next's per-tile rescue seam.
+    # Legacy cursors cannot recover their original anchor. Freeze nil instead of
+    # observing a potentially advanced DataSource and accidentally doing a delta.
     def delta_since(state)
-      unless state.key?("delta_since")
+      if !state.key?("delta_since")
+        state["delta_since"] = nil
+        state["legacy_cursor"] = true
+      elsif state["delta_anchor_captured"] == false
         state["delta_since"] = data_source&.last_imported_at&.iso8601(6)
+        state["delta_anchor_captured"] = true
       end
 
       value = state["delta_since"]
