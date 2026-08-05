@@ -33,13 +33,18 @@ module CameraData
     def size = @tiles.size
 
     # Fresh progress state. Plain string keys + arrays so it round-trips cleanly
-    # through the continuation cursor's JSON serialization.
+    # through the continuation cursor's JSON serialization. The delta anchor is
+    # captured inside #import_next, after the tile source is constructed inside
+    # its failure-isolation seam. nil is retained to mean that this run started
+    # without a delta baseline.
     # "is_delta" / "deleted_refs" track the delta path for finalize; old cursors
     # without these keys degrade gracefully (is_delta nil = falsy → full path).
     def blank_state
       { "i" => 0, "added" => 0, "updated" => 0, "skipped" => 0,
         "failed" => 0, "ok" => [], "error_class" => nil,
-        "is_delta" => false, "deleted_refs" => [] }
+        "is_delta" => false, "deleted_refs" => [],
+        "delta_since" => nil, "delta_anchor_captured" => false,
+        "legacy_cursor" => false }
     end
 
     def call
@@ -61,9 +66,9 @@ module CameraData
       begin
         source = @source_factory.call(cell)
         @source_name ||= source.source_name
+        since = delta_since(state)
         @importer ||= Importer.for_source(source)
-        since = delta_since
-        if source.supports_delta?(since: since)
+        if !state["legacy_cursor"] && source.supports_delta?(since: since)
           delta = source.fetch_delta(since: since)
           stats = @importer.import(delta[:upserted])
           (state["deleted_refs"] ||= []).concat(delta[:deleted_refs])
@@ -86,7 +91,9 @@ module CameraData
 
     # Reconcile (within successful tiles only) + snap; returns the run Result.
     # For delta runs, bulk-touch unchanged cameras first so the stale reconciler
-    # doesn't flag them as missing (they simply weren't in the diff).
+    # doesn't flag them as missing (they simply weren't in the diff). A legacy
+    # cursor can mix historic delta tiles with fallback full tiles; retain this
+    # path to under-retire rather than falsely retire omitted full-fetch records.
     def finalize(state)
       if state["is_delta"]
         StaleReconciler.new.touch_seen(data_source: data_source, except_refs: state.fetch("deleted_refs", []))
@@ -116,16 +123,23 @@ module CameraData
       @data_source ||= (source_name && DataSource.find_by(name: source_name))
     end
 
-    # The timestamp to use as the delta anchor — snapshotted exactly once on the
-    # first tile so a mid-run DataSource creation (by the importer) cannot shift
-    # later tiles onto the delta path when the source had no prior baseline.
-    # Uses a boolean flag rather than ||= because ||= does not memoize nil.
-    def delta_since
-      unless defined?(@delta_since_set)
-        @delta_since = data_source&.last_imported_at
-        @delta_since_set = true
+    # Read the run-wide delta anchor from continuation state rather than process
+    # memory, so a resumed service uses the same timestamp after JSON round-trip.
+    # The anchor for a new run is captured after source construction, so blank_state
+    # never invokes source_factory outside import_next's per-tile rescue seam.
+    # Legacy cursors cannot recover their original anchor. Freeze nil instead of
+    # observing a potentially advanced DataSource and accidentally doing a delta.
+    def delta_since(state)
+      if !state.key?("delta_since")
+        state["delta_since"] = nil
+        state["legacy_cursor"] = true
+      elsif state["delta_anchor_captured"] == false
+        state["delta_since"] = data_source&.last_imported_at&.iso8601(6)
+        state["delta_anchor_captured"] = true
       end
-      @delta_since
+
+      value = state["delta_since"]
+      value && Time.iso8601(value)
     end
 
     # Reconcile only within successfully-fetched tiles (see class note). `ok` is an
