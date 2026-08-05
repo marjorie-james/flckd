@@ -1,13 +1,9 @@
-// Thin fetch wrapper for the flckd API. Talks only to our own backend (never a
-// third party): same-origin by default, or the apiBase from runtime config when
-// the API is hosted separately (e.g. a standby spine). Vite proxies /api -> :3000
-// in dev.
-import { apiBase } from "../config";
+// Thin fetch wrapper for the flckd API. Browser requests always use the
+// same-origin /api/v1 endpoint so runtime config cannot disclose route data to
+// another origin. Vite proxies /api -> :3000 in development.
 import i18n from "../i18n";
 
-// Built per call (not at module load) so it reflects config.json fetched at boot.
-// apiBase() is "" in the common same-origin case → a relative "/api/v1" request.
-const base = (): string => `${apiBase()}/api/v1`;
+const API_PREFIX = "/api/v1";
 
 export class ApiError extends Error {
   code: string;
@@ -43,14 +39,14 @@ export function apiGet<T>(
   const qs = params
     ? "?" + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
     : "";
-  return fetch(`${base()}${path}${qs}`, {
+  return fetch(`${API_PREFIX}${path}${qs}`, {
     headers: { "Accept-Language": currentLocale() },
     signal,
   }).then((r) => handle<T>(r));
 }
 
 export function apiPost<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
-  return fetch(`${base()}${path}`, {
+  return fetch(`${API_PREFIX}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Accept-Language": currentLocale() },
     body: JSON.stringify(body),

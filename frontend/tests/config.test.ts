@@ -17,48 +17,43 @@ function stubFetch(body: unknown, ok = true) {
 describe("runtime config", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("defaults to same-origin before loadConfig runs (API relative, tiles = page origin)", async () => {
-    const { apiBase, tilesBase } = await freshConfig();
-    expect(apiBase()).toBe(""); // relative /api/v1
+  it("defaults tiles to the page origin before loadConfig runs", async () => {
+    const { tilesBase } = await freshConfig();
     expect(tilesBase()).toBe(window.location.origin);
   });
 
-  it("applies apiBase/tilesBase from config.json, trimming trailing slashes", async () => {
-    stubFetch({ apiBase: "https://api.flckd.example/", tilesBase: "https://tiles.flckd.example//" });
-    const { loadConfig, apiBase, tilesBase } = await freshConfig();
+  it("applies tilesBase from config.json and trims trailing slashes", async () => {
+    stubFetch({ tilesBase: "https://tiles.flckd.example//" });
+    const { loadConfig, tilesBase } = await freshConfig();
     await loadConfig();
-    expect(apiBase()).toBe("https://api.flckd.example");
     expect(tilesBase()).toBe("https://tiles.flckd.example");
   });
 
-  it("fetches config.json with no-store so a CDN cache can't pin a dead origin", async () => {
-    const mock = stubFetch({ apiBase: "", tilesBase: "" });
+  it("fetches config.json with no-store so tile origin changes apply on reload", async () => {
+    const mock = stubFetch({ tilesBase: "" });
     const { loadConfig } = await freshConfig();
     await loadConfig();
     expect(mock).toHaveBeenCalledWith("/config.json", { cache: "no-store" });
   });
 
-  it("falls back to same-origin when config.json is missing (404)", async () => {
+  it("falls back to same-origin tiles when config.json is missing", async () => {
     stubFetch({}, false);
-    const { loadConfig, apiBase, tilesBase } = await freshConfig();
+    const { loadConfig, tilesBase } = await freshConfig();
     await loadConfig();
-    expect(apiBase()).toBe("");
     expect(tilesBase()).toBe(window.location.origin);
   });
 
-  it("falls back to same-origin and never throws when the fetch rejects", async () => {
+  it("falls back to same-origin tiles and never throws when the fetch rejects", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
-    const { loadConfig, apiBase, tilesBase } = await freshConfig();
+    const { loadConfig, tilesBase } = await freshConfig();
     await expect(loadConfig()).resolves.toBeUndefined();
-    expect(apiBase()).toBe("");
     expect(tilesBase()).toBe(window.location.origin);
   });
 
-  it("ignores non-string fields in config.json", async () => {
-    stubFetch({ apiBase: 42, tilesBase: null });
-    const { loadConfig, apiBase, tilesBase } = await freshConfig();
+  it("ignores a non-string tilesBase in config.json", async () => {
+    stubFetch({ tilesBase: null });
+    const { loadConfig, tilesBase } = await freshConfig();
     await loadConfig();
-    expect(apiBase()).toBe("");
     expect(tilesBase()).toBe(window.location.origin);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { loadConfig } from "../src/config";
 import { apiGet, apiPost, ApiError } from "../src/services/apiClient";
 
 // The fetch wrapper is anonymity-critical: it must talk ONLY to our own
@@ -20,6 +21,24 @@ describe("apiClient anonymity", () => {
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url).toBe("/api/v1/routes");
     expect(url).not.toMatch(/^https?:\/\//); // not an absolute external URL
+  });
+
+  it("ignores a hostile legacy apiBase for both POST and GET requests", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ apiBase: "https://attacker.example" }),
+      } as Response)
+      .mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await loadConfig();
+    await apiPost("/routes", { route: {} });
+    await apiGet("/cameras");
+
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/v1/routes");
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/v1/cameras");
   });
 
   it("sends only content-type + language headers — no cookie/auth/identifier", async () => {
