@@ -33,13 +33,16 @@ module CameraData
     def size = @tiles.size
 
     # Fresh progress state. Plain string keys + arrays so it round-trips cleanly
-    # through the continuation cursor's JSON serialization.
+    # through the continuation cursor's JSON serialization. The delta anchor is
+    # captured before tile 1 and stored as an ISO 8601 string; nil is retained to
+    # mean that this run intentionally started without a delta baseline.
     # "is_delta" / "deleted_refs" track the delta path for finalize; old cursors
     # without these keys degrade gracefully (is_delta nil = falsy → full path).
     def blank_state
       { "i" => 0, "added" => 0, "updated" => 0, "skipped" => 0,
         "failed" => 0, "ok" => [], "error_class" => nil,
-        "is_delta" => false, "deleted_refs" => [] }
+        "is_delta" => false, "deleted_refs" => [],
+        "delta_since" => data_source&.last_imported_at&.iso8601(6) }
     end
 
     def call
@@ -62,7 +65,7 @@ module CameraData
         source = @source_factory.call(cell)
         @source_name ||= source.source_name
         @importer ||= Importer.for_source(source)
-        since = delta_since
+        since = delta_since(state)
         if source.supports_delta?(since: since)
           delta = source.fetch_delta(since: since)
           stats = @importer.import(delta[:upserted])
@@ -116,16 +119,18 @@ module CameraData
       @data_source ||= (source_name && DataSource.find_by(name: source_name))
     end
 
-    # The timestamp to use as the delta anchor — snapshotted exactly once on the
-    # first tile so a mid-run DataSource creation (by the importer) cannot shift
-    # later tiles onto the delta path when the source had no prior baseline.
-    # Uses a boolean flag rather than ||= because ||= does not memoize nil.
-    def delta_since
-      unless defined?(@delta_since_set)
-        @delta_since = data_source&.last_imported_at
-        @delta_since_set = true
+    # Read the run-wide delta anchor from continuation state rather than process
+    # memory, so a resumed service uses the same timestamp after JSON round-trip.
+    # Legacy cursors have no key. Their original pre-tile-1 anchor cannot be
+    # reconstructed, so capture last_imported_at once on the first resumed tile
+    # and persist it for the rest of that run.
+    def delta_since(state)
+      unless state.key?("delta_since")
+        state["delta_since"] = data_source&.last_imported_at&.iso8601(6)
       end
-      @delta_since
+
+      value = state["delta_since"]
+      value && Time.iso8601(value)
     end
 
     # Reconcile only within successfully-fetched tiles (see class note). `ok` is an

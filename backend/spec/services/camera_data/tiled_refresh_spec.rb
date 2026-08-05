@@ -175,6 +175,77 @@ RSpec.describe CameraData::TiledRefresh do
       expect(Camera.find_by(external_ref: "osm:a")).to be_present
     end
 
+    it "keeps the pre-tile-1 delta anchor across a JSON round-trip resume" do
+      anchor = Time.utc(2026, 1, 2, 3, 4, 5, 123_456)
+      advanced = Time.utc(2026, 1, 3, 4, 5, 6, 654_321)
+      ds = DataSource.create!(name: "OpenStreetMap", kind: "community",
+                              license: "ODbL-1.0", last_imported_at: anchor)
+      anchor = ds.last_imported_at
+      source_a = delta_src(since: anchor, upserted: [ cam_a ], deleted_refs: [])
+      source_b = delta_src(since: anchor, upserted: [ cam_b ], deleted_refs: [])
+      sources = factory(tile_a => source_a, tile_b => source_b)
+
+      first = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
+      state = first.blank_state
+      expect(state["delta_since"]).to eq(anchor.iso8601(6))
+
+      travel_to(advanced, with_usec: true) { first.import_next(state) }
+      expect(ds.reload.last_imported_at).to eq(advanced)
+
+      state = JSON.parse(state.to_json)
+      second = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
+      second.import_next(state)
+
+      expect(state["delta_since"]).to eq(anchor.iso8601(6))
+      expect(source_a).to have_received(:supports_delta?).with(since: anchor)
+      expect(source_b).to have_received(:supports_delta?).with(since: anchor)
+    end
+
+    it "preserves a key-present nil anchor across a JSON round-trip resume" do
+      source_a = src([ cam_a ])
+      source_b = src([ cam_b ])
+      sources = factory(tile_a => source_a, tile_b => source_b)
+
+      first = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
+      state = first.blank_state
+      expect(state).to include("delta_since" => nil)
+
+      first.import_next(state)
+      expect(DataSource.find_by!(name: "OpenStreetMap").last_imported_at).to be_present
+
+      state = JSON.parse(state.to_json)
+      second = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
+      second.import_next(state)
+
+      expect(state).to include("delta_since" => nil)
+      expect(source_a).to have_received(:supports_delta?).with(since: nil)
+      expect(source_b).to have_received(:supports_delta?).with(since: nil)
+    end
+
+    it "captures last_imported_at once when resuming a legacy cursor without an anchor" do
+      original_anchor = Time.utc(2026, 1, 2, 3, 4, 5, 123_456)
+      resume_anchor = Time.utc(2026, 1, 3, 4, 5, 6, 654_321)
+      ds = DataSource.create!(name: "OpenStreetMap", kind: "community",
+                              license: "ODbL-1.0", last_imported_at: original_anchor)
+      source_a = src([])
+      source_b = delta_src(since: resume_anchor, upserted: [ cam_b ], deleted_refs: [])
+      sources = factory(tile_a => source_a, tile_b => source_b)
+
+      first = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
+      state = JSON.parse(first.blank_state.to_json)
+      state.delete("delta_since")
+      state["i"] = 1
+      ds.update!(last_imported_at: resume_anchor)
+
+      second = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
+      second.import_next(state)
+
+      # A legacy cursor cannot recover its original anchor. It records the value
+      # observed on its first resumed tile and keeps that value from then on.
+      expect(state["delta_since"]).to eq(resume_anchor.iso8601(6))
+      expect(source_b).to have_received(:supports_delta?).with(since: resume_anchor)
+    end
+
     it "bulk-touches unchanged cameras so the reconciler does not flag them as missing" do
       # First full run: import cam_a and cam_b.
       described_class.new(
