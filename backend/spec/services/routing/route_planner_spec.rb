@@ -347,7 +347,7 @@ RSpec.describe Routing::RoutePlanner do
     it "raises when the mandatory fastest request completes after the budget" do
       engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
       route_planner = planner(engine, segments: [], passes: { "FAST" => [] })
-      times = [ 100.0, 100.0, 109.0 ]
+      times = [ 100.0, 100.0, 100.0, 109.0 ]
       allow(route_planner).to receive(:monotonic_now) { times.shift || 109.0 }
 
       expect {
@@ -367,7 +367,7 @@ RSpec.describe Routing::RoutePlanner do
 
       route_planner.plan(origin: origin, destination: destination, deadline_s: 10)
 
-      expect(engine.timeouts).to eq([ 9.75, 9.0, 8.5 ])
+      expect(engine.timeouts).to eq([ 9.5, 8.0, 7.0 ])
       expect(engine.timeouts).to all(be_positive)
       expect(engine.timeouts.each_cons(2)).to all(satisfy { |previous, current| current <= previous })
     end
@@ -378,7 +378,7 @@ RSpec.describe Routing::RoutePlanner do
       engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: avoid, quiet: avoid)
       route_planner = planner(engine, segments: [ segment ],
                                       passes: { "FAST" => [ segment ], "AVOID" => [] })
-      times = [ 100.0, 100.0, 100.0, 109.0 ]
+      times = [ 100.0, 100.0, 100.0, 100.0, 100.0, 109.0 ]
       allow(route_planner).to receive(:monotonic_now) { times.shift || 109.0 }
 
       result = route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
@@ -386,6 +386,23 @@ RSpec.describe Routing::RoutePlanner do
       expect(result.distance_m).to eq(5_000)
       expect(engine.timeouts).to eq([ 8.0 ])
       expect(engine.exclude_calls).to eq(0)
+    end
+
+    it "discards an optional route that completes after the deadline" do
+      segment = build_stubbed(:monitored_segment)
+      avoid = sample_route(distance_m: 6_000, duration_s: 800, geometry: "AVOID")
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest, avoiding: avoid, quiet: avoid)
+      route_planner = planner(engine, segments: [ segment ],
+                                      passes: { "FAST" => [ segment ], "AVOID" => [] })
+      # Leave enough budget for the exclusion call, then advance the monotonic
+      # clock at its completion check. The prior fastest route must remain chosen.
+      times = Array.new(15, 100.0) + [ 109.0 ]
+      allow(route_planner).to receive(:monotonic_now) { times.shift || 109.0 }
+
+      result = route_planner.plan(origin: origin, destination: destination, deadline_s: 8)
+
+      expect(result.distance_m).to eq(5_000)
+      expect(engine.exclude_calls).to eq(1)
     end
   end
 end
