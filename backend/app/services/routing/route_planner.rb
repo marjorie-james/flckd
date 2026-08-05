@@ -75,7 +75,8 @@ module Routing
       raise Geo::HttpClient::ServiceError, "route planning deadline exceeded" unless fastest_passed
       chosen = choose_route(origin, destination, fastest, fastest_passed, candidates, deadline)
       chosen_passed = chosen.equal?(fastest) ? fastest_passed : detector_passed(chosen, candidates, deadline)
-      chosen_passed ||= fastest_passed
+      # A detector timeout cannot leave fastest metadata attached to another route.
+      chosen, chosen_passed = fastest, fastest_passed unless chosen_passed
 
       build_result(
         route: chosen,
@@ -300,7 +301,12 @@ module Routing
 
       milliseconds = [ (timeout * 1000).ceil, 1 ].max
       ActiveRecord::Base.transaction(requires_new: true) do
-        ActiveRecord::Base.connection.execute("SET LOCAL statement_timeout = '#{milliseconds}ms'")
+        timeout = ActiveRecord::Relation::QueryAttribute.new(
+          "statement_timeout", "#{milliseconds}ms", ActiveRecord::Type::String.new
+        )
+        ActiveRecord::Base.connection.exec_query(
+          "SELECT set_config('statement_timeout', $1, true)", "set statement timeout", [ timeout ]
+        )
         yield
       end
     rescue ActiveRecord::QueryCanceled
