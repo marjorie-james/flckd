@@ -12,10 +12,9 @@ import '@fontsource/ibm-plex-mono/latin-700.css'
 import App from './App.tsx'
 import { loadConfig } from './config'
 
-// Fetch runtime deploy config (API + tiles origins) before the first render so
-// the very first API/tile request uses the configured hosts. loadConfig always
-// resolves — a missing/invalid config.json falls back to same-origin defaults —
-// so the app boots regardless.
+// Fetch the public tile origin before the first render so the first tile request
+// uses it. loadConfig always resolves, and missing or invalid config falls back
+// to same-origin tiles.
 loadConfig().then(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

@@ -20,10 +20,11 @@ nothing cross-site, and a user's route never leaves our box (FR-012a).
         nothing but Caddy needs a host port.
 ```
 
-- **Single origin** → `frontend/public/config.json` stays `apiBase:""`,
-  `tilesBase:""` (same-origin). The map style requests `/tiles/{z}/{x}/{y}.mvt`
-  and `/fonts/...` same-origin; go-pmtiles serves our `tiles.pmtiles` archive at
-  exactly `/tiles/{z}/{x}/{y}.mvt`, and fonts are vendored into the build.
+- **Single origin** → browser API requests always use relative `/api/v1` URLs,
+  and `frontend/public/config.json` keeps `tilesBase:""`. The map style requests
+  `/tiles/{z}/{x}/{y}.mvt` and `/fonts/...` same-origin; go-pmtiles serves our
+  `tiles.pmtiles` archive at exactly `/tiles/{z}/{x}/{y}.mvt`, and fonts are
+  vendored into the build.
 - **Caddy terminates TLS**; kamal-proxy sits behind it speaking plain HTTP and
   only does zero-downtime app version switching.
 
@@ -55,8 +56,9 @@ re-sync + `caddy reload` — no container rebuild. Config comes from
 `backend/.kamal/frontend.env` (gitignored; copy `frontend.env.example`):
 `FLCKD_DOMAIN`, `ACME_EMAIL`, and `API_HOST` (defaults to deploy.yml `proxy.host`).
 
-To re-point the running app at a different API/tiles origin without rebuilding,
-edit `dist/config.json` on the host (it is served `Cache-Control: no-store`).
+To change the running app's public tile origin without rebuilding, edit
+`dist/config.json` on the host (it is served `Cache-Control: no-store`). Browser
+API requests remain same-origin and cannot be changed by runtime config.
 
 ## How Caddy and Kamal-proxy coexist (the one non-obvious bit)
 

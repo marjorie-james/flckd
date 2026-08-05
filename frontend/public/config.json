@@ -1,5 +1,4 @@
 {
-  "_comment": "Runtime deploy config, read once at page load (see src/config.ts). Edit this file on the static host to re-point the app WITHOUT rebuilding the bundle. Empty string = same-origin (the default co-located deploy). apiBase must always be OUR backend (anonymity); tilesBase may be a CDN. Serve this file with a short/zero cache TTL so failovers take effect immediately.",
-  "apiBase": "",
+  "_comment": "Runtime public-tile config, read once at page load (see src/config.ts). Edit this file on the static host to change the tile origin without rebuilding the bundle. Empty tilesBase uses the page origin. Public tiles may use a CDN because tile requests contain no route data. Serve this file with a short or zero cache TTL so changes take effect on the next page load.",
   "tilesBase": ""
 }

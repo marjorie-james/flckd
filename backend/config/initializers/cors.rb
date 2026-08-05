@@ -1,10 +1,11 @@
-# CORS for the SPA. Anonymity model: the API and SPA are same-origin in
-# production, so cross-origin requests are NOT permitted by default. In dev the
-# Vite dev server proxies /api to this app (same-origin from the browser's
-# view), so no CORS allowance is needed there either.
+# Browser requests to the API must remain same-origin. In production, a
+# separately hosted SPA must proxy /api through its own origin (or otherwise
+# preserve the same-origin browser contract); it must not configure direct
+# cross-origin API access. In dev, the Vite dev server proxies /api to this app.
 #
-# Set FRONTEND_ORIGIN only if you intentionally serve the SPA from a different
-# origin; leaving it unset keeps the API closed to cross-origin callers.
+# FRONTEND_ORIGIN is an explicit CORS exception for approved non-SPA callers,
+# not a way to host the SPA's API requests cross-origin. Leave it unset for the
+# normal same-origin deployment model.
 if ENV["FRONTEND_ORIGIN"].present?
   Rails.application.config.middleware.insert_before 0, Rack::Cors do
     allow do

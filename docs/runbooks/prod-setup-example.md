@@ -77,8 +77,9 @@ deploy). It does three things from one origin:
    `api.<DOMAIN>` (the label kamal-proxy routes the app on).
 3. **`/tiles/*` → `flckd-backend-tiles:8080`** (self-hosted PMTiles).
 
-Single origin ⇒ no CORS, nothing cross-site, and
-`frontend/public/config.json` stays `apiBase:""` / `tilesBase:""`.
+Single origin means no CORS and nothing cross-site. Browser API requests always
+use relative `/api/v1` URLs, and `frontend/public/config.json` keeps
+`tilesBase:""`.
 
 Edge config lives in [`backend/.kamal/frontend.env`](../../backend/.kamal/frontend.env)
 (gitignored), consumed by `deploy-frontend.sh` — `FLCKD_DOMAIN`, `ACME_EMAIL`,

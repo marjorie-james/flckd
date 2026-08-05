@@ -68,8 +68,8 @@ getflckd.com, www.getflckd.com {
 		@html path / /index.html
 		header @html Cache-Control "no-cache"
 
-		# config.json is the runtime failover lever (see frontend/src/config.ts) —
-		# never let it be cached, so a re-point takes effect on the next load.
+		# config.json controls the public tile origin (see frontend/src/config.ts).
+		# Do not cache it, so tile origin changes apply on the next page load.
 		@configjson path /config.json
 		header @configjson Cache-Control "no-store"
 
