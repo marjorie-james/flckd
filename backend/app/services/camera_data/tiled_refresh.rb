@@ -91,7 +91,9 @@ module CameraData
 
     # Reconcile (within successful tiles only) + snap; returns the run Result.
     # For delta runs, bulk-touch unchanged cameras first so the stale reconciler
-    # doesn't flag them as missing (they simply weren't in the diff).
+    # doesn't flag them as missing (they simply weren't in the diff). A legacy
+    # cursor can mix historic delta tiles with fallback full tiles; retain this
+    # path to under-retire rather than falsely retire omitted full-fetch records.
     def finalize(state)
       if state["is_delta"]
         StaleReconciler.new.touch_seen(data_source: data_source, except_refs: state.fetch("deleted_refs", []))

@@ -240,13 +240,14 @@ RSpec.describe CameraData::TiledRefresh do
                               license: "ODbL-1.0", last_imported_at: original_anchor)
       source_a = src([])
       source_b = src([ cam_b ])
-      allow(source_b).to receive(:fetch_delta)
+      allow(source_b).to receive(:supports_delta?).with(since: nil).and_return(true)
+      allow(source_b).to receive(:fetch_delta).with(since: nil)
       sources = factory(tile_a => source_a, tile_b => source_b)
 
       first = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources)
-      state = JSON.parse(first.blank_state.to_json)
-      state.delete("delta_since")
-      state.delete("delta_anchor_captured")
+      state = JSON.parse(first.blank_state.to_json).except(
+        "delta_since", "delta_anchor_captured", "legacy_cursor"
+      )
       state["i"] = 1
       ds.update!(last_imported_at: resume_anchor)
 
@@ -258,6 +259,32 @@ RSpec.describe CameraData::TiledRefresh do
       expect(state).to include("delta_since" => nil, "legacy_cursor" => true)
       expect(source_b).to have_received(:fetch)
       expect(source_b).not_to have_received(:fetch_delta)
+    end
+
+    it "favors under-retirement when a legacy cursor mixes delta and full tiles" do
+      cutoff = Time.current
+      ds = DataSource.create!(name: "OpenStreetMap", kind: "community", license: "ODbL-1.0")
+      camera = create(:camera, data_source: ds, external_ref: "osm:b",
+                                last_seen_in_source_at: cutoff - 1.day,
+                                consecutive_missing_count: 2, stale: true)
+      source_b = src([])
+      allow(source_b).to receive(:supports_delta?).with(since: nil).and_return(true)
+      sources = factory(tile_a => src([]), tile_b => source_b)
+      state = {
+        "i" => 1, "added" => 0, "updated" => 0, "skipped" => 0,
+        "failed" => 0, "ok" => [ tile_a.values_at(:south, :west, :north, :east) ],
+        "error_class" => nil, "is_delta" => true, "deleted_refs" => []
+      }
+
+      refresh = described_class.new(tiles: [ tile_a, tile_b ], source_factory: sources, cutoff: cutoff)
+      refresh.import_next(state)
+      result = refresh.finalize(state)
+
+      # The historic delta path makes finalize globally touch unseen records.
+      # Although tile B's fallback full fetch omitted this camera, preserving it
+      # is safer than treating a mixed legacy cursor as authoritative and retiring it.
+      expect(result.totals["retired"]).to eq(0)
+      expect(camera.reload).to have_attributes(consecutive_missing_count: 0, stale: false, auto_retired: false)
     end
 
     it "bulk-touches unchanged cameras so the reconciler does not flag them as missing" do
