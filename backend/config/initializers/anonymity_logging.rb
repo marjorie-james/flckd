@@ -61,16 +61,35 @@ module AnonymityLogScrubber
   # each member is redacted independently ("a,b" -> "[redacted-coord],[redacted-coord]").
   # COORD then catches any single high-precision coordinate (3+ decimals) that
   # appears outside a pair.
-  COORD_PAIR = /(-?\d{1,3}(?:\.\d+)?)(\s*,\s*)(-?\d{1,3}(?:\.\d+)?)/
+  COORD_PAIR = /(?<![\d$])(-?\d{1,3}(?:\.\d+)?)(\s*,\s*)(-?\d{1,3}(?:\.\d+)?)(?!\d)/
   COORD = /-?\d{1,3}\.\d{3,}/ # 3+ decimal places ~ a precise coordinate
+  CANDIDATE_ENVELOPE_MARKER = "/* route-candidate-envelope */"
+  BIND_VALUE = /(\[(?:nil|"[^"]*"),\s*)(-?\d+(?:\.\d+)?)(\])/
   REPLACEMENT = "[redacted-coord]"
 
   def self.scrub(string)
     return string unless string.is_a?(String)
 
-    string
+    scrubbed = scrub_candidate_envelope_binds(string)
+    scrubbed
       .gsub(COORD_PAIR, "#{REPLACEMENT}\\2#{REPLACEMENT}")
       .gsub(COORD, REPLACEMENT)
+  end
+
+  # Active Record renders SQL binds at the tail of its debug line. The explicit
+  # marker on SegmentExclusionBuilder's query identifies those lines, then this
+  # replaces only the final four binds per ST_MakeEnvelope. The SQL, timestamp,
+  # query timing, placeholders, and SRID remain useful for debugging.
+  def self.scrub_candidate_envelope_binds(string)
+    return string unless string.include?(CANDIDATE_ENVELOPE_MARKER)
+
+    bind_count = string.scan(/ST_MakeEnvelope/).length * 4
+    matches = string.enum_for(:scan, BIND_VALUE).map { Regexp.last_match }
+
+    matches.last(bind_count).reverse_each do |match|
+      string[match.begin(2)...match.end(2)] = REPLACEMENT
+    end
+    string
   end
 
   # Wraps an existing log formatter, scrubbing the fully-rendered line so every

@@ -12,14 +12,13 @@ module Routing
     EXCLUSION_BUFFER = 0.0003
 
     # All routable monitored segments whose geometry intersects the bbox.
-    # bbox: [min_lng, min_lat, max_lng, max_lat]. Returns [MonitoredSegment].
+    # A west value greater than east crosses the antimeridian.
+    # bbox: [west_lng, min_lat, east_lng, max_lat]. Returns [MonitoredSegment].
     def segments_in_bbox(bbox, min_confidence: 0.0)
-      min_lng, min_lat, max_lng, max_lat = bbox
-      envelope = "SRID=4326;POLYGON((#{min_lng} #{min_lat}, #{max_lng} #{min_lat}, " \
-                 "#{max_lng} #{max_lat}, #{min_lng} #{max_lat}, #{min_lng} #{min_lat}))"
       MonitoredSegment
         .for_routing(min_confidence)
-        .where("ST_Intersects(geometry, ST_GeomFromEWKT(?))", envelope)
+        .where(*envelope_predicate(bbox))
+        .order(:id)
         .to_a
     end
 
@@ -39,6 +38,23 @@ module Routing
     end
 
     private
+
+    # A west value greater than east denotes a bbox crossing the antimeridian.
+    # PostGIS envelopes do not wrap, so split that range into two indexable boxes.
+    def envelope_predicate(bbox)
+      west, south, east, north = bbox
+      if west > east
+        [
+          "(ST_Intersects(geometry, ST_MakeEnvelope(?, ?, 180.0, ?, 4326)) OR " \
+            "ST_Intersects(geometry, ST_MakeEnvelope(-180.0, ?, ?, ?, 4326))) " \
+            "/* route-candidate-envelope */",
+          west, south, north, south, east, north
+        ]
+      else
+        [ "ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326)) " \
+          "/* route-candidate-envelope */", *bbox ]
+      end
+    end
 
     # Buffers the given segment ids in one query; returns [[id, ring_or_nil], ...].
     def load_rings(ids)

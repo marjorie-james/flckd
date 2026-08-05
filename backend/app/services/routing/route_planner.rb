@@ -332,12 +332,31 @@ module Routing
     end
 
     def bounding_box(origin, destination)
-      lngs = [ origin[:lng], destination[:lng] ]
-      lats = [ origin[:lat], destination[:lat] ]
-      [
-        lngs.min - BBOX_PADDING, lats.min - BBOX_PADDING,
-        lngs.max + BBOX_PADDING, lats.max + BBOX_PADDING
-      ]
+      lngs = [ origin[:lng].to_f, destination[:lng].to_f ]
+      lats = [ origin[:lat].to_f, destination[:lat].to_f ]
+      west, east = longitude_bounds(lngs)
+      [ west, (lats.min - BBOX_PADDING).clamp(-90.0, 90.0),
+        east, (lats.max + BBOX_PADDING).clamp(-90.0, 90.0) ]
+    end
+
+    # Find the smaller of the two circular arcs between the endpoints before
+    # applying padding. This treats -180 and +180 as one longitude and lets
+    # padding cross the antimeridian, which SegmentExclusionBuilder splits.
+    def longitude_bounds(lngs)
+      first, second = lngs.map { |lng| normalize_longitude(lng) }
+      eastward_span = (second - first) % 360.0
+      west, east = if eastward_span <= 180.0
+        [ first, first + eastward_span ]
+      else
+        [ second, first ]
+      end
+
+      [ normalize_longitude(west - BBOX_PADDING),
+        normalize_longitude(east + BBOX_PADDING) ]
+    end
+
+    def normalize_longitude(value)
+      ((value + 180.0) % 360.0 - 180.0).round(12)
     end
   end
 end
