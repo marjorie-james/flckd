@@ -29,16 +29,3 @@ ActiveSupport::Notifications.subscribe("process_action.action_controller") do |e
 
   Rails.logger.info(data.to_json)
 end
-
-# Candidate lookup volume and duration can expose growth before it becomes a
-# request-time failure. Only aggregate values are emitted; the lookup bbox and
-# route coordinates stay out of logs.
-ActiveSupport::Notifications.subscribe("routing.candidate_lookup") do |event|
-  Rails.logger.info(
-    {
-      name: "routing.candidate_lookup",
-      candidate_count: event.payload[:candidate_count],
-      duration_ms: event.duration.round(1)
-    }.compact.to_json
-  )
-end

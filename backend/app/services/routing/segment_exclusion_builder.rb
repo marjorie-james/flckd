@@ -12,15 +12,14 @@ module Routing
     EXCLUSION_BUFFER = 0.0003
 
     # All routable monitored segments whose geometry intersects the bbox.
-    # bbox: [min_lng, min_lat, max_lng, max_lat]. Returns [MonitoredSegment].
+    # A west value greater than east crosses the antimeridian.
+    # bbox: [west_lng, min_lat, east_lng, max_lat]. Returns [MonitoredSegment].
     def segments_in_bbox(bbox, min_confidence: 0.0)
-      ActiveSupport::Notifications.instrument("routing.candidate_lookup") do |payload|
-        candidates = MonitoredSegment.for_routing(min_confidence)
-        candidates = candidates.where(*envelope_predicate(bbox))
-        candidates = candidates.order(:id).to_a
-        payload[:candidate_count] = candidates.length
-        candidates
-      end
+      MonitoredSegment
+        .for_routing(min_confidence)
+        .where(*envelope_predicate(bbox))
+        .order(:id)
+        .to_a
     end
 
     # GeoJSON exterior rings ([[lng, lat], ...]) buffering each given segment —
@@ -47,11 +46,13 @@ module Routing
       if west > east
         [
           "(ST_Intersects(geometry, ST_MakeEnvelope(?, ?, 180.0, ?, 4326)) OR " \
-            "ST_Intersects(geometry, ST_MakeEnvelope(-180.0, ?, ?, ?, 4326)))",
+            "ST_Intersects(geometry, ST_MakeEnvelope(-180.0, ?, ?, ?, 4326))) " \
+            "/* route-candidate-envelope */",
           west, south, north, south, east, north
         ]
       else
-        [ "ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", *bbox ]
+        [ "ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326)) " \
+          "/* route-candidate-envelope */", *bbox ]
       end
     end
 

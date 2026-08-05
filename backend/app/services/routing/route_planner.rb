@@ -339,21 +339,24 @@ module Routing
         east, (lats.max + BBOX_PADDING).clamp(-90.0, 90.0) ]
     end
 
+    # Find the smaller of the two circular arcs between the endpoints before
+    # applying padding. This treats -180 and +180 as one longitude and lets
+    # padding cross the antimeridian, which SegmentExclusionBuilder splits.
     def longitude_bounds(lngs)
-      return [ -180.0, 180.0 ] if (lngs.max - lngs.min) >= 360.0
-
-      if lngs.max - lngs.min > 180.0
-        [ normalize_longitude(lngs.max - BBOX_PADDING),
-          normalize_longitude(lngs.min + BBOX_PADDING) ]
+      first, second = lngs.map { |lng| normalize_longitude(lng) }
+      eastward_span = (second - first) % 360.0
+      west, east = if eastward_span <= 180.0
+        [ first, first + eastward_span ]
       else
-        [ (lngs.min - BBOX_PADDING).clamp(-180.0, 180.0),
-          (lngs.max + BBOX_PADDING).clamp(-180.0, 180.0) ]
+        [ second, first ]
       end
+
+      [ normalize_longitude(west - BBOX_PADDING),
+        normalize_longitude(east + BBOX_PADDING) ]
     end
 
     def normalize_longitude(value)
-      wrapped = (value + 180.0) % 360.0 - 180.0
-      wrapped == -180.0 && value > 0 ? 180.0 : wrapped
+      ((value + 180.0) % 360.0 - 180.0).round(12)
     end
   end
 end

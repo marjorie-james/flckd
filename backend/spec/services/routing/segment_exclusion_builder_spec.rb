@@ -29,7 +29,8 @@ RSpec.describe Routing::SegmentExclusionBuilder do
     relation = MonitoredSegment.for_routing(0.0)
     allow(MonitoredSegment).to receive(:for_routing).with(0.0).and_return(relation)
     expect(relation).to receive(:where).with(
-      "ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
+      "ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326)) " \
+        "/* route-candidate-envelope */",
       *bbox
     ).and_call_original
 
@@ -44,23 +45,26 @@ RSpec.describe Routing::SegmentExclusionBuilder do
 
     result = described_class.new.segments_in_bbox([ 179.85, 41.65, -179.85, 41.72 ])
 
-    expect(result.map(&:id)).to include(east.id, west.id)
+    expect(result.map(&:id)).to contain_exactly(east.id, west.id)
   end
 
-  it "redacts low-precision envelope values in candidate SQL logs" do
+  it "redacts only candidate coordinate binds in Active Record SQL logs" do
     io = StringIO.new
     logger = ActiveSupport::Logger.new(io)
+    logger.level = Logger::DEBUG
     logger.formatter = AnonymityLogScrubber::Formatter.new(logger.formatter)
+    original_logger = ActiveRecord::Base.logger
+    ActiveRecord::Base.logger = logger
 
-    ActiveSupport::Notifications.subscribed(
-      lambda do |_name, _started, _finished, _id, payload|
-        logger.info("#{payload[:sql]} #{payload[:binds].inspect}") if payload[:sql].include?("ST_MakeEnvelope")
-      end,
-      "sql.active_record"
-    ) { described_class.new.segments_in_bbox(bbox) }
+    described_class.new.segments_in_bbox(bbox)
 
-    expect(io.string).not_to include("-92.60", "41.65", "-92.50", "41.72")
-    expect(io.string).to include("ST_MakeEnvelope")
+    sql_line = io.string.lines.find { |line| line.include?("route-candidate-envelope") }
+    expect(sql_line).to include("MonitoredSegment Load", "ST_MakeEnvelope($4, $5, $6, $7, 4326)")
+    expect(sql_line).to match(/\(\d+\.\d+ms\)/)
+    expect(sql_line).to include("[nil, [redacted-coord]]", "4326")
+    expect(sql_line).not_to include("-92.6", "41.65", "-92.5", "41.72")
+  ensure
+    ActiveRecord::Base.logger = original_logger
   end
 
   it "returns candidates in stable primary-key order" do
@@ -80,22 +84,6 @@ RSpec.describe Routing::SegmentExclusionBuilder do
     expect(result.map(&:id)).to eq(result.map(&:id).sort)
     expect(queries.one?).to be(true)
     expect(queries.first).to match(/ORDER BY .*monitored_segments.*id.* ASC/)
-  end
-
-  it "instruments only aggregate candidate count and query duration" do
-    events = []
-    callback = lambda do |name, started, finished, id, payload|
-      events << ActiveSupport::Notifications::Event.new(name, started, finished, id, payload)
-    end
-
-    result = ActiveSupport::Notifications.subscribed(callback, "routing.candidate_lookup") do
-      described_class.new.segments_in_bbox(bbox)
-    end
-
-    expect(result).to include(segment)
-    expect(events.one?).to be(true)
-    expect(events.first.payload).to eq(candidate_count: 1)
-    expect(events.first.duration).to be >= 0
   end
 
   it "with min_confidence, excludes only high-confidence cameras' segments" do

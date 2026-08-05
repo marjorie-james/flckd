@@ -310,7 +310,7 @@ RSpec.describe Routing::RoutePlanner do
       engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
       exclusion = instance_double(Routing::SegmentExclusionBuilder, segments_in_bbox: [])
       expect(exclusion).to receive(:segments_in_bbox)
-        .with([ 179.85000000000002, -0.05, -179.85, 0.05 ], min_confidence: 0.0)
+        .with([ 179.85, -0.05, -179.85, 0.05 ], min_confidence: 0.0)
         .and_return([])
 
       described_class.new(routing_client: engine, exclusion_builder: exclusion)
@@ -318,30 +318,57 @@ RSpec.describe Routing::RoutePlanner do
                          destination: { lat: 0.0, lng: -179.9 })
     end
 
-    it "clamps a global boundary request and queries the real exclusion builder" do
+    it "wraps padding around endpoints near the antimeridian" do
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      exclusion = instance_double(Routing::SegmentExclusionBuilder, segments_in_bbox: [])
+      expect(exclusion).to receive(:segments_in_bbox)
+        .with([ 179.93, -0.05, -179.96, 0.05 ], min_confidence: 0.0)
+        .and_return([])
+
+      described_class.new(routing_client: engine, exclusion_builder: exclusion)
+                   .plan(origin: { lat: 0.0, lng: 179.98 },
+                         destination: { lat: 0.0, lng: 179.99 })
+    end
+
+    it "treats -180 and +180 as the same longitude without scanning the globe" do
+      east = create(:monitored_segment,
+                    geometry: "SRID=4326;LINESTRING(179.98 0.0, 179.99 0.0)")
+      west = create(:monitored_segment,
+                    geometry: "SRID=4326;LINESTRING(-179.99 0.0, -179.98 0.0)")
       central = create(:monitored_segment,
                        geometry: "SRID=4326;LINESTRING(-0.01 0.0, 0.01 0.0)")
       engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
-      detector = instance_double(Routing::RouteCameraDetector)
-      seen_candidates = []
-      allow(detector).to receive(:passed) do |_route, candidates|
-        seen_candidates.concat(candidates)
-        []
-      end
+      detector = instance_double(Routing::RouteCameraDetector, passed: [])
       exclusion = Routing::SegmentExclusionBuilder.new
       expect(exclusion).to receive(:segments_in_bbox)
-        .with([ -180.0, -90.0, 180.0, 90.0 ], min_confidence: 0.0)
+        .with([ 179.95, -0.05, -179.95, 0.05 ], min_confidence: 0.0)
         .and_call_original
 
       described_class.new(routing_client: engine,
                           exclusion_builder: exclusion,
                           detector: detector)
                      .plan(
-                       origin: { lat: 90.0, lng: 180.0 },
-                       destination: { lat: -90.0, lng: -180.0 }
+                       origin: { lat: 0.0, lng: 180.0 },
+                       destination: { lat: 0.0, lng: -180.0 }
                      )
 
-      expect(seen_candidates.map(&:id)).to eq([ central.id ])
+      result = Routing::SegmentExclusionBuilder.new
+                                                .segments_in_bbox([ 179.95, -0.05, -179.95, 0.05 ])
+
+      expect(result.map(&:id)).to contain_exactly(east.id, west.id)
+      expect(result).not_to include(central)
+    end
+
+    it "uses the smaller circular interval for far-apart endpoints" do
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      exclusion = instance_double(Routing::SegmentExclusionBuilder, segments_in_bbox: [])
+      expect(exclusion).to receive(:segments_in_bbox)
+        .with([ 169.95, -0.05, -19.95, 0.05 ], min_confidence: 0.0)
+        .and_return([])
+
+      described_class.new(routing_client: engine, exclusion_builder: exclusion)
+                   .plan(origin: { lat: 0.0, lng: 170.0 },
+                         destination: { lat: 0.0, lng: -20.0 })
     end
   end
 
