@@ -1,4 +1,5 @@
 require "rails_helper"
+require "stringio"
 
 RSpec.describe Routing::SegmentExclusionBuilder do
   # A monitored segment on a known Iowa I-80 line, with an active camera.
@@ -33,6 +34,33 @@ RSpec.describe Routing::SegmentExclusionBuilder do
     ).and_call_original
 
     expect(described_class.new.segments_in_bbox(bbox)).to include(segment)
+  end
+
+  it "finds candidates on both sides of the antimeridian with split envelopes" do
+    east = create(:monitored_segment,
+                  geometry: "SRID=4326;LINESTRING(179.90 41.6963, 179.95 41.6963)")
+    west = create(:monitored_segment,
+                  geometry: "SRID=4326;LINESTRING(-179.95 41.6963, -179.90 41.6963)")
+
+    result = described_class.new.segments_in_bbox([ 179.85, 41.65, -179.85, 41.72 ])
+
+    expect(result.map(&:id)).to include(east.id, west.id)
+  end
+
+  it "redacts low-precision envelope values in candidate SQL logs" do
+    io = StringIO.new
+    logger = ActiveSupport::Logger.new(io)
+    logger.formatter = AnonymityLogScrubber::Formatter.new(logger.formatter)
+
+    ActiveSupport::Notifications.subscribed(
+      lambda do |_name, _started, _finished, _id, payload|
+        logger.info("#{payload[:sql]} #{payload[:binds].inspect}") if payload[:sql].include?("ST_MakeEnvelope")
+      end,
+      "sql.active_record"
+    ) { described_class.new.segments_in_bbox(bbox) }
+
+    expect(io.string).not_to include("-92.60", "41.65", "-92.50", "41.72")
+    expect(io.string).to include("ST_MakeEnvelope")
   end
 
   it "returns candidates in stable primary-key order" do

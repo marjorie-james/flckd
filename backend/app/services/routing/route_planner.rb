@@ -332,14 +332,28 @@ module Routing
     end
 
     def bounding_box(origin, destination)
-      lngs = [ origin[:lng], destination[:lng] ]
-      lats = [ origin[:lat], destination[:lat] ]
-      [
-        (lngs.min - BBOX_PADDING).clamp(-180.0, 180.0),
-        (lats.min - BBOX_PADDING).clamp(-90.0, 90.0),
-        (lngs.max + BBOX_PADDING).clamp(-180.0, 180.0),
-        (lats.max + BBOX_PADDING).clamp(-90.0, 90.0)
-      ]
+      lngs = [ origin[:lng].to_f, destination[:lng].to_f ]
+      lats = [ origin[:lat].to_f, destination[:lat].to_f ]
+      west, east = longitude_bounds(lngs)
+      [ west, (lats.min - BBOX_PADDING).clamp(-90.0, 90.0),
+        east, (lats.max + BBOX_PADDING).clamp(-90.0, 90.0) ]
+    end
+
+    def longitude_bounds(lngs)
+      return [ -180.0, 180.0 ] if (lngs.max - lngs.min) >= 360.0
+
+      if lngs.max - lngs.min > 180.0
+        [ normalize_longitude(lngs.max - BBOX_PADDING),
+          normalize_longitude(lngs.min + BBOX_PADDING) ]
+      else
+        [ (lngs.min - BBOX_PADDING).clamp(-180.0, 180.0),
+          (lngs.max + BBOX_PADDING).clamp(-180.0, 180.0) ]
+      end
+    end
+
+    def normalize_longitude(value)
+      wrapped = (value + 180.0) % 360.0 - 180.0
+      wrapped == -180.0 && value > 0 ? 180.0 : wrapped
     end
   end
 end

@@ -63,14 +63,23 @@ module AnonymityLogScrubber
   # appears outside a pair.
   COORD_PAIR = /(-?\d{1,3}(?:\.\d+)?)(\s*,\s*)(-?\d{1,3}(?:\.\d+)?)/
   COORD = /-?\d{1,3}\.\d{3,}/ # 3+ decimal places ~ a precise coordinate
+  SQL_NUMBER = /-?\d+(?:\.\d+)?/
   REPLACEMENT = "[redacted-coord]"
 
   def self.scrub(string)
     return string unless string.is_a?(String)
 
-    string
+    scrubbed = string
       .gsub(COORD_PAIR, "#{REPLACEMENT}\\2#{REPLACEMENT}")
       .gsub(COORD, REPLACEMENT)
+
+    # Active Record may render low-precision binds separately rather than as a
+    # comma-joined pair. Candidate lookups are the only SQL lines containing
+    # this marker, so redact their numeric values without suppressing SQL logs.
+    if scrubbed.include?("ST_MakeEnvelope")
+      scrubbed = scrubbed.gsub(SQL_NUMBER) { |number| number == "4326" ? number : REPLACEMENT }
+    end
+    scrubbed
   end
 
   # Wraps an existing log formatter, scrubbing the fully-rendered line so every

@@ -306,6 +306,18 @@ RSpec.describe Routing::RoutePlanner do
   end
 
   describe "candidate lookup integration" do
+    it "wraps a nearby antimeridian request instead of scanning the globe" do
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      exclusion = instance_double(Routing::SegmentExclusionBuilder, segments_in_bbox: [])
+      expect(exclusion).to receive(:segments_in_bbox)
+        .with([ 179.85000000000002, -0.05, -179.85, 0.05 ], min_confidence: 0.0)
+        .and_return([])
+
+      described_class.new(routing_client: engine, exclusion_builder: exclusion)
+                   .plan(origin: { lat: 0.0, lng: 179.9 },
+                         destination: { lat: 0.0, lng: -179.9 })
+    end
+
     it "clamps a global boundary request and queries the real exclusion builder" do
       central = create(:monitored_segment,
                        geometry: "SRID=4326;LINESTRING(-0.01 0.0, 0.01 0.0)")

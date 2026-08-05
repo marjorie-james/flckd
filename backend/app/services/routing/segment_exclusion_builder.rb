@@ -15,11 +15,9 @@ module Routing
     # bbox: [min_lng, min_lat, max_lng, max_lat]. Returns [MonitoredSegment].
     def segments_in_bbox(bbox, min_confidence: 0.0)
       ActiveSupport::Notifications.instrument("routing.candidate_lookup") do |payload|
-        candidates = MonitoredSegment
-                     .for_routing(min_confidence)
-                     .where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", *bbox)
-                     .order(:id)
-                     .to_a
+        candidates = MonitoredSegment.for_routing(min_confidence)
+        candidates = candidates.where(*envelope_predicate(bbox))
+        candidates = candidates.order(:id).to_a
         payload[:candidate_count] = candidates.length
         candidates
       end
@@ -41,6 +39,21 @@ module Routing
     end
 
     private
+
+    # A west value greater than east denotes a bbox crossing the antimeridian.
+    # PostGIS envelopes do not wrap, so split that range into two indexable boxes.
+    def envelope_predicate(bbox)
+      west, south, east, north = bbox
+      if west > east
+        [
+          "(ST_Intersects(geometry, ST_MakeEnvelope(?, ?, 180.0, ?, 4326)) OR " \
+            "ST_Intersects(geometry, ST_MakeEnvelope(-180.0, ?, ?, ?, 4326)))",
+          west, south, north, south, east, north
+        ]
+      else
+        [ "ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", *bbox ]
+      end
+    end
 
     # Buffers the given segment ids in one query; returns [[id, ring_or_nil], ...].
     def load_rings(ids)
