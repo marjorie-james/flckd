@@ -24,6 +24,52 @@ RSpec.describe Routing::SegmentExclusionBuilder do
     expect(result[:segments].map(&:id)).to include(segment.id)
   end
 
+  it "passes bbox values separately to ST_MakeEnvelope while executing the real query" do
+    relation = MonitoredSegment.for_routing(0.0)
+    allow(MonitoredSegment).to receive(:for_routing).with(0.0).and_return(relation)
+    expect(relation).to receive(:where).with(
+      "ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))",
+      *bbox
+    ).and_call_original
+
+    expect(described_class.new.segments_in_bbox(bbox)).to include(segment)
+  end
+
+  it "returns candidates in stable primary-key order" do
+    create(:monitored_segment, osm_way_id: 222,
+                               geometry: "SRID=4326;LINESTRING(-92.5380 41.6963, -92.5370 41.6963)")
+    create(:monitored_segment, osm_way_id: 333,
+                               geometry: "SRID=4326;LINESTRING(-92.5360 41.6963, -92.5350 41.6963)")
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] if payload[:sql].include?("ST_MakeEnvelope")
+    end
+
+    result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.new.segments_in_bbox(bbox)
+    end
+
+    expect(result.map(&:id)).to eq(result.map(&:id).sort)
+    expect(queries.one?).to be(true)
+    expect(queries.first).to match(/ORDER BY .*monitored_segments.*id.* ASC/)
+  end
+
+  it "instruments only aggregate candidate count and query duration" do
+    events = []
+    callback = lambda do |name, started, finished, id, payload|
+      events << ActiveSupport::Notifications::Event.new(name, started, finished, id, payload)
+    end
+
+    result = ActiveSupport::Notifications.subscribed(callback, "routing.candidate_lookup") do
+      described_class.new.segments_in_bbox(bbox)
+    end
+
+    expect(result).to include(segment)
+    expect(events.one?).to be(true)
+    expect(events.first.payload).to eq(candidate_count: 1)
+    expect(events.first.duration).to be >= 0
+  end
+
   it "with min_confidence, excludes only high-confidence cameras' segments" do
     # `segment`'s camera is the factory default (confidence 0.9 → high).
     low_camera = create(:camera, confidence: 0.6, location: "SRID=4326;POINT(-92.5395 41.6963)")

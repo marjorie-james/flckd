@@ -14,13 +14,15 @@ module Routing
     # All routable monitored segments whose geometry intersects the bbox.
     # bbox: [min_lng, min_lat, max_lng, max_lat]. Returns [MonitoredSegment].
     def segments_in_bbox(bbox, min_confidence: 0.0)
-      min_lng, min_lat, max_lng, max_lat = bbox
-      envelope = "SRID=4326;POLYGON((#{min_lng} #{min_lat}, #{max_lng} #{min_lat}, " \
-                 "#{max_lng} #{max_lat}, #{min_lng} #{max_lat}, #{min_lng} #{min_lat}))"
-      MonitoredSegment
-        .for_routing(min_confidence)
-        .where("ST_Intersects(geometry, ST_GeomFromEWKT(?))", envelope)
-        .to_a
+      ActiveSupport::Notifications.instrument("routing.candidate_lookup") do |payload|
+        candidates = MonitoredSegment
+                     .for_routing(min_confidence)
+                     .where("ST_Intersects(geometry, ST_MakeEnvelope(?, ?, ?, ?, 4326))", *bbox)
+                     .order(:id)
+                     .to_a
+        payload[:candidate_count] = candidates.length
+        candidates
+      end
     end
 
     # GeoJSON exterior rings ([[lng, lat], ...]) buffering each given segment —

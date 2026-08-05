@@ -33,4 +33,22 @@ RSpec.describe "API request latency telemetry", type: :request do
     expect(data["status"]).to eq(200)
     expect(data["duration_ms"]).to be_a(Numeric)
   end
+
+  it "emits candidate lookup count and duration without bbox or coordinates" do
+    create(:monitored_segment,
+           geometry: "SRID=4326;LINESTRING(-92.5410 41.6963, -92.5400 41.6963)")
+
+    log = capture_log do
+      Routing::SegmentExclusionBuilder.new.segments_in_bbox([ -92.60, 41.65, -92.50, 41.72 ])
+    end
+    json_line = log.lines.map(&:strip).find do |line|
+      line.include?(%q("name":"routing.candidate_lookup"))
+    end
+    expect(json_line).not_to be_nil, "expected a structured routing.candidate_lookup log line"
+
+    data = JSON.parse(json_line[json_line.index("{")..])
+    expect(data.keys).to contain_exactly("name", "candidate_count", "duration_ms")
+    expect(data["candidate_count"]).to eq(1)
+    expect(data["duration_ms"]).to be_a(Numeric)
+  end
 end

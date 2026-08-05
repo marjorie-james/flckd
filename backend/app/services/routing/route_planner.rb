@@ -335,8 +335,10 @@ module Routing
       lngs = [ origin[:lng], destination[:lng] ]
       lats = [ origin[:lat], destination[:lat] ]
       [
-        lngs.min - BBOX_PADDING, lats.min - BBOX_PADDING,
-        lngs.max + BBOX_PADDING, lats.max + BBOX_PADDING
+        (lngs.min - BBOX_PADDING).clamp(-180.0, 180.0),
+        (lats.min - BBOX_PADDING).clamp(-90.0, 90.0),
+        (lngs.max + BBOX_PADDING).clamp(-180.0, 180.0),
+        (lats.max + BBOX_PADDING).clamp(-90.0, 90.0)
       ]
     end
   end

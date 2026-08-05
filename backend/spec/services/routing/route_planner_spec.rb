@@ -305,6 +305,34 @@ RSpec.describe Routing::RoutePlanner do
     end
   end
 
+  describe "candidate lookup integration" do
+    it "clamps a global boundary request and queries the real exclusion builder" do
+      central = create(:monitored_segment,
+                       geometry: "SRID=4326;LINESTRING(-0.01 0.0, 0.01 0.0)")
+      engine = GeoFakes::FakeRoutingEngine.new(fastest: fastest)
+      detector = instance_double(Routing::RouteCameraDetector)
+      seen_candidates = []
+      allow(detector).to receive(:passed) do |_route, candidates|
+        seen_candidates.concat(candidates)
+        []
+      end
+      exclusion = Routing::SegmentExclusionBuilder.new
+      expect(exclusion).to receive(:segments_in_bbox)
+        .with([ -180.0, -90.0, 180.0, 90.0 ], min_confidence: 0.0)
+        .and_call_original
+
+      described_class.new(routing_client: engine,
+                          exclusion_builder: exclusion,
+                          detector: detector)
+                     .plan(
+                       origin: { lat: 90.0, lng: 180.0 },
+                       destination: { lat: -90.0, lng: -180.0 }
+                     )
+
+      expect(seen_candidates.map(&:id)).to eq([ central.id ])
+    end
+  end
+
   describe "deadline accounting" do
     it "starts the clock before candidate lookup and reduces the fastest request timeout" do
       now = 100.0
