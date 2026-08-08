@@ -111,12 +111,13 @@ export function PlanRoutePage() {
   // the assertive RouteNotice/error alerts inside it. Instead this single status
   // line says planning is underway, then summarizes the resolved route; the error
   // and not-camera-free alerts announce themselves (role="alert").
+  const totals = route ? routeTotals(route) : null;
   const routeAnnouncement = busy
     ? t("status.planning")
-    : route
+    : route && totals
       ? t("status.routeReady", {
-          minutes: routeTotals(route).travelMin,
-          km: routeTotals(route).km,
+          minutes: totals.travelMin,
+          km: totals.km,
         })
       : "";
 

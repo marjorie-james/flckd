@@ -1,11 +1,6 @@
-// Curated working types for the app, mirroring the backend API contract
-// (specs/.../contracts/openapi.yaml).
-//
-// The full contract is also generated verbatim into `./openapi.d.ts` via
-// `pnpm gen:types` and type-checked by the build (`tsc -b`); regenerate it after
-// any contract change. These hand-written types are intentionally stricter
-// (required fields, app-only `shape_index`) than the generated all-optional
-// shapes so consuming components don't need defensive null-checks everywhere.
+// Working types for the app, mirroring the backend API contract
+// (specs/.../contracts/openapi.yaml). They keep required fields and app-only
+// `shape_index` explicit so consuming components do not need defensive checks.
 export interface Coordinate {
   lat: number;
   lng: number;
