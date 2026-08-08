@@ -12,12 +12,6 @@ Rails.application.configure do
   # Full error reports are disabled.
   config.consider_all_requests_local = false
 
-  # Cache assets for far-future expiry since they are all digest stamped.
-  config.public_file_server.headers = { "cache-control" => "public, max-age=#{1.year.to_i}" }
-
-  # Enable serving of images, stylesheets, and JavaScripts from an asset server.
-  # config.asset_host = "http://assets.example.com"
-
   # ActiveStorage is not loaded (engine removed in application.rb — M5 remediation).
   # config.active_storage.service = :local
 
@@ -53,23 +47,6 @@ Rails.application.configure do
   # Durable Active Job backend: Solid Queue, on the primary database (no dedicated
   # queue DB — see config/queue.yml and the create_solid_queue_tables migration).
   config.active_job.queue_adapter = :solid_queue
-
-  # Ignore bad email addresses and do not raise email delivery errors.
-  # Set this to true and configure the email server for immediate delivery to raise delivery errors.
-  # config.action_mailer.raise_delivery_errors = false
-
-  # Set host to be used by links generated in mailer templates.
-  # No mailer in this app (account-less by design). Kept as a no-op placeholder.
-  # config.action_mailer.default_url_options = { host: ENV.fetch("API_DOMAIN", "localhost") }
-
-  # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
-  # config.action_mailer.smtp_settings = {
-  #   user_name: Rails.application.credentials.dig(:smtp, :user_name),
-  #   password: Rails.application.credentials.dig(:smtp, :password),
-  #   address: "smtp.example.com",
-  #   port: 587,
-  #   authentication: :plain
-  # }
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
   # the I18n.default_locale when a translation cannot be found).

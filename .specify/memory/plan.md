@@ -7,7 +7,7 @@
 ## Architecture Overview
 
 - **Backend**: Ruby 3.4.x + Rails 8.1.x (API mode). Rails 8.1 built-ins: Solid Queue (jobs, recurring
-  jobs, job continuations, `limits_concurrency`), Solid Cache, Propshaft, Kamal 2 + Thruster (deploy).
+  jobs, job continuations, `limits_concurrency`), Solid Cache, Kamal 2 + Thruster (deploy).
   No Rails auth generator (account-less by design).
 - **Frontend**: TypeScript + React 19, Vite, MapLibre GL JS v5, `@tanstack/react-query`,
   react-i18next / i18next, react-router.

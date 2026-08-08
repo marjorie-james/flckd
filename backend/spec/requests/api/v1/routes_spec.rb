@@ -45,6 +45,11 @@ RSpec.describe "POST /api/v1/routes", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = response.parsed_body
+    # Keep Result#to_h as strict as the deleted serializer's explicit allowlist.
+    expect(body.keys).to contain_exactly(
+      "geometry", "distance_m", "duration_s", "maneuvers", "cameras_avoided_count",
+      "remaining_cameras", "is_fully_clean", "fastest_comparison", "coverage_warning"
+    )
     expect(body["is_fully_clean"]).to be(true)
     expect(body["cameras_avoided_count"]).to eq(2)
     expect(body["fastest_comparison"]).to include("added_duration_s" => 100)

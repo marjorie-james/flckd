@@ -43,14 +43,10 @@ Run any script inside the container, e.g.
 | `pnpm build` | Type-check (`tsc -b`) + production build |
 | `pnpm test -- run` | Run the Vitest unit suite once |
 | `pnpm lint` | ESLint (zero warnings required) |
-| `pnpm gen:types` | Regenerate `src/types/openapi.d.ts` from the OpenAPI contract |
 
 ## Types & contract sync
 
-`src/types/api.ts` holds the curated working types used across the app. The full API contract is
-generated verbatim into `src/types/openapi.d.ts` from
-[`contracts/openapi.yaml`](../specs/002-flock-route-avoidance/contracts/openapi.yaml) via
-`pnpm gen:types`, and is type-checked by the build. Regenerate after any contract change.
+`src/types/api.ts` holds the working types used across the app and mirrors the backend API contract.
 
 ## Tests
 
@@ -83,7 +79,7 @@ src/
 ├── services/     # apiClient, routeApi, geocodeApi, cameraApi, coverageApi (TanStack Query)
 ├── hooks/        # useGeolocation, useDebounce
 ├── i18n/         # i18next config + locales; resolveLocale (env matcher) + localePreference (stored choice)
-└── types/        # api.ts (curated) + openapi.d.ts (generated)
+└── types/        # api.ts
 ```
 
 ## Anonymity notes

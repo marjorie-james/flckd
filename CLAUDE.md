@@ -28,7 +28,7 @@ map rendering (snapped dots, vision cones per `facing_direction`, 360° halos) a
 
 **Stack**: Ruby 3.4.x + Rails 8.1.x (latest stable, API mode) backend; TypeScript + React 19 (Vite, MapLibre GL JS)
 frontend; PostgreSQL 17 + PostGIS. Rails 8.1 built-ins in use: Solid Queue (jobs, with job continuations), Solid Cache,
-Propshaft, Kamal 2 + Thruster (deploy). No Rails auth generator (account-less by design).
+Kamal 2 + Thruster (deploy). No Rails auth generator (account-less by design).
 
 **Self-hosted geo stack** (own infrastructure — never third parties): Valhalla (segment-exclusion
 routing), Nominatim (forward/reverse geocoding), self-hosted vector tiles (Protomaps PMTiles via go-pmtiles).

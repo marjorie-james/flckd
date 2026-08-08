@@ -12,7 +12,7 @@ module Api
           destination: destination,
           locale: route_params[:locale] || I18n.locale.to_s
         )
-        render json: RouteSerializer.new(result).as_json
+        render json: result.to_h
       rescue ActionController::ParameterMissing => e
         # Handle bad input here, inside the locale-scoped around_action, so the
         # 400 message is localized — class-level rescue_from runs after the locale
